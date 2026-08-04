@@ -1,0 +1,23 @@
+# Dev-only stack: a disposable PostgreSQL 18 container for local backend development.
+# The production stack (single combined app container + db) is defined separately
+# per docs/architecture/infra.md — this file is NOT used for deployment.
+services:
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ifrit
+      POSTGRES_PASSWORD: ifrit
+      POSTGRES_DB: ifrit
+    ports:
+      - "5432:5432"
+    volumes:
+      - ifrit-dev-db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ifrit -d ifrit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  ifrit-dev-db:

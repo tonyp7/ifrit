@@ -1,0 +1,37 @@
+# Backend (Python / uv)
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.egg-info/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/htmlcov/
+backend/.coverage
+backend/.coverage.*
+.env
+backend/.env
+
+# Frontend (Node / Vite)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/*.local
+frontend/*.tsbuildinfo
+frontend/coverage/
+frontend/.eslintcache
+
+# Logs (either stack)
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editors / OS
+.DS_Store
+.vscode/
+.idea/
+
+# Helpers for developments
+.debug/
