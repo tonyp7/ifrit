@@ -1,3 +1,18 @@
 {
-  "Timesheet": "Timesheet"
+  "Timesheet": "Timesheet",
+  "Week": "Week",
+  "Month": "Month",
+  "Week {{number}}": "Week {{number}}",
+  "Total": "Total",
+  "Add service line": "Add service line",
+  "Remove service line": "Remove service line",
+  "Hours": "Hours",
+  "Today": "Today",
+  "Month to date": "Month to date",
+  "Service line": "Service line",
+  "(unnamed service line)": "(unnamed service line)",
+  "No service lines added yet. Use “Add service line” below to start logging time.": "No service lines added yet. Use “Add service line” below to start logging time.",
+  "Failed to load service lines.": "Failed to load service lines.",
+  "Failed to load time entries.": "Failed to load time entries.",
+  "Failed to save time entry.": "Failed to save time entry."
 }

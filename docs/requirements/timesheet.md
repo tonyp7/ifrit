@@ -2,28 +2,54 @@ THIS IS A DRAFT - NOT YET REVIEWED AND NOT YET IMPLEMENTED
 
 # Timesheet — User Stories
 
-- The screen where a `consultant` logs time against a `Service Line` they're assigned to (see [project.md](project.md)).
-- A `consultant` can **Submit** his weekly/monthly allocation against a service line. In this case it is no longer editable.
-- The screen where a `manager` can see his own timesheet, but also those of `consultants`, and **Validate** timesheet submitted or re-open them. This is a separate **Validation** screen, reached via the `timesheet` nav icon's dropdown (manager role only) — see [home.md § Timesheet Menu](home.md#timesheet-menu). The screen's own layout/content is not yet specified (see Open Questions below).
+Two distinct screens live under this doc, both reached via the `timesheet` nav icon — see
+[home.md § Timesheet Menu](home.md#timesheet-menu) for how the icon's behavior branches by role.
+They're kept clearly separate below: one is the data-entry mechanism, the other is the
+manager-only review workflow built on top of it.
 
-## UI/UX for mobile first timesheet
+- **My Timesheet** (see §My Timesheet (Clocking) below) — where a user logs their own time
+  against a `Service Line` they're assigned to (see [project.md](project.md)). Cells are freely
+  editable — **there is no Submit step** — until a manager locks them via §Validation.
+- **Validation** (see §Validation below — **placeholder only, not yet specified**) — where a
+  `manager` sees their own timesheet, but also those of consultants, and **locks**/**unlocks**
+  cells to freeze/unfreeze them from further edits.
+
+## My Timesheet (Clocking)
+
+The screen where a user enters their own time. This section covers the data-entry mechanism
+only — see §Validation below for the separate manager-facing lock/unlock screen.
 
 - Each **service line** is a logical row (shown with its parent project's name for context — a
   consultant assigned to multiple service lines on the same project gets one row per service
   line, never one combined row per project).
-- Users can select **Week** or **Month** as the view to submit
+- Users can select **Week** or **Month** as the view.
 - Each **day of the selected month/week** is a logical column.
 - A cell = hours logged for a given project service line on a given day.
+- "Today," day boundaries, and which `date` a near-midnight entry lands on are all computed from
+  the user's own browser/OS timezone — not server time, not a fixed org timezone.
 - One data model drives two responsive views: a day-by-day view on mobile, and a spreadsheet grid on desktop/tablet.
 - The UI never shows a 7 days (depending if the user selected Weekly or Monthly) or 30+ column grid on small screens  — instead it shows one day at a time with service lines listed vertically, using the same underlying data.
 
 ### State 
 State needed at the top level:
-- `monthDate` — first-of-month Date representing the active month.
-- `serviceLines` — array of `Service Lines`.
+- `periodType` — `'week' | 'month'`, which view the user currently has selected (see §Shared
+  header below).
+- `periodDate` — a single anchor date whose *meaning* depends on `periodType`: the first-of-month
+  Date when `periodType === 'month'`, or the Monday of the active week when `periodType ===
+  'week'`. One field instead of separate `monthDate`/`weekDate` fields, since exactly one of them
+  is ever meaningful at a time — which one just depends on `periodType`.
+- `serviceLines` — array of `Service Lines` shown for the current period. Populated from the
+  union of: (1) service lines the user is currently assigned to and has added via "Add service
+  line" (see §Interactions & Input Rules below — assignment-gated), and (2) service lines with
+  *any* existing `time_entries` row for this user, regardless of current assignment. (2) is what
+  keeps historical locked time visible even after the user is later unassigned from that line —
+  this is also why "removing" a service line (see §Interactions & Input Rules) can safely be a
+  session-local view action rather than something that needs to persist or guard against locked
+  data: reloading always reconstitutes this union from scratch.
 - `entries` — `Entries` map.
 - `selectedKey` — dayKey of the currently open day (mobile view only).
-- Derived, not stored: `days` (all Date objects in the month), day totals, service line totals, month total.
+- Derived, not stored: `days` (all Date objects in the active period — 7 for `week`, 28–31 for
+  `month`), day totals, service line totals, period total.
 
 ### Derived values
 - `dayTotal(dayKey)` — sum of hours across all project service lines for that day.
@@ -34,24 +60,39 @@ State needed at the top level:
 
 ### Persistence
 
-- Each cell autosaves to the `clocking` table on **blur** — not per-keystroke, not on a timer.
+- Each cell autosaves to the `time_entries` table on **blur** — not per-keystroke, not on a timer.
   The derived totals above still update live from local state on every keystroke regardless of
   whether the underlying row has been persisted yet.
-- On blur, if the value is `0`: no save call is made. If a `clocking` row already exists for that
-  `(user, service_line, date)` (the user had a value there earlier and cleared it), it is
-  deleted — this is the trigger for §Schema's delete-on-zero rule, restated here since this is
-  where it actually fires.
+- On blur, if the value is `0`: no save call is made. If a `time_entries` row already exists for that
+  `(user, service_line, date)`, it is deleted. A `0` entry has no reason to exist as a row once
+  there's no Submit step for it to matter to — this is simpler than the earlier draft, which
+  briefly required saving `0` rows for a since-removed Submit mechanism to attach status to. The
+  one place this simplicity has a real cost is deferred to §Validation: locking a date range that
+  includes untouched (rowless) days now has to decide what happens to those gaps — see the new
+  open question there.
 - On blur, if the value is `> 0`: the row is upserted (`INSERT ... ON CONFLICT (user_id,
-  service_line_id, date) DO UPDATE`, matching the table's unique constraint) with `status =
-  'open'`.
-- This flow only ever applies to `open` rows — once a row is `submitted`/`validated` its cell
-  renders read-only (see the user stories above), so there's no blur-to-save path to guard
-  against separately.
+  service_line_id, date) DO UPDATE`, matching the table's unique constraint) with `is_locked =
+  false`. A row created this way is always unlocked by construction — the consultant's own save
+  path can never set `is_locked = true`; only a manager's action on §Validation can.
+- This flow only ever applies while `is_locked = false` — once a row is locked its cell renders
+  read-only (see the user stories above), so there's no blur-to-save path to guard against
+  separately.
+- **Saving a new entry against a service line the user is no longer assigned to must error, not
+  silently succeed.** This only affects genuinely new/unlocked entries — a service line can still
+  be visible with existing locked rows after unassignment (see §State's population rule and
+  §Interactions & Input Rules' removal rule), and those stay untouched and read-only regardless.
+  Whether the UI proactively disables such a cell rather than letting the user type into it and
+  fail on blur is not yet specified.
 
 ### Shared header (all breakpoints)
-- Month label (e.g. "August 2026") OR Week Number (e.g. "Week 34") with prev/next controls.
-- Month or Week total hours, right-aligned.
-- Changing month/week resets `selectedKey` to today's date if today falls in the new month/week, otherwise to the 1st week of the day/month.
+- Option to switch `periodType` between Month view or Week view.
+- Month label (e.g. "August 2026") OR Week Number (e.g. "Week 34") with prev/next controls —
+  whichever matches the current `periodType`.
+- Period total hours (month or week, matching `periodType`), right-aligned.
+- Changing `periodDate` (via prev/next, or switching `periodType`) sets `selectedKey` to the
+  logical step:
+  - Example 1. Changing from Week 34 to Week 35 naturally set the `selectedKey` to Monday of Week 34
+  - Example 2. Changing from August 2026 to July 2026 set `selectedKey` to July 31st
 
 ### Mobile view
 1. **Day strip**: horizontally scrollable row of day chips, one per day in the month.
@@ -61,20 +102,21 @@ State needed at the top level:
    - Tapping a chip sets `selectedKey`.
 2. **Selected day detail card**: full date heading + day total, then one row per service line:
    - project name + service line name + numeric hour input (step 0.5, min 0, max 24), autosaved
-     on blur (see §Persistence above).
+     on blur (see §Persistence above), + a remove icon (always visible, not gated behind a
+     gesture) — see §Interactions & Input Rules below for when it's actually enabled.
    - "Add service line" affordance at the end of the list — opens the constrained dropdown
-     described in §Interactions & validation below, not free text.
+     described in §Interactions & Input Rules below, not free text.
    - Empty state message if no service lines are added yet.
 3. **Sticky bottom summary bar**: selected day's total and running month-to-date total, always visible while scrolling/typing.
 
 ### Desktop / tablet view
 - Spreadsheet-style grid/table:
   - Sticky header row: day-of-week 1 letter (M, T, W, etc) + day number per column, weekend columns visually shaded, today's column highlighted (e.g. top border accent).
-  - Sticky first column: project name + service line name + color dot + remove-service-line
-    control (visible on row hover) — the service line name is required here, not optional
-    styling: it's what disambiguates two rows belonging to the same project (see
-    [project.md § Service Lines](project.md#service-lines)).
-  - Sticky last column: per-row (per-service-line) month total.
+  - Sticky first column: project name + service line name + remove-service-line control — always
+    visible, same as mobile, not gated behind row hover (see §Interactions & Input Rules below)
+    — the service line name is required here, not optional styling: it's what disambiguates two
+    rows belonging to the same project (see [project.md § Service Lines](project.md#service-lines)).
+  - Sticky last column: per-row (per-service-line) month/week total.
   - Bottom total row: per-day totals + grand month total, sticky-left on first cell.
   - Each cell is an input, no visible border until focused, autosaved on blur (see §Persistence
     above).
@@ -85,7 +127,11 @@ State needed at the top level:
 Both views read/write the exact same `entries`/`serviceLines` state, so resizing the viewport
 never loses data.
 
-## Interactions & validation
+Both views have clean UI feedback on the cell's editability — just two states now:
+ - Open (`is_locked = false`): standard, editable.
+ - Locked (`is_locked = true`): read-only, greyed out.
+
+### Interactions & Input Rules
 
 - A week starts on Monday, hardcoded, as per ISO-8601
 - Hour input accepts numbers in 0.5 increments, range 0–24; reject/ignore out-of-range or non-numeric input rather than throwing.
@@ -93,8 +139,20 @@ never loses data.
   listing eligible service lines (see constraints below), labeled by their parent project name +
   service line name. Picking one assigns the next color from a fixed rotating palette and appends
   it to `serviceLines`.
-- Removing a service line (desktop only, exposed via hover): removes the service line and its
-  entries from state.
+- Removing a service line: an icon on the row, **always visible on both mobile and desktop** —
+  not gated behind desktop-only hover or a mobile-only gesture (swipe/long-press). Unifying on an
+  always-visible control avoids needing two different reveal mechanisms per breakpoint, and
+  matches this app's existing row-action style rather than a hover-only pattern that has no touch
+  equivalent. **Non-destructive**: it only removes the row from the current view (`serviceLines`
+  state) — the underlying `time_entries` rows are never touched, locked or not. Re-adding the same
+  service line via "Add service line" just retrieves and redisplays whatever already exists for
+  it. Since nothing is actually destroyed, **no confirmation dialog is needed** — this also
+  resolves the earlier open question about locked/historical rows, since there's no data-loss
+  risk to guard against in the first place; the lock-related removal restriction from an earlier
+  draft is gone. In practice this is session-local, not a persisted preference: on next load,
+  §State's population rule (assigned-and-added, or has-any-history) brings back anything that
+  still qualifies regardless of whether it was removed before — "remove" is a decluttering action
+  for the current session, not a permanent dismissal.
 - No confirmation dialogs for hour edits — this is a live, low-friction data entry surface.
 - The "Add service line" dropdown only lists service lines meeting **all** of:
   - the parent project's `status` is `"active"`
@@ -102,39 +160,81 @@ never loses data.
   - the current user is assigned to that `service_line` (i.e. is one of its consultants)
   - the `service_line`'s `is_active` is `true`
 
-## Schema
+## Validation
 
-`clocking` is the core underlying table from which timesheets are built. An item in `clocking` contains
-the following information:
- - `id` PK
- - `user_id` FK → Users 
- - `service_line_id` FK → service_lines
+**Placeholder — not yet specified.** This is a separate screen from §My Timesheet (Clocking)
+above, not an extra mode bolted onto it. It's now the *only* place lock state ever changes — there
+is no Submit step anywhere else (see §My Timesheet (Clocking)'s intro).
+
+- **Access**: the literal `manager` role only — not inferred from `administrator` — reached via
+  the `timesheet` nav icon's dropdown, "Validation" item. See
+  [home.md § Timesheet Menu](home.md#timesheet-menu) and
+  [user.md § Role → Screen Access](user.md#role--screen-access).
+- **Purpose**, from the top-level user stories: a manager can see their own timesheet, but also
+  those of consultants, and **lock**/**unlock** cells to freeze/unfreeze them from further edits.
+- **Not yet defined** — see §Open Questions below for the full list of unresolved sub-questions,
+  including several genuinely new ones this simplification introduces (lock granularity,
+  gap-locking, self-lock, and whether locking carries any approval/audit meaning at all).
+
+## Data Model
+
+`time_entries` is the core underlying table both screens above are built on — table name plural,
+matching every other table in this project (see
+[database.md § Schema Conventions](../architecture/database.md#schema-conventions)) — §My
+Timesheet (Clocking) writes unlocked rows to it; §Validation (once specified) is the only thing
+that ever sets `is_locked = true` (or reverts it). An item in `time_entries` contains the
+following information:
+
+ - `id` UUID PK -- matches every other table's PK type in this project (see
+   [database.md](../architecture/database.md))
+ - `user_id` FK → Users, `ON DELETE CASCADE` -- a time entry's primary subject is the person who
+   logged it; deleting that user should delete their entries, matching the FK behavior every
+   other child-table relationship in this project uses (see
+   [database.md](../architecture/database.md#tables))
+ - `service_line_id` FK → service_lines, `ON DELETE CASCADE` -- same reasoning: a time entry
+   can't outlive the service line it was logged against
  - `date` date (no time of day) -- The data on which the time was logged
- - `time` time of day (no date) -- The actual timing logged (e.g. 01:00:00 for 1H)
- - `comment` TEXT default NULL -- An optional comment. This is unused in the current UI
- - `last_updated_by` FK → Users -- A timesheet can be manually edited by someone else, this allow potentially tracking of this information
+ - `time_entry` `INTERVAL`, `NOT NULL`, `CHECK (time_entry >= interval '0' AND time_entry <=
+   interval '24:00:00')` -- The actual duration logged (e.g. `01:00:00` for 1H). An earlier
+   version of this doc specified `TIME` instead, reasoning that `TIME`'s natural ceiling at
+   `24:00:00` would enforce the 24h domain constraint for free at the type level. That's true at
+   the SQL level, but empirically false through this project's actual driver: `asyncpg` binds and
+   decodes `TIME` exclusively via Python's `datetime.time`, whose `hour` field is capped at 23 —
+   `24:00:00` is a value Postgres itself accepts but the driver can neither write nor read back
+   (confirmed directly against a live connection). Since that ceiling can't actually be relied on
+   in practice, the `CHECK` constraint above does the same job explicitly instead, and `INTERVAL`
+   — which round-trips through `asyncpg`/Python's `datetime.timedelta` with no such landmine —
+   replaces `TIME`. Named `time_entry`, not the bare `time` or `interval`, for naming-collision
+   reasons that no longer strictly apply now that the type isn't `TIME`, but the name is kept
+   as-is rather than re-litigated over a since-superseded rationale. The 0.5-increment rule (see
+   §Interactions & Input Rules) is enforced at the API level, not a DB `CHECK` constraint —
+   deliberate, matching how other app-level-only validation already works elsewhere in this
+   project.
+ - `comment` TEXT default NULL -- An optional comment. Unused in the current UI — deliberate
+   scope-fencing for a later iteration, not an oversight
+ - `last_updated_by` FK → Users, `ON DELETE SET NULL` -- **deliberately not `CASCADE`**, unlike
+   `user_id`/`service_line_id` above: this column just records who last touched the row (e.g. a
+   manager's lock/unlock action), not whose data it is. Deleting that manager should never delete
+   someone else's time entry as a side effect — the two FKs to `Users` on this table have
+   different, not-interchangeable delete semantics. `last_updated_by`/`updated_at` update on
+   *any* change to the row, including a lock/unlock that only touches `is_locked` and not
+   `time_entry` — standard practice, not scoped to value-only edits
+ - `created_at` timestampz default now()
  - `updated_at` timestampz default now()
- - `status` ENUM: open, submitted, validated, default open
-(user_id, service_lines, date) -> unique constraint
+ - `is_locked` boolean, default false
+(user_id, service_line_id, date) -> unique constraint
 
 Implication 1: It is not possible to log two different times against the same project service line for the same user.
 This is intended. The design of the model is to remain simple (e.g. on the 8th of August, I spent 3H on project service line X) rather than finely grained (on the 8th of August, I spent 1.5H on project service line X, had a break of 2H then spent another 1.5H on project service line X)
 
-Note: It is useless to have an entry with 0 time in database. So if a user enters 1H, but later reverse to 0, an entry in database
-serves no purpose. As a result, 0-entries should not be saved and if an existing entry in db exists it should be deleted.
+### Indexes
 
-## Deletion of Services Lines
-
-## Open Questions
-
-- **From [project.md § Service Lines](project.md#service-lines)**: `Service Line` deletion on an `active`
-  project is supposed to be blocked once any time has been logged against that line (an orphan
-  line with no logged time is safely deletable). That check has nothing to query yet, since no
-  time-entry concept is defined here. **TODO once this doc's data model exists**: implement the
-  "has this service line got logged time?" check and switch `project.md`'s `active`-project line
-  deletion from its current unconditional-allow fallback to the real conditional rule — see
-  [project.md § Service Lines](project.md#service-lines) and
-  [project.md § Service Line Validation rules](project.md#validation-rules-1).
+- `(user_id, service_line_id, date)` — already backed by the unique constraint above (Postgres
+  creates a supporting index for any `UNIQUE` constraint automatically); listed here so it's
+  visible alongside the other index rather than only implied.
+- `(user_id, date)` — supports the actual query §My Timesheet (Clocking) and (eventually)
+  §Validation both run constantly: "this user's entries across a date range," without needing to
+  know `service_line_id` up front (e.g. loading a whole period's grid in one query).
 
 ### Review pass (draft feedback — not yet resolved)
 
@@ -142,91 +242,35 @@ The points below came out of a first review of this draft. Grouped roughly by se
 addressing the "Critical" ones is a prerequisite for implementation, the rest can probably be
 resolved alongside them or deferred.
 
-**Resolved**
-
-- ~~No persistence/sync model.~~ Settled: autosave on blur, skip saving (and delete any existing
-  row) when the value is `0`. See the new §Persistence section.
-- ~~"Add project" self-contradictory.~~ Settled: it was never free text — it's "Add service
-  line," a constrained dropdown. See §Interactions & validation's rewritten constraints.
-- ~~Row grain ambiguous between mobile/desktop.~~ Settled as a corollary of the above: the row
-  unit is always the service line (shown with its parent project's name for context); the
-  desktop sticky first column now includes the service line name too, matching mobile.
-- ~~Delete-on-zero rule missing a status guard.~~ Settled: covered by §Persistence — the
-  blur-to-save flow only ever runs on `open` rows, since `submitted`/`validated` cells render
-  read-only.
-- ~~Manager review screen has no entry point.~~ Partially settled: it's a separate screen,
-  reached via the `timesheet` nav icon's dropdown for the literal `manager` role only (not
-  `administrator`) — "My timesheet" vs. "Validation." See
-  [home.md § Timesheet Menu](home.md#timesheet-menu) and
-  [user.md § Role → Screen Access](user.md#role--screen-access). **Still open**: the Validation
-  screen's own layout/content (this doc's UI/UX section still only covers the single-user
-  data-entry grid) — see the Critical item below.
-
 **Critical — blocks implementation as written**
 
-- **Submit/Validate/Re-open have no UI at all, and no defined granularity.** The user stories are
-  the only place these three actions are mentioned — no button, control, or screen is described
-  anywhere in §UI/UX. Open sub-questions:
-  - Does Submit act on one cell, one day, one service line's whole period, or everything visible
-    at once?
-  - `clocking.status` lives on individual `(user, service_line, date)` rows — can a period be
-    *partially* submitted (some days open, some submitted), or must it be atomic? Nothing
-    enforces or forbids this today.
-  - Does "re-open" mean `submitted → open` only, or also `validated → open`? The enum only has 3
-    values, so re-open must collapse into one of these — should be explicit.
-  - Can a manager validate their *own* submitted timesheet (self-approval)?
-  - Can any manager validate any consultant's timesheet system-wide, or only ones on projects
-    they're "responsible for" — a concept `project.md` itself never formalized (no owner/manager
-    FK on `Project`)? This doc inherits that same unresolved question.
-- **The Validation screen's own layout/content is still unspecified.** It now has a confirmed
-  entry point (see the Resolved item above), but §UI/UX still only describes the single-user
-  data-entry grid. Half the user stories are about a manager browsing and reviewing *other
-  people's* timesheets, and there's no layout, no consultant picker, no read-only-vs-editable
-  state description for that screen at all.
-- **"Remove service line" looks destructive with no confirmation, conflicting with an
-  established app-wide rule.** §Interactions & validation says removing a service line "removes
-  the service line and its entries from state." The "no confirmation dialogs" line explicitly
-  scopes itself to *hour edits* only — it doesn't say whether removing a service line (potentially
-  deleting a whole period's entries, possibly including already-submitted/validated ones) also
-  skips confirmation. [frontend.md's Destructive Actions
-  convention](../architecture/frontend.md#destructive-actions) requires a confirmation dialog for
-  exactly this kind of action app-wide. Also unclear: does "remove" only hide the row from the
-  current view, or hard-delete `clocking` rows — including ones a manager already validated?
-
-**Missing constraints**
-
-- **No week-equivalent state.** §State only lists `monthDate`; there's no `weekDate` or
-  equivalent, yet Week is a selectable view. An ISO week can span two calendar months — with only
-  a month anchored in state, it's unclear how a week view near a month boundary is represented or
-  navigated (does prev/next move by week or by month?).
-- **Garbled sentence** in §Shared header: "resets `selectedKey` to today's date if today falls in
-  the new month/week, otherwise to the 1st week of the day/month." Doesn't parse — needs
-  rewriting before it's implementable.
-- **`clocking` schema gaps relative to this project's own conventions** (per
-  [database.md](../architecture/database.md), every other table follows these):
-  - The unique constraint is listed as `(user_id, service_lines, date)` — should be
-    `service_line_id`, matching the actual column name above it.
-  - No `created_at`, only `updated_at` — every other table in `database.md` has both.
-  - PK type isn't stated (presumably UUID like everywhere else, but not said).
-  - The UI's 0–24 / 0.5-increment validation has no DB-level `CHECK` — every other bounded value
-    in this schema (`status`, `theme_preference`, `uom`, etc.) gets one. Without it, nothing stops
-    an out-of-range value arriving via a direct API call or a manager's manual edit.
-- **`time TIME` to store a *duration* is an unusual modeling choice.** "01:00:00 for 1H" stores a
-  duration in a time-of-day-typed column. Postgres has `INTERVAL` for durations, and the rest of
-  the app already uses plain `NUMERIC` for fractional quantities (`Service Line.quantity`). Worth
-  confirming this is intentional rather than a modeling shortcut — it works arithmetically up to
-  24:00:00, but reads oddly to anyone querying the schema cold.
-- **`last_updated_by` implies a capability that's never specified.** The column note says "A
-  timesheet can be manually edited by someone else" — but no section describes who can do this (a
-  manager? only for their own consultants? only while `status = open`?).
+- **The Validation screen — now the *entire* lock/unlock mechanism — is completely unspecified.**
+  With Submit gone, this single placeholder screen carries everything that used to be split
+  across My Timesheet's Submit button and the old Validate/re-open actions. Open sub-questions:
+  - **Lock granularity** — per cell, per day, per service line's whole period, or bulk across an
+    entire consultant + period in one action? (This is the direct replacement for the old Submit
+    granularity question, now entirely on the manager's side.)
+  - **Gap-locking** (new, direct consequence of reinstating delete-on-zero — see §Persistence):
+    if a manager locks a range that includes untouched (rowless) days, are those days
+    materialized as locked `0` rows, or does locking silently skip gaps — leaving them open
+    indefinitely, so a consultant could still add hours to a "hole" inside an otherwise-locked
+    period? This needs an explicit answer; it didn't exist as a question under the old
+    force-fill-everything Submit mechanism.
+  - **Self-lock** — can a manager lock/unlock their own timesheet cells, or only other people's?
+  - **Scope** — can any manager lock any consultant's timesheet system-wide, or only ones on
+    projects they're "responsible for" — a concept `project.md` itself never formalized (no
+    owner/manager FK on `Project`)? This doc inherits that same unresolved question.
+  - **Does "locked" carry any approval/audit meaning, or is it purely a mechanical edit-freeze?**
+    (new) The old `validated` state implied a manager had reviewed and signed off — a real
+    business capability for billing/payroll/audit purposes. The new model is deliberately weaker
+    ("frozen from edits") and doesn't by itself say whether that reviewed-and-approved meaning
+    still exists somewhere, or whether it's been dropped along with the complexity. Worth
+    deciding explicitly rather than losing it silently.
+  - How a manager finds/picks which consultant's timesheet to look at, and what read-only vs.
+    editable states look like for whatever's shown, remain undefined too (carried over from the
+    original placeholder).
 
 **Edge cases / smaller inconsistencies**
 
-- The `## Deletion of Services Lines` heading directly above has no content at all — looks like
-  an unfinished stub rather than a deliberate empty section.
-- **Timezone/day-boundary handling** for "today" and the `date` column is unspecified —
-  browser-local, server, or a fixed org timezone matters for entries logged near midnight.
-- **`comment` field** is defined but flagged unused in the current UI — fine if deliberate
-  scope-fencing for a later iteration, just confirm it's not an oversight.
 - No cap/overflow behavior stated for a consultant with many assigned service lines across
   projects (mobile vertical list / desktop sticky column) — probably low-risk, but unaddressed.
