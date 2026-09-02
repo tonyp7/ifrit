@@ -187,7 +187,7 @@ CREATE TABLE address (
 ### `currencies`
 
 Implemented (source of truth: `backend/app/models/currency.py`, migration
-`backend/alembic/versions/0002_currencies.py`). Full ISO 4217 list, driven by the currency
+`backend/alembic/versions/0001_initial.py`). Full ISO 4217 list, driven by the currency
 selection needs of [project.md](../requirements/project.md). Covers ISO 4217's active national
 currencies plus the precious-metal codes (`XAU`/`XAG`/`XPD`/`XPT`); the more obscure
 bond-market/testing codes (`XDR`, `XTS`, `XXX`, `XBA`-`XBD`, `XSU`, `XUA`) are not seeded.
@@ -217,7 +217,7 @@ flipping the flag rather than a schema change.
 ### `projects`, `service_lines`, `service_line_consultants`
 
 Implemented (source of truth: `backend/app/models/project.py`, migration
-`backend/alembic/versions/0003_projects.py`). Derived from [project.md](../requirements/project.md#project-schema).
+`backend/alembic/versions/0001_initial.py`). Derived from [project.md](../requirements/project.md#project-schema).
 
 #### `projects`
 
@@ -245,7 +245,7 @@ table (not a composite/self-referencing key) — each depends on the whole of th
 | ----------- | ----------------- | --------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
 | id           | UUID              | PK                                                                 |                                                                                            |
 | project_id    | UUID              | NOT NULL, FK → `projects.id` (`ON DELETE CASCADE`)                    |                                                                                            |
-| name           | VARCHAR(255)      | NULL                                                                     | **Planned, not yet in migration `0003`/`app/models/project.py`** — see [project.md](../requirements/project.md#2-entity-service-line). No uniqueness constraint, may be empty; exists solely so a consultant assigned to more than one line on the same project can tell them apart when logging time |
+| name           | VARCHAR(255)      | NULL                                                                     | See [project.md](../requirements/project.md#2-entity-service-line). No uniqueness constraint, may be empty; exists solely so a consultant assigned to more than one line on the same project can tell them apart when logging time |
 | quantity       | NUMERIC(12, 5)    | NOT NULL                                                                | Does not depend on `uom` — same decimal shape regardless of unit type                       |
 | uom             | VARCHAR(10)       | NOT NULL, `CHECK (uom IN ('hours', 'days', 'ea'))`                        | See project.md §UOM enum                                                                      |
 | unit_price       | NUMERIC(14, 4)    | NOT NULL                                                                    | Denominated in the parent project's `invoicing_currency` — no separate per-line currency field |
@@ -269,6 +269,36 @@ a line (see project.md §Service Lines). Same BCNF reasoning as `user_roles` abo
 PK is the only candidate key, no non-key attributes to create a dependency violation. The API
 layer enforces that an assigned user actually holds the `consultant` role and is active — not a
 DB constraint, since role membership itself lives in `user_roles`, not on this table.
+
+### `time_entries`
+
+Implemented (source of truth: `backend/app/models/time_entry.py`, migration
+`backend/alembic/versions/0001_initial.py`). Derived from
+[timesheet.md](../requirements/timesheet.md#data-model) — the table both the My Timesheet
+(clocking) and Validation (manager lock/unlock, not yet built) screens are built on.
+
+| Column           | Type        | Constraints                                                                                   | Notes                                                                                                                                                                                                                                                    |
+| ----------------- | ----------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| id                 | UUID        | PK                                                                                                  |                                                                                                                                                                                                                                                             |
+| user_id             | UUID        | NOT NULL, FK → `users.id` (`ON DELETE CASCADE`)                                                       | A time entry's primary subject is the person who logged it — deleting them deletes their entries, same pattern as every other child-table FK to `users` in this file except `last_updated_by` below                                                        |
+| service_line_id      | UUID        | NOT NULL, FK → `service_lines.id` (`ON DELETE CASCADE`)                                                 | A time entry can't outlive the service line it was logged against                                                                                                                                                                                            |
+| date                  | DATE        | NOT NULL                                                                                                  | The day the time was logged on — no time-of-day component                                                                                                                                                                                                     |
+| time_entry             | INTERVAL    | NOT NULL, `CHECK (time_entry >= interval '0' AND time_entry <= interval '24:00:00')`                        | The duration logged (e.g. `01:00:00` for 1H). An earlier draft used `TIME` instead, reasoning its natural `24:00:00` ceiling would enforce the domain constraint for free — that held at the SQL level but not through this project's driver: `asyncpg` binds/decodes `TIME` exclusively via Python's `datetime.time`, whose `hour` is capped at 23, so `24:00:00` (a value the app-level range explicitly allows) could be written *or* read back but not both. `INTERVAL` round-trips through `asyncpg`/`datetime.timedelta` with no such landmine; the `CHECK` does explicitly what `TIME`'s ceiling was meant to do implicitly. Named `time_entry`, not the bare `time`/`interval`, to avoid colliding with either as a reserved-sounding identifier. The 0.5-increment rule (see timesheet.md §Interactions & Input Rules) is enforced at the API level, not a `CHECK` — same app-level-only pattern as `companies.country_of_registration`'s length check |
+| comment                 | TEXT        | NULL                                                                                                        | Unused in the current UI — deliberate scope-fencing for a later iteration                                                                                                                                                                                       |
+| last_updated_by           | UUID        | NULL, FK → `users.id` (`ON DELETE SET NULL`)                                                                  | **Deliberately not `CASCADE`**, unlike `user_id` above: this just records who last touched the row (e.g. a manager's lock/unlock), not whose data it is — deleting that manager should never delete someone else's time entry as a side effect. Updates on *any* row change, including a lock/unlock that only touches `is_locked`                              |
+| created_at                 | TIMESTAMPTZ | NOT NULL, default `now()`                                                                                       |                                                                                                                                                                                                                                                                     |
+| updated_at                   | TIMESTAMPTZ | NOT NULL, default `now()`                                                                                         |                                                                                                                                                                                                                                                                     |
+| is_locked                     | BOOLEAN     | NOT NULL, default `false`                                                                                           | Set only by the (not yet built) Validation screen — the consultant's own blur-save path can never set this `true`                                                                                                                                                    |
+
+`UNIQUE (user_id, service_line_id, date)` — a user can only log one entry per service line per
+day (see timesheet.md's Implication 1: this is a deliberate simplicity trade-off, not
+fine-grained enough to represent e.g. two separate sessions on the same line in one day).
+Postgres backs that constraint with a supporting index automatically; a second index,
+`(user_id, date)`, supports the actual query both timesheet screens run constantly — "this
+user's entries across a date range" — without needing `service_line_id` up front. Every column
+depends on the whole of the `id` PK (or, for the uniqueness rule, the whole of the
+`(user_id, service_line_id, date)` candidate key) — no partial or transitive dependencies, so
+this satisfies BCNF trivially.
 
 ## Migrations (Alembic)
 
@@ -296,3 +326,6 @@ async def get_events(session: AsyncSession, limit: int = 100) -> list[Event]:
 ## Indexing Rules
 
 <!-- TODO: define indexing conventions as query patterns emerge. -->
+
+
+

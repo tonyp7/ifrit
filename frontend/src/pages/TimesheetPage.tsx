@@ -16,6 +16,7 @@ import {
   toDayKey,
 } from "@/lib/timesheetDates";
 import { cellKey, formatHours, normalizeHours, sumHours } from "@/lib/timesheetHours";
+import { sortServiceLines } from "@/lib/timesheetServiceLines";
 import type {
   EligibleServiceLine,
   EntryCell,
@@ -107,7 +108,11 @@ export function TimesheetPage() {
     for (const line of historicalServiceLines) {
       if (!addedIds.has(line.service_line_id)) merged.push(line);
     }
-    return merged.filter((line) => !removedServiceLineIds.has(line.service_line_id));
+    const visible = merged.filter((line) => !removedServiceLineIds.has(line.service_line_id));
+    // Ascending by project name, then service line name — a stable order
+    // independent of add/discovery order or which period's date window was
+    // last fetched (see docs/requirements/timesheet.md#state).
+    return sortServiceLines(visible);
   }, [addedServiceLines, historicalServiceLines, removedServiceLineIds]);
 
   const addOptions = useMemo(
@@ -251,6 +256,7 @@ export function TimesheetPage() {
       />
 
       <TimesheetDesktopGrid
+        periodType={periodType}
         days={days}
         serviceLines={serviceLines}
         entries={entries}
@@ -262,6 +268,7 @@ export function TimesheetPage() {
         onRemoveServiceLine={handleRemoveServiceLine}
         onCellChange={handleCellChange}
         onCellBlur={handleCellBlur}
+        onFocusDay={setSelectedKey}
       />
     </div>
   );

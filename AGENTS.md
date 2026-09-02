@@ -36,12 +36,14 @@ before adding it — then update the relevant architecture doc to reflect the ad
 **Never assume a dependency choice — verify it against the actual project setup.** Two library
 names can look interchangeable (same purpose, similar name, both associated with the same tool)
 while only one actually works with this project's specific versions. Before adding a dependency,
-check it's compatible with what's already here (e.g. this project is Tailwind **v3**, not v4 —
-`tw-animate-css` is a v4-only package and silently produces no working CSS under v3; the correct
-dependency for the same purpose here is `tailwindcss-animate`). Install it for real and confirm
-it works (type-checks, builds, actually produces the expected output) rather than trusting a
-name because it's "the modern one" or "what the docs currently recommend" in general — verify
-against *this* codebase's actual toolchain versions.
+check it's compatible with what's already here (e.g. this project is Tailwind **v4**, not v3 —
+`tailwindcss-animate` is the v3-era JS-plugin equivalent and doesn't match this project's
+CSS-first v4 config; the correct dependency for the same purpose here is `tw-animate-css`, per
+[frontend.md](docs/architecture/frontend.md)). Install it for real and confirm it works
+(type-checks, builds, actually produces the expected output) rather than trusting a name because
+it's "the modern one" or "what the docs currently recommend" in general — verify against *this*
+codebase's actual toolchain versions, since those versions can and do change (this exact example
+flipped once already when the project migrated v3 → v4).
 
 **shadcn/ui primitives must be added via the real CLI** (`npx shadcn@latest add <component>`),
 never hand-written from memory, even when the target environment makes that CLI awkward to run

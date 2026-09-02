@@ -45,9 +45,19 @@ State needed at the top level:
   keeps historical locked time visible even after the user is later unassigned from that line —
   this is also why "removing" a service line (see §Interactions & Input Rules) can safely be a
   session-local view action rather than something that needs to persist or guard against locked
-  data: reloading always reconstitutes this union from scratch.
+  data: reloading always reconstitutes this union from scratch. **Row order is always ascending
+  by project name, then service line name** — a stable, identity-based sort applied to the whole
+  union after merging, not the order lines happened to be added/discovered in. This is
+  deliberate: an earlier draft left row order as an accidental side effect of fetch order (e.g.
+  whichever line's earliest `time_entries` row fell first within the currently-loaded date
+  range), which meant Week and Month could show the same lines in different orders since they
+  load different date windows — the two views must show identical ordering for the same
+  underlying data, never something that depends on which view happens to be open.
 - `entries` — `Entries` map.
-- `selectedKey` — dayKey of the currently open day (mobile view only).
+- `selectedKey` — dayKey of the currently open/focused day. Drives the mobile day
+  strip's highlighted chip (see §Mobile view), but isn't mobile-only in what *sets*
+  it: the desktop/tablet grid also updates it, on focusing any cell — see §Shared
+  header below for why this matters (it's what a `periodType` switch anchors on).
 - Derived, not stored: `days` (all Date objects in the active period — 7 for `week`, 28–31 for
   `month`), day totals, service line totals, period total.
 
@@ -89,10 +99,25 @@ State needed at the top level:
 - Month label (e.g. "August 2026") OR Week Number (e.g. "Week 34") with prev/next controls —
   whichever matches the current `periodType`.
 - Period total hours (month or week, matching `periodType`), right-aligned.
-- Changing `periodDate` (via prev/next, or switching `periodType`) sets `selectedKey` to the
-  logical step:
-  - Example 1. Changing from Week 34 to Week 35 naturally set the `selectedKey` to Monday of Week 34
-  - Example 2. Changing from August 2026 to July 2026 set `selectedKey` to July 31st
+- Changing `periodDate` via **prev/next** (same `periodType`, moving the window forward/back)
+  sets `selectedKey` to the logical step — there's no single "day in focus" driving prev/next,
+  so it lands on the new period's boundary closest to where you came from:
+  - Example 1. Advancing from Week 34 to Week 35 sets `selectedKey` to Monday of Week 35 (the
+    new period's first day, since you moved forward).
+  - Example 2. Going back from August 2026 to July 2026 sets `selectedKey` to July 31st (the new
+    period's last day, since you moved backward).
+- **Switching `periodType`** (Week ↔ Month) is different: it must re-anchor on whichever day
+  the user is actually looking at, not jump to an artificial boundary. Concretely: `periodDate`
+  is recomputed from the *existing* `selectedKey` (`startOfWeekMonday`/`startOfMonth` of it), not
+  reset — so `selectedKey` has to already hold the day currently in focus for this to work.
+  `selectedKey` being mobile-only (see §State) was exactly the bug here: the desktop/tablet grid
+  never updated it, so it stayed stuck at whatever the last `periodType` switch had set it to
+  (typically the 1st of the month) — switching Month → Week would silently anchor on that stale
+  day instead of whatever cell the user had actually clicked into. Fixed by having the desktop
+  grid update `selectedKey` on focusing any cell, the same way the mobile day strip already does
+  on tapping a chip (see §Mobile view) — both views now keep one shared "day in focus," so
+  switching `periodType` reliably shows the week/month containing whatever day you were just
+  looking at, on either breakpoint.
 
 ### Mobile view
 1. **Day strip**: horizontally scrollable row of day chips, one per day in the month.
@@ -111,7 +136,12 @@ State needed at the top level:
 
 ### Desktop / tablet view
 - Spreadsheet-style grid/table:
-  - Sticky header row: day-of-week 1 letter (M, T, W, etc) + day number per column, weekend columns visually shaded, today's column highlighted (e.g. top border accent).
+  - Sticky header row: day-of-week label + day number per column, weekend columns visually
+    shaded, today's column highlighted (e.g. top border accent). The label itself depends on
+    `periodType`: **Week** view (7 columns, room to spare) shows a 3-letter abbreviation (Mon,
+    Tue, Wed, ...); **Month** view (28-31 columns, cramped) shows a single letter (M, T, W, ...)
+    instead. Both are locale-aware, not hardcoded English strings — same as the mobile day
+    strip's weekday abbreviation.
   - Sticky first column: project name + service line name + remove-service-line control — always
     visible, same as mobile, not gated behind row hover (see §Interactions & Input Rules below)
     — the service line name is required here, not optional styling: it's what disambiguates two

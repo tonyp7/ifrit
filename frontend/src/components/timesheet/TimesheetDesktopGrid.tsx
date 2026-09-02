@@ -4,12 +4,24 @@ import { useTranslation } from "react-i18next";
 import { AddServiceLineSelect } from "@/components/timesheet/AddServiceLineSelect";
 import { Button } from "@/components/ui/button";
 import { serviceLineBorderColor } from "@/lib/timesheetColors";
-import { isToday, isWeekend, toDayKey } from "@/lib/timesheetDates";
+import {
+  formatWeekdayNarrow,
+  formatWeekdayShort,
+  isToday,
+  isWeekend,
+  toDayKey,
+} from "@/lib/timesheetDates";
 import { cellKey, formatHours } from "@/lib/timesheetHours";
 import { cn } from "@/lib/utils";
-import type { EligibleServiceLine, EntryCell, ServiceLineRow } from "@/types/timesheet";
+import type {
+  EligibleServiceLine,
+  EntryCell,
+  PeriodType,
+  ServiceLineRow,
+} from "@/types/timesheet";
 
 interface TimesheetDesktopGridProps {
+  periodType: PeriodType;
   days: Date[];
   serviceLines: ServiceLineRow[];
   entries: Record<string, EntryCell>;
@@ -21,9 +33,14 @@ interface TimesheetDesktopGridProps {
   onRemoveServiceLine: (serviceLineId: string) => void;
   onCellChange: (serviceLineId: string, dayKey: string, value: string) => void;
   onCellBlur: (serviceLineId: string, dayKey: string) => void;
+  // Keeps `selectedKey` pointed at whatever day the user is actually looking at on
+  // desktop, so a later Week<->Month switch re-anchors on that day instead of a
+  // stale value — see docs/requirements/timesheet.md#shared-header-all-breakpoints.
+  onFocusDay: (dayKey: string) => void;
 }
 
 export function TimesheetDesktopGrid({
+  periodType,
   days,
   serviceLines,
   entries,
@@ -35,8 +52,20 @@ export function TimesheetDesktopGrid({
   onRemoveServiceLine,
   onCellChange,
   onCellBlur,
+  onFocusDay,
 }: TimesheetDesktopGridProps) {
   const { t } = useTranslation(["timesheet"]);
+
+  // Month view crams up to 31 day columns into the same viewport Week view only
+  // needs 7 for — at Week view's widths that overflows a maximized 1080p window
+  // by ~500px. Shrinking column floors only for Month (Week keeps its wider,
+  // more comfortable sizing) closes that gap; overflow-x-auto below stays as a
+  // fallback for anyone on a narrower window. See the design discussion in
+  // conversation before this change for the actual pixel math.
+  const isMonth = periodType === "month";
+  const dayColWidth = isMonth ? "min-w-12" : "min-w-16";
+  const firstColWidth = isMonth ? "min-w-48" : "min-w-56";
+  const lastColWidth = isMonth ? "min-w-16" : "min-w-20";
 
   return (
     <div className="hidden flex-col gap-4 p-4 md:flex">
@@ -44,7 +73,12 @@ export function TimesheetDesktopGrid({
         <table className="w-full border-collapse text-sm">
           <thead>
             <tr>
-              <th className="sticky left-0 top-0 z-30 min-w-56 border-b border-r bg-background p-2 text-left">
+              <th
+                className={cn(
+                  "sticky left-0 top-0 z-30 border-b border-r bg-background p-2 text-left",
+                  firstColWidth,
+                )}
+              >
                 {t("Service line")}
               </th>
               {days.map((day) => {
@@ -53,22 +87,28 @@ export function TimesheetDesktopGrid({
                   <th
                     key={dayKey}
                     className={cn(
-                      "sticky top-0 z-20 min-w-16 border-b p-2 text-center font-medium",
+                      "sticky top-0 z-20 border-b p-2 text-center font-medium",
+                      dayColWidth,
                       isWeekend(day) && "bg-muted/40",
                       !isWeekend(day) && "bg-background",
                       isToday(day) && "border-t-2 border-t-primary",
                     )}
                   >
                     <div className="text-xs text-muted-foreground">
-                      {new Intl.DateTimeFormat(undefined, { weekday: "narrow" }).format(
-                        day,
-                      )}
+                      {periodType === "week"
+                        ? formatWeekdayShort(day)
+                        : formatWeekdayNarrow(day)}
                     </div>
                     <div>{day.getDate()}</div>
                   </th>
                 );
               })}
-              <th className="sticky right-0 top-0 z-30 min-w-20 border-b border-l bg-background p-2 text-right">
+              <th
+                className={cn(
+                  "sticky right-0 top-0 z-30 border-b border-l bg-background p-2 text-right",
+                  lastColWidth,
+                )}
+              >
                 {t("Total")}
               </th>
             </tr>
@@ -78,7 +118,8 @@ export function TimesheetDesktopGrid({
               <tr key={line.service_line_id}>
                 <td
                   className={cn(
-                    "sticky left-0 z-10 min-w-56 border-b border-r border-l-4 bg-background p-2",
+                    "sticky left-0 z-10 border-b border-r border-l-4 bg-background p-2",
+                    firstColWidth,
                     serviceLineBorderColor(index),
                   )}
                 >
@@ -125,18 +166,42 @@ export function TimesheetDesktopGrid({
                           onCellChange(line.service_line_id, dayKey, e.target.value)
                         }
                         onBlur={() => onCellBlur(line.service_line_id, dayKey)}
+                        onFocus={() => onFocusDay(dayKey)}
                         aria-label={t("Hours")}
                         className={cn(
-                          "w-full rounded border border-transparent bg-transparent p-1 text-center text-sm outline-none",
-                          "focus:border-input focus:bg-background",
-                          "disabled:cursor-not-allowed disabled:text-muted-foreground",
+                          "w-full rounded border border-transparent bg-transparent p-1 text-center text-sm outline-none transition-colors",
+                          // At-rest + hover affordance for editable cells only (see
+                          // conversation before this change) — reuses this project's
+                          // own tokens: bg-muted is already used for weekend shading
+                          // in this same grid, hover:bg-secondary/50 is the exact
+                          // convention TableRow (ui/table.tsx) already uses elsewhere.
+                          // `enabled:` scopes both so a locked cell stays visually
+                          // flat, distinguishing editable from locked at a glance.
+                          "enabled:bg-muted/20 enabled:hover:bg-secondary/50",
+                          // `!` (important) here isn't decorative — without it, focus
+                          // loses to the enabled:* rules above on equal specificity
+                          // (Tailwind sorts `enabled:` after `focus:` in its generated
+                          // cascade), so a focused cell would silently keep showing
+                          // the at-rest/hover tint instead of the intended solid
+                          // focus background. Confirmed via computed styles before
+                          // adding this.
+                          "focus:!border-input focus:!bg-background",
+                          // Matches ui/input.tsx's own disabled convention
+                          // (cursor-not-allowed + opacity-50) rather than a
+                          // one-off treatment.
+                          "disabled:cursor-not-allowed disabled:opacity-50",
                           "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none",
                         )}
                       />
                     </td>
                   );
                 })}
-                <td className="sticky right-0 z-10 border-b border-l bg-background p-2 text-right font-medium">
+                <td
+                  className={cn(
+                    "sticky right-0 z-10 border-b border-l bg-background p-2 text-right font-medium",
+                    lastColWidth,
+                  )}
+                >
                   {formatHours(serviceLineTotal(line.service_line_id)) || "0"}h
                 </td>
               </tr>

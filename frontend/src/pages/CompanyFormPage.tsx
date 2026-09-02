@@ -235,7 +235,7 @@ export function CompanyFormPage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate("/configuration")}
+                onClick={() => navigate("/configuration/companies")}
               >
                 {t("Close", { ns: "common" })}
               </Button>

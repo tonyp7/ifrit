@@ -94,6 +94,13 @@ export function formatWeekdayShort(d: Date): string {
   return new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(d).slice(0, 3);
 }
 
+// Single-letter weekday (M, T, W, ...) — desktop grid's Month view only (28-31
+// columns need the narrower label; Week view's 7 columns use formatWeekdayShort
+// above instead — see docs/requirements/timesheet.md#desktop--tablet-view).
+export function formatWeekdayNarrow(d: Date): string {
+  return new Intl.DateTimeFormat(undefined, { weekday: "narrow" }).format(d);
+}
+
 export function formatFullDate(d: Date): string {
   return new Intl.DateTimeFormat(undefined, {
     weekday: "long",

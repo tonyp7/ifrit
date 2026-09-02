@@ -152,9 +152,10 @@ Authorized frontend dependencies (per the Dependency Policy in [AGENTS.md](../..
 
 ## Theming (Dark Mode)
 
-- **Mechanism**: Tailwind's class-based dark mode (`darkMode: ["class"]`, already configured in
-  `tailwind.config.ts`) — a `dark` class toggled on the document root switches the CSS variable
-  values already defined for both themes in `src/index.css`.
+- **Mechanism**: Tailwind's class-based dark mode, via `@custom-variant dark (&:is(.dark *));` in
+  `src/index.css` (the v4 CSS-first equivalent of v3's `darkMode: ["class"]` — there is no
+  `tailwind.config.ts` in this project) — a `dark` class toggled on the document root switches
+  the CSS variable values already defined for both themes in `src/index.css`.
 - **Values**: `light`, `dark`, `system` (default `system`) — see
   [home.md](../requirements/home.md#appearance) for the full requirement instead of duplicating
   it here.
