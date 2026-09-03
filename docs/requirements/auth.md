@@ -30,6 +30,122 @@ for the technical implementation (JWT access/refresh tokens).
   SSO users have no local password and are not affected — their access is managed entirely by
   the external IdP.
 
+## Session Expiry & Token Refresh — Design (Not Yet Implemented)
+
+**Status: not yet implemented.** This section is a design writeup, not a description of current
+behavior — captured ahead of implementation so the mechanism and its trade-offs can be verified
+against, rather than re-derived at implementation time or drifting from what was actually
+decided. See §Notes below for the token lifetimes (15 min access / 7 day refresh) this design
+works against, and
+[Backend — Authentication & Session Standards](../architecture/backend.md#authentication--session-standards)
+for the existing server-side pieces it builds on (`POST /auth/refresh` already exists and works;
+nothing in the client calls it today).
+
+### The problem this replaces
+
+Today, `frontend/src/api/client.ts`'s `request()` — the one function every API call in the app
+goes through — treats a `401` identically to any other error status (`403`, `404`, `422`, `500`).
+Fourteen separate screens/components each independently catch `ApiError` and render
+`err.message` as if it were a normal, page-specific error (inline text, or in a couple of places
+a toast). None of them recognize `401` as meaning "the whole session is dead," so a session
+timeout currently produces however many independent, redundant error surfaces happen to have a
+request in flight at that moment — e.g. a project sheet showing a stale inline "Not
+authenticated" message, the timesheet screen popping multiple toasts (it fires two independent
+fetches on mount). Separately, because nothing calls `POST /auth/refresh`, this doesn't just
+happen after genuine idle timeout — it happens to every session, active or not, roughly 15
+minutes after the last login/page load.
+
+### Design overview
+
+One central interceptor, inside `request()` itself (the one chokepoint all API traffic already
+passes through), replaces all fourteen screens' independent handling:
+
+1. A request comes back `401`.
+2. If the request was to an exempted endpoint (see below), the `401` is thrown as today —
+   handled by that endpoint's own existing caller.
+3. Otherwise: attempt a silent `POST /auth/refresh`.
+   - **Succeeds** → transparently retry the original request once and return its result to the
+     original caller. The caller never sees an error at all — from its perspective the request
+     just took a little longer.
+   - **Fails** (refresh token itself expired/invalid) → the session is genuinely dead. Notify
+     the rest of the app (see point 4) and let the original `401` propagate.
+
+This single mechanism is what makes the *existing* (already-written, not new) user story "I want
+my session to remain active across page reloads (via refresh token) without re-entering my
+credentials every time" actually true — today it isn't, since nothing ever calls `/auth/refresh`.
+
+The naive version of "attempt refresh, then redirect" has real gaps if implemented literally as
+that one-line description. Five things a correct implementation has to handle explicitly:
+
+### 1. Concurrent-request de-duplication
+
+This app routinely has multiple requests in flight at once (the timesheet screen alone fires two
+independent fetches on mount). If each request's own `401` handler independently called
+`/auth/refresh`, an expired token would trigger a burst of simultaneous refresh calls instead of
+one. Fix: a single shared "refresh in flight" promise, module-scoped inside `client.ts`. The
+first `401` starts it; every other concurrent `401` awaits that same promise instead of starting
+its own, then all retry once it resolves.
+
+### 2. Retry-once guard
+
+If the retried request fails again after a successful refresh (refresh succeeded but something
+else is still wrong with the retried request), the retry must be marked so it doesn't re-trigger
+step 3 of the design overview a second time — otherwise a persistently-failing retried request
+could loop.
+
+### 3. Exempting the auth endpoints from the interceptor
+
+`POST /auth/refresh` failing is itself the "give up" signal — if that failure were routed back
+through the same "on 401, try refresh" logic, that's an infinite loop calling itself. `POST
+/auth/login`'s `401` (wrong credentials) is already documented above as a normal, expected
+outcome of that specific call, not a session-expiry signal, and must keep its current inline
+handling untouched. `POST /auth/logout` similarly shouldn't trigger refresh-and-retry against
+itself. All three must bypass the interceptor and throw `ApiError` directly, exactly as every
+endpoint does today.
+
+### 4. Syncing `AuthProvider`'s state — event bridge, not a hard reload
+
+`client.ts` is a plain module with no access to React context — successfully detecting "the
+session is dead" there doesn't, by itself, update `AuthProvider`'s `user` state or navigate
+anywhere. Two ways to close that gap:
+
+- **(a) Chosen: an event bridge.** A small shared callback registry: `AuthProvider` registers a
+  listener on mount (it's rendered inside `<BrowserRouter>` already — see `main.tsx` — so it can
+  hold both `setUser(null)` and `useNavigate()`-driven navigation to `/login` in one place);
+  `client.ts` invokes that listener once it gives up in step 3 of the design overview. This keeps
+  the transition a normal client-side SPA navigation — no full page reload, no lost in-memory
+  state anywhere else in the app, no flash of a blank page.
+- **(b) Not chosen: a hard `window.location.href = "/login"` redirect.** Simpler to implement
+  correctly — a full page reload wipes every piece of JS state for free, so there's no
+  registry/subscription lifecycle to get wrong, no risk of a request firing before the listener
+  is registered. The trade-off is exactly what (a) avoids: a full page reload on every session
+  expiry (brief blank-page flash, slower transition, discards any unrelated in-memory UI state
+  elsewhere in the app on the way out) instead of a normal in-SPA navigation.
+
+**(a) is the chosen approach, specifically for SPA compatibility** — the app is built as a
+single-page app throughout (React Router client-side navigation everywhere else), and a session
+expiry is not a rare-enough event to justify falling back to full-page-reload semantics just for
+this one case; it should feel like the same kind of navigation as everything else in the app.
+The cost of (a) over (b) is implementation complexity, not user experience: a registry that must
+be set up before any request can race it (in practice, `AuthProvider` mounts and subscribes
+synchronously before any child component can fire a request, so this is a low but non-zero risk
+to keep in mind during implementation, not a fundamental blocker), and exactly one owner of `user`
+state (`AuthProvider`) that `client.ts` must never try to duplicate.
+
+### 5. Not double-handling the initial mount-time check
+
+`AuthProvider` already calls `GET /auth/me` once on mount and has its own existing `401`
+handling (`setUser(null)`, which `ProtectedRoute` already turns into a redirect on its own — see
+`ProtectedRoute.tsx`). This call *should* still go through the same silent-refresh step 3 above
+(that's precisely what makes "remain active across reloads" work for a returning user whose
+access token expired but whose refresh token is still valid). What it should **not** do is also
+fire the event-bridge notification from point 4 when the refresh attempt fails — `AuthProvider`
+already handles that outcome itself, correctly, via its own mount-time catch block, and
+`ProtectedRoute` already redirects from there. Routing that specific failure through the
+event-bridge too wouldn't be incorrect (navigating to `/login` while already about to render a
+redirect to `/login` is harmless), just redundant — worth explicitly deciding to skip rather than
+leaving as an accidental double-fire.
+
 ## Notes
 
 - **Password reset**: not self-service. Administrators reset a local user's password directly.
