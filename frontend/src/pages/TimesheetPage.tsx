@@ -8,6 +8,8 @@ import { TimesheetDesktopGrid } from "@/components/timesheet/TimesheetDesktopGri
 import { TimesheetHeader } from "@/components/timesheet/TimesheetHeader";
 import { TimesheetMobileView } from "@/components/timesheet/TimesheetMobileView";
 import {
+  defaultPeriodDate,
+  defaultPeriodType,
   getPeriodDays,
   parseDayKey,
   shiftPeriod,
@@ -27,20 +29,17 @@ import type {
 export function TimesheetPage() {
   const { t } = useTranslation(["timesheet"]);
 
-  const [periodType, setPeriodType] = useState<PeriodType>("week");
-  const [periodDate, setPeriodDate] = useState<Date>(() => startOfWeekMonday(new Date()));
-  const [selectedKey, setSelectedKey] = useState<string>(() =>
-    toDayKey(startOfWeekMonday(new Date())),
-  );
+  // Week on mobile, Month on desktop/tablet — a one-time default computed at
+  // mount from the same `md:` breakpoint the views themselves switch on, not a
+  // live-synced setting (see docs/requirements/timesheet.md#my-timesheet-clocking).
+  const [periodType, setPeriodType] = useState<PeriodType>(defaultPeriodType);
+  const [periodDate, setPeriodDate] = useState<Date>(defaultPeriodDate);
+  const [selectedKey, setSelectedKey] = useState<string>(() => toDayKey(defaultPeriodDate()));
 
   const [entries, setEntries] = useState<Record<string, EntryCell>>({});
-  const [historicalServiceLines, setHistoricalServiceLines] = useState<ServiceLineRow[]>(
-    [],
-  );
+  const [historicalServiceLines, setHistoricalServiceLines] = useState<ServiceLineRow[]>([]);
   const [addedServiceLines, setAddedServiceLines] = useState<ServiceLineRow[]>([]);
-  const [removedServiceLineIds, setRemovedServiceLineIds] = useState<Set<string>>(
-    new Set(),
-  );
+  const [removedServiceLineIds, setRemovedServiceLineIds] = useState<Set<string>>(new Set());
   const [eligibleLines, setEligibleLines] = useState<EligibleServiceLine[]>([]);
   const [monthToDateTotal, setMonthToDateTotal] = useState(0);
 
@@ -83,9 +82,7 @@ export function TimesheetPage() {
         setHistoricalServiceLines(historical);
       })
       .catch((err: unknown) => {
-        toast.error(
-          err instanceof ApiError ? err.message : t("Failed to load time entries."),
-        );
+        toast.error(err instanceof ApiError ? err.message : t("Failed to load time entries."));
       });
     // `days` is derived from periodType/periodDate every render, but its identity
     // changes each time too — depend on the primitives that actually drive it.
@@ -208,16 +205,17 @@ export function TimesheetPage() {
       setEntries((prev) => {
         const next = { ...prev };
         if (result) {
-          next[key] = { hours: formatHours(Number(result.hours)), is_locked: result.is_locked };
+          next[key] = {
+            hours: formatHours(Number(result.hours)),
+            is_locked: result.is_locked,
+          };
         } else {
           delete next[key];
         }
         return next;
       });
     } catch (err) {
-      toast.error(
-        err instanceof ApiError ? err.message : t("Failed to save time entry."),
-      );
+      toast.error(err instanceof ApiError ? err.message : t("Failed to save time entry."));
       setEntries((prev) => {
         const next = { ...prev };
         if (previous && Number(previous) > 0) {

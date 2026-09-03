@@ -22,7 +22,15 @@ only — see §Validation below for the separate manager-facing lock/unlock scre
 - Each **service line** is a logical row (shown with its parent project's name for context — a
   consultant assigned to multiple service lines on the same project gets one row per service
   line, never one combined row per project).
-- Users can select **Week** or **Month** as the view.
+- Users can select **Week** or **Month** as the view. The default `periodType` on first landing
+  on the screen depends on breakpoint, not a single fixed default for everyone: **Week** on
+  mobile, **Month** on desktop/tablet — matching the same `md:` breakpoint that decides which of
+  §Mobile view/§Desktop / tablet view is shown (see below). Rationale: a day-by-day mobile screen
+  has no room to usefully show a whole month at once, so Week is the sensible starting point
+  there, while the desktop grid has the width to show a full month up front, which is more useful
+  as a landing view than a single week. This is a one-time default computed when the screen
+  mounts, not a live-synced setting — resizing an already-open tab doesn't force a switch, and
+  manually picking the other view is unaffected by this default.
 - Each **day of the selected month/week** is a logical column.
 - A cell = hours logged for a given project service line on a given day.
 - "Today," day boundaries, and which `date` a near-midnight entry lands on are all computed from

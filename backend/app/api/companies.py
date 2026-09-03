@@ -19,11 +19,18 @@ from app.schemas.company import (
 )
 from app.services import company_service
 
-router = APIRouter(
-    prefix="/companies",
-    tags=["companies"],
-    dependencies=[Depends(require_roles("administrator"))],
-)
+router = APIRouter(prefix="/companies", tags=["companies"])
+
+# Read-only lookups are also needed by the `projects` screen (manager-accessible,
+# not just `configuration`) to populate its vendor/client pickers — see
+# docs/requirements/project.md's own "As a manager, I want to create a project by
+# selecting... vendor... client..." user story. Every write below stays
+# administrator-only: that's genuine Companies-configuration management, not a
+# read a manager needs. Router-level `dependencies` used to gate everything to
+# administrator only, including these two GETs, which is why a manager hit a 403
+# just loading the project form's dropdowns.
+_read_roles = Depends(require_roles("administrator", "manager"))
+_write_roles = Depends(require_roles("administrator"))
 
 
 async def _get_company_or_404(db: AsyncSession, company_id: uuid.UUID) -> Company:
@@ -35,7 +42,7 @@ async def _get_company_or_404(db: AsyncSession, company_id: uuid.UUID) -> Compan
     return company
 
 
-@router.get("", response_model=CompanyListResponse)
+@router.get("", response_model=CompanyListResponse, dependencies=[_read_roles])
 async def list_companies(
     search: str | None = None,
     page: int = Query(default=1, ge=1),
@@ -62,7 +69,12 @@ async def list_companies(
     )
 
 
-@router.post("", response_model=CompanyDetail, status_code=status.HTTP_201_CREATED)
+@router.post(
+    "",
+    response_model=CompanyDetail,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[_write_roles],
+)
 async def create_company(
     payload: CompanyWrite, db: AsyncSession = Depends(get_db)
 ) -> CompanyDetail:
@@ -70,7 +82,7 @@ async def create_company(
     return company_service.to_company_detail(company)
 
 
-@router.get("/{company_id}", response_model=CompanyDetail)
+@router.get("/{company_id}", response_model=CompanyDetail, dependencies=[_read_roles])
 async def get_company(
     company_id: uuid.UUID, db: AsyncSession = Depends(get_db)
 ) -> CompanyDetail:
@@ -78,7 +90,9 @@ async def get_company(
     return company_service.to_company_detail(company)
 
 
-@router.patch("/{company_id}", response_model=CompanyDetail)
+@router.patch(
+    "/{company_id}", response_model=CompanyDetail, dependencies=[_write_roles]
+)
 async def update_company(
     company_id: uuid.UUID, payload: CompanyWrite, db: AsyncSession = Depends(get_db)
 ) -> CompanyDetail:
@@ -87,7 +101,11 @@ async def update_company(
     return company_service.to_company_detail(company)
 
 
-@router.post("/{company_id}/duplicate", response_model=CompanyDetail)
+@router.post(
+    "/{company_id}/duplicate",
+    response_model=CompanyDetail,
+    dependencies=[_write_roles],
+)
 async def duplicate_company(
     company_id: uuid.UUID, db: AsyncSession = Depends(get_db)
 ) -> CompanyDetail:
@@ -96,7 +114,11 @@ async def duplicate_company(
     return company_service.to_company_detail(new_company)
 
 
-@router.post("/{company_id}/deactivate", status_code=status.HTTP_204_NO_CONTENT)
+@router.post(
+    "/{company_id}/deactivate",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[_write_roles],
+)
 async def deactivate_company(
     company_id: uuid.UUID, db: AsyncSession = Depends(get_db)
 ) -> None:
@@ -108,6 +130,7 @@ async def deactivate_company(
     "/{company_id}/identifiers",
     response_model=PartyIdentifierOut,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[_write_roles],
 )
 async def add_identifier(
     company_id: uuid.UUID,
@@ -127,7 +150,9 @@ async def add_identifier(
 
 
 @router.patch(
-    "/{company_id}/identifiers/{identifier_id}", response_model=PartyIdentifierOut
+    "/{company_id}/identifiers/{identifier_id}",
+    response_model=PartyIdentifierOut,
+    dependencies=[_write_roles],
 )
 async def update_identifier(
     company_id: uuid.UUID,
@@ -152,7 +177,9 @@ async def update_identifier(
 
 
 @router.delete(
-    "/{company_id}/identifiers/{identifier_id}", status_code=status.HTTP_204_NO_CONTENT
+    "/{company_id}/identifiers/{identifier_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[_write_roles],
 )
 async def delete_identifier(
     company_id: uuid.UUID, identifier_id: uuid.UUID, db: AsyncSession = Depends(get_db)
@@ -169,6 +196,7 @@ async def delete_identifier(
     "/{company_id}/addresses",
     response_model=AddressOut,
     status_code=status.HTTP_201_CREATED,
+    dependencies=[_write_roles],
 )
 async def add_address(
     company_id: uuid.UUID, payload: AddressWrite, db: AsyncSession = Depends(get_db)
@@ -188,7 +216,11 @@ async def add_address(
     return company_service.to_address_out(address)
 
 
-@router.patch("/{company_id}/addresses/{address_id}", response_model=AddressOut)
+@router.patch(
+    "/{company_id}/addresses/{address_id}",
+    response_model=AddressOut,
+    dependencies=[_write_roles],
+)
 async def update_address(
     company_id: uuid.UUID,
     address_id: uuid.UUID,
@@ -215,7 +247,9 @@ async def update_address(
 
 
 @router.delete(
-    "/{company_id}/addresses/{address_id}", status_code=status.HTTP_204_NO_CONTENT
+    "/{company_id}/addresses/{address_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[_write_roles],
 )
 async def delete_address(
     company_id: uuid.UUID, address_id: uuid.UUID, db: AsyncSession = Depends(get_db)

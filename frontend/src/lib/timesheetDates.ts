@@ -108,3 +108,23 @@ export function formatFullDate(d: Date): string {
     day: "numeric",
   }).format(d);
 }
+
+// The one DOM-touching function in this file: mirrors the exact `md:` breakpoint
+// (768px / 48rem, Tailwind's default) the mobile/desktop timesheet views already
+// switch on via `md:hidden` / `hidden md:flex` — see
+// docs/requirements/timesheet.md#my-timesheet-clocking for the default-periodType
+// rule this backs (Week on mobile, Month on desktop). A one-time check, not a
+// live-resize listener — see defaultPeriodType below.
+function isDesktopViewport(): boolean {
+  return typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches;
+}
+
+export function defaultPeriodType(): PeriodType {
+  return isDesktopViewport() ? "month" : "week";
+}
+
+export function defaultPeriodDate(): Date {
+  return defaultPeriodType() === "month"
+    ? startOfMonth(new Date())
+    : startOfWeekMonday(new Date());
+}

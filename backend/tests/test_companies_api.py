@@ -16,15 +16,78 @@ async def test_list_companies_requires_auth(client, db_session) -> None:
     assert response.status_code == 401
 
 
-async def test_list_companies_requires_administrator(client, db_session) -> None:
+async def _login_manager(client, db_session) -> None:
     await create_user(
-        db_session, name_id="manager@example.com", password="manager-pass", role_name="manager"
+        db_session,
+        name_id="manager@example.com",
+        password="manager-pass",
+        role_name="manager",
+    )
+    response = await client.post(
+        "/api/auth/login",
+        json={"email": "manager@example.com", "password": "manager-pass"},
+    )
+    assert response.status_code == 200
+
+
+async def test_list_companies_rejects_consultant(client, db_session) -> None:
+    await create_user(
+        db_session,
+        name_id="consultant@example.com",
+        password="pw",
+        role_name="consultant",
     )
     await client.post(
-        "/api/auth/login", json={"email": "manager@example.com", "password": "manager-pass"}
+        "/api/auth/login", json={"email": "consultant@example.com", "password": "pw"}
     )
     response = await client.get("/api/companies")
     assert response.status_code == 403
+
+
+async def test_list_and_get_company_allow_manager(client, db_session) -> None:
+    # Read-only lookups are also needed by the `projects` screen (manager-accessible)
+    # to populate its vendor/client pickers — see docs/requirements/project.md's
+    # "As a manager, I want to create a project by selecting... vendor... client..."
+    # user story. Only company-configuration *writes* stay administrator-only (see
+    # test_company_writes_reject_manager below).
+    company = await create_company(db_session, legal_name="Acme Vendor", is_vendor=True)
+    await _login_manager(client, db_session)
+
+    listing = await client.get("/api/companies")
+    assert listing.status_code == 200
+    assert listing.json()["total"] == 1
+
+    detail = await client.get(f"/api/companies/{company.id}")
+    assert detail.status_code == 200
+    assert detail.json()["legal_name"] == "Acme Vendor"
+
+
+async def test_company_writes_reject_manager(client, db_session) -> None:
+    company = await create_company(db_session, legal_name="Acme Vendor", is_vendor=True)
+    await _login_manager(client, db_session)
+
+    create = await client.post(
+        "/api/companies",
+        json={
+            "legal_name": "New Co",
+            "is_vendor": False,
+            "country_of_registration": "US",
+        },
+    )
+    assert create.status_code == 403
+
+    update = await client.patch(
+        f"/api/companies/{company.id}",
+        json={
+            "legal_name": "Renamed",
+            "is_vendor": True,
+            "country_of_registration": "US",
+        },
+    )
+    assert update.status_code == 403
+
+    deactivate = await client.post(f"/api/companies/{company.id}/deactivate")
+    assert deactivate.status_code == 403
 
 
 async def test_create_and_list_company(client, db_session) -> None:
