@@ -1,4 +1,4 @@
-import { CalendarClock, Cog, House, NotebookTabs, type LucideIcon } from "lucide-react";
+import { CalendarClock, House, NotebookTabs, Settings, type LucideIcon } from "lucide-react";
 
 import type { Role } from "@/types/user";
 
@@ -52,7 +52,7 @@ export const NAV_ITEMS: NavItem[] = [
   {
     to: "/configuration",
     label: "Configuration",
-    icon: Cog,
+    icon: Settings,
     requiredRoles: ["administrator"],
     children: [
       { to: "/configuration/companies", label: "Companies" },

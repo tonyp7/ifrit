@@ -37,7 +37,7 @@ screen — it's the app-wide navigation shell).
   | `home`          | `house`               |
   | `timesheet`     | `calendar-clock`      |
   | `projects`      | `notebook-tabs`       |
-  | `configuration` | `cog`                 |
+  | `configuration` | `settings`            |
   | profile         | `circle-user-round`   |
 
 - **Active state**: the icon for the currently active screen is visually highlighted, so the
