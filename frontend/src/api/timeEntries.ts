@@ -1,6 +1,9 @@
 import { apiClient } from "@/api/client";
 import type {
   EligibleServiceLineListResponse,
+  ManagedTimeEntriesResponse,
+  ServiceLineLockRequest,
+  TimeEntry,
   TimeEntryListResponse,
   TimeEntryUpsertInput,
   TimeEntryUpsertResult,
@@ -25,4 +28,19 @@ export function listEligibleServiceLines() {
 // each result's own `ok` field, not rely on the HTTP status to distinguish outcomes.
 export function upsertTimeEntries(payload: TimeEntryUpsertInput[]) {
   return apiClient.put<TimeEntryUpsertResult[]>("/time-entries", payload);
+}
+
+// Validation screen's one-call-loads-everything read — see
+// docs/requirements/timesheet.md's "GET /time-entries/managed" API contract.
+export function getManagedTimeEntries(startDate: string, endDate: string) {
+  const query = new URLSearchParams({ start_date: startDate, end_date: endDate });
+  return apiClient.get<ManagedTimeEntriesResponse>(
+    `/time-entries/managed?${query.toString()}`,
+  );
+}
+
+// Lock/unlock a whole (consultant, service line, period) at once — see
+// docs/requirements/timesheet.md's Validation § Lock / Unlock.
+export function setServiceLineLock(payload: ServiceLineLockRequest) {
+  return apiClient.put<TimeEntry[]>("/time-entries/lock", payload);
 }

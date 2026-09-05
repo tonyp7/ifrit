@@ -54,8 +54,19 @@ export function NavBar() {
   const { t } = useTranslation(["common"]);
 
   if (!user) return null;
+  const currentUser = user;
 
-  const items = NAV_ITEMS.filter((item) => canAccessNavItem(item, user.roles));
+  const items = NAV_ITEMS.filter((item) => canAccessNavItem(item, currentUser.roles));
+
+  // A child gated by its own `requiredRoles` (e.g. Validation, project_manager-only
+  // — see docs/requirements/home.md#timesheet-menu) may not be visible to every
+  // user who can see the parent item at all — Configuration's children have no
+  // such gate and are always both visible, same as before this concept existed.
+  function visibleChildren(item: (typeof items)[number]) {
+    return item.children?.filter(
+      (child) => !child.requiredRoles || child.requiredRoles.some((role) => currentUser.roles.includes(role)),
+    );
+  }
 
   return (
     <TooltipProvider delayDuration={200}>
@@ -65,8 +76,9 @@ export function NavBar() {
           "md:inset-y-0 md:left-0 md:right-auto md:h-full md:w-14 md:flex-col md:justify-start md:gap-2 md:border-r md:border-t-0 md:py-4",
         )}
       >
-        {items.map((item) =>
-          item.children ? (
+        {items.map((item) => {
+          const children = visibleChildren(item);
+          return children && children.length > 1 ? (
             <Tooltip key={item.to}>
               <DropdownMenu>
                 <TooltipTrigger asChild>
@@ -79,7 +91,7 @@ export function NavBar() {
                   </DropdownMenuTrigger>
                 </TooltipTrigger>
                 <DropdownMenuContent side="right" align="start">
-                  {item.children.map((child) => (
+                  {children.map((child) => (
                     <DropdownMenuItem key={child.to} onClick={() => navigate(child.to)}>
                       {t(child.label)}
                     </DropdownMenuItem>
@@ -98,8 +110,8 @@ export function NavBar() {
               </TooltipTrigger>
               <TooltipContent side="right">{t(item.label)}</TooltipContent>
             </Tooltip>
-          ),
-        )}
+          );
+        })}
 
         <div className="md:mt-auto">
           <Tooltip>

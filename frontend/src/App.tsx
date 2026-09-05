@@ -12,6 +12,7 @@ import { ProjectsPage } from "@/pages/ProjectsPage";
 import { TimesheetPage } from "@/pages/TimesheetPage";
 import { UserFormPage } from "@/pages/UserFormPage";
 import { UsersPage } from "@/pages/UsersPage";
+import { ValidationPage } from "@/pages/ValidationPage";
 
 export default function App() {
   return (
@@ -21,6 +22,9 @@ export default function App() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/timesheet" element={<TimesheetPage />} />
+          <Route element={<RequireRoles roles={["project_manager"]} />}>
+            <Route path="/validation" element={<ValidationPage />} />
+          </Route>
           <Route element={<RequireRoles roles={["project_admin"]} />}>
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/projects/new" element={<ProjectFormPage />} />

@@ -30,19 +30,25 @@ export interface TimeEntryUpsertInput {
   service_line_id: string;
   date: string;
   hours: string;
+  // Omitted (or undefined) means "the caller's own entry" — see
+  // docs/requirements/timesheet.md's Validation § Scope "Editing (override)". Only
+  // ever set by the Validation screen, when a project_manager overrides a
+  // consultant's entry, to that consultant's id.
+  user_id?: string;
 }
 
 // One request item's outcome from the bulk `PUT /time-entries` (see
 // docs/requirements/timesheet.md's "API contract" — the request/response are always
 // arrays, even for a single cell edit). `entry`/`error` are mutually exclusive:
 // `entry` is set (or `null` for a successful delete) when `ok` is `true`; `error` —
-// `"locked"` or `"not_eligible"` — is set when `ok` is `false`.
+// `"locked"`, `"not_eligible"`, or `"not_authorized"` (a rejected project_manager
+// override) — is set when `ok` is `false`.
 export interface TimeEntryUpsertResult {
   service_line_id: string;
   date: string;
   ok: boolean;
   entry: TimeEntry | null;
-  error: "locked" | "not_eligible" | null;
+  error: "locked" | "not_eligible" | "not_authorized" | null;
 }
 
 // Client-side row shown in `serviceLines` state (see
@@ -61,4 +67,31 @@ export interface ServiceLineRow {
 export interface EntryCell {
   hours: string;
   is_locked: boolean;
+}
+
+// One consultant's block on the Validation screen — see
+// docs/requirements/timesheet.md's "GET /time-entries/managed" API contract.
+export interface ManagedConsultant {
+  user_id: string;
+  full_name: string;
+  entries: TimeEntry[];
+  // Deliberately unfiltered — see ManagedConsultantOut on the backend. The
+  // frontend derives both the Add-dropdown options and each row's "still
+  // currently assigned" editability from this same set.
+  eligible_service_lines: EligibleServiceLine[];
+}
+
+export interface ManagedTimeEntriesResponse {
+  consultants: ManagedConsultant[];
+}
+
+// PUT /time-entries/lock — see docs/requirements/timesheet.md's Validation §
+// Lock / Unlock. One (consultant, service line, period) action per call, not a
+// bulk array.
+export interface ServiceLineLockRequest {
+  user_id: string;
+  service_line_id: string;
+  start_date: string;
+  end_date: string;
+  locked: boolean;
 }

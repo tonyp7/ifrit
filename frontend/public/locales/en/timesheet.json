@@ -17,9 +17,17 @@
   "Failed to save time entry.": "Failed to save time entry.",
   "This entry has been locked and can't be changed.": "This entry has been locked and can't be changed.",
   "You're not assigned to this service line.": "You're not assigned to this service line.",
+  "You're not authorized to edit this entry.": "You're not authorized to edit this entry.",
   "Remove service line?": "Remove service line?",
   "This will delete any time logged for this service line for the period {{period}}. Are you sure you want to proceed?": "This will delete any time logged for this service line for the period {{period}}. Are you sure you want to proceed?",
   "Can't remove — time logged for this period has been locked.": "Can't remove — time logged for this period has been locked.",
+  "Can't remove — this consultant is no longer assigned to this service line.": "Can't remove — this consultant is no longer assigned to this service line.",
   "Some time for this service line couldn't be cleared because it's since been locked. The service line remains visible.": "Some time for this service line couldn't be cleared because it's since been locked. The service line remains visible.",
-  "Failed to remove service line.": "Failed to remove service line."
+  "Failed to remove service line.": "Failed to remove service line.",
+  "This consultant is no longer assigned to this service line — read-only.": "This consultant is no longer assigned to this service line — read-only.",
+  "Lock service line": "Lock service line",
+  "Unlock service line": "Unlock service line",
+  "Failed to update lock state.": "Failed to update lock state.",
+  "Failed to load timesheets.": "Failed to load timesheets.",
+  "No consultants to review for this period.": "No consultants to review for this period."
 }

@@ -1,18 +1,22 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import get_current_user
+from app.auth.dependencies import get_current_user, require_roles
 from app.core.db import get_db
 from app.models.user import User
 from app.schemas.time_entry import (
     EligibleServiceLineListResponse,
+    ManagedTimeEntriesResponse,
     TimeEntryListResponse,
+    TimeEntryLockRequest,
+    TimeEntryOut,
     TimeEntryUpsert,
     TimeEntryUpsertResult,
 )
 from app.services import time_entry_service
+from app.services.time_entry_service import NotAuthorizedError
 
 router = APIRouter(
     prefix="/time-entries",
@@ -69,3 +73,39 @@ async def upsert_time_entries(
     if any(not result.ok for result in results):
         response.status_code = status.HTTP_207_MULTI_STATUS
     return results
+
+
+@router.get("/managed", response_model=ManagedTimeEntriesResponse)
+async def list_managed_time_entries(
+    start_date: date,
+    end_date: date,
+    user: User = Depends(require_roles("project_manager")),  # noqa: B008
+    db: AsyncSession = Depends(get_db),
+) -> ManagedTimeEntriesResponse:
+    """Validation screen's one-call-loads-everything endpoint (see
+    docs/requirements/timesheet.md's "GET /time-entries/managed" API contract) — no
+    identity parameter, the caller's own project_manager assignments determine the
+    whole response. `GET /time-entries` and `GET /time-entries/eligible-service-lines`
+    are unrelated and unchanged; this is a separate, purpose-built read path."""
+    consultants = await time_entry_service.list_managed_time_entries(
+        db, user, start_date, end_date
+    )
+    return ManagedTimeEntriesResponse(consultants=consultants)
+
+
+@router.put("/lock", response_model=list[TimeEntryOut])
+async def set_service_line_lock(
+    payload: TimeEntryLockRequest,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[TimeEntryOut]:
+    """Lock/unlock a whole (consultant, service line, period) at once — see
+    docs/requirements/timesheet.md's Validation § Lock / Unlock and its API
+    contract. A single action, not a bulk array like PUT /time-entries: any failing
+    authorization check rejects the whole request rather than partially applying."""
+    try:
+        return await time_entry_service.set_service_line_lock(db, user, payload)
+    except NotAuthorizedError as err:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN, detail=str(err)
+        ) from err

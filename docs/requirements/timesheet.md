@@ -10,11 +10,12 @@ They're kept clearly separate below: one is the data-entry mechanism, the other 
 - **My Timesheet** (see §My Timesheet (Clocking) below) — where a user logs their own time
   against a `Service Line` they're assigned to (see [project.md](project.md)). Cells are freely
   editable — **there is no Submit step** — until a `project_manager` locks them via §Validation.
-- **Validation** (see §Validation below — **placeholder only, not yet specified**) — where a
-  `project_manager` sees their own timesheet, but also those of consultants **on projects they're
-  assigned to as project manager** (see [user.md § Entity](user.md#entity) for the
-  `project_admin`/`project_manager` split — this was gated by a single `manager` role before that
-  split), and **locks**/**unlocks** cells to freeze/unfreeze them from further edits.
+- **Validation** (see §Validation below) — where a `project_manager` sees consultants' submitted
+  timesheets **on projects they're assigned to as project manager** (see
+  [user.md § Entity](user.md#entity) for the `project_admin`/`project_manager` split — this was
+  gated by a single `manager` role before that split), can edit them the same way a consultant
+  edits their own, and **locks**/**unlocks** a whole service line's period at a time to
+  freeze/unfreeze it from further edits.
 
 ## My Timesheet (Clocking)
 
@@ -103,9 +104,10 @@ State needed at the top level:
   `(user, service_line, date)`, it is deleted. A `0` entry has no reason to exist as a row once
   there's no Submit step for it to matter to — this is simpler than the earlier draft, which
   briefly required saving `0` rows for a since-removed Submit mechanism to attach status to. The
-  one place this simplicity has a real cost is deferred to §Validation: locking a date range that
-  includes untouched (rowless) days now has to decide what happens to those gaps — see the new
-  open question there.
+  one place this simplicity has a real cost is in §Validation: locking a date range that includes
+  untouched (rowless) days has to materialize those gaps as locked `0` rows — see
+  [§Validation § Lock / Unlock](#lock--unlock) — so this "no reason to exist as a row" rule is
+  specifically about an *unlocked* `0`, not `0` rows in general.
 - On blur, if the value is `> 0`: the row is upserted (`INSERT ... ON CONFLICT (user_id,
   service_line_id, date) DO UPDATE`, matching the table's unique constraint) with `is_locked =
   false`. A row created this way is always unlocked by construction — the consultant's own save
@@ -114,11 +116,17 @@ State needed at the top level:
   read-only (see the user stories above), so there's no blur-to-save path to guard against
   separately.
 - **Saving a new entry against a service line the user is no longer assigned to must error, not
-  silently succeed.** This only affects genuinely new/unlocked entries — a service line can still
-  be visible with existing locked rows after unassignment (see §State's population rule and
-  §Interactions & Input Rules' removal rule), and those stay untouched and read-only regardless.
-  Whether the UI proactively disables such a cell rather than letting the user type into it and
-  fail on blur is not yet specified.
+  silently succeed** — and, **resolved**, the UI doesn't wait for that error to happen: every cell
+  on a service line the entry's owner is no longer currently assigned to is **read-only**,
+  regardless of `is_locked`. Historical data still displays in full (see §State's population rule
+  and §Interactions & Input Rules' removal rule — unassignment never hides a line with real
+  history), it just can't be edited or added to anymore once the person it belongs to isn't
+  assigned to it — the UI proactively reflects that rather than letting someone type into a cell
+  that would only fail on blur. This is a *third*, distinct reason a cell can be read-only,
+  alongside `is_locked` — see §Both views above for how the two are told apart visually, and
+  §Validation § Scope above for why this applies identically there (a `project_manager`'s
+  override is subject to the exact same rule, checked against the *consultant's* current
+  assignment, not the `project_manager`'s own).
 
 #### API contract: `PUT /time-entries` is bulk, not single-entry
 
@@ -232,9 +240,28 @@ being cleared in the period**, in a single request — never one request per day
 Both views read/write the exact same `entries`/`serviceLines` state, so resizing the viewport
 never loses data.
 
-Both views have clean UI feedback on the cell's editability — just two states now:
- - Open (`is_locked = false`): standard, editable.
- - Locked (`is_locked = true`): read-only, greyed out.
+Both views have clean UI feedback on the cell's editability — **three** states (revised from an
+earlier two-state design — see §Persistence above for the rule that added the third):
+ - **Open** (`is_locked = false`, and the entry's owner is currently assigned to the service
+   line): standard, editable.
+ - **Locked** (`is_locked = true`, regardless of current assignment): read-only, with a **light
+   red background** — deliberately more specific than "greyed out" (an earlier draft's wording):
+   a locked cell needs to read as "frozen, someone else's action," not just disabled, and the
+   same rendering is shared verbatim between My Timesheet and Validation (see §Validation below)
+   — a consultant sees the exact same light-red cell on their own timesheet that a
+   `project_manager` sees on Validation, since both screens render cells through the same
+   component.
+ - **Unassigned** (`is_locked = false`, but the entry's owner is *not* currently assigned to the
+   service line — historical data from a since-removed assignment): read-only, **greyed out**
+   (reusing the plain "disabled" treatment the two-state design used for Locked, now free to mean
+   something more specific now that Locked has its own distinct light-red styling) — with a
+   native `title` tooltip explaining why (same lightweight pattern
+   `RemoveServiceLineControl`'s disabled state already uses, rather than introducing a
+   `TooltipProvider` for this too). **Locked wins if both are true** — a locked row on a
+   since-unassigned line renders as Locked (light red), not Unassigned (grey); Unassigned only
+   ever applies to a genuinely unlocked row. Applies identically on Validation, checked against
+   the *consultant's* current assignment, not the viewing `project_manager`'s own (see
+   §Validation § Scope above).
 
 ### Interactions & Input Rules
 
@@ -321,9 +348,11 @@ Both views have clean UI feedback on the cell's editability — just two states 
 
 ## Validation
 
-**Placeholder — not yet specified.** This is a separate screen from §My Timesheet (Clocking)
-above, not an extra mode bolted onto it. It's now the *only* place lock state ever changes — there
-is no Submit step anywhere else (see §My Timesheet (Clocking)'s intro).
+This is a separate screen from §My Timesheet (Clocking) above, not an extra mode bolted onto it.
+It's the *only* place lock state ever changes — there is no Submit step anywhere else (see §My
+Timesheet (Clocking)'s intro). A `project_manager` does not have "their own" separate timesheet
+here — their own time is still logged on §My Timesheet (Clocking), like anyone else's; this
+screen is exclusively for reviewing/editing/locking *consultants'* timesheets.
 
 - **Access**: the literal `project_manager` role only — not inferred from `administrator` or
   `project_admin` — reached via the `timesheet` nav icon's dropdown, "Validation" item. Further
@@ -331,21 +360,284 @@ is no Submit step anywhere else (see §My Timesheet (Clocking)'s intro).
   [project.md § Project Managers](project.md#project-managers) for that assignment mechanism. See
   [home.md § Timesheet Menu](home.md#timesheet-menu) and
   [user.md § Role → Screen Access](user.md#role--screen-access).
-- **Purpose**, from the top-level user stories: a `project_manager` can see their own timesheet,
-  but also those of consultants **on projects they're assigned to**, and **lock**/**unlock**
-  cells to freeze/unfreeze them from further edits.
-- **Not yet defined** — see §Open Questions below for the full list of unresolved sub-questions,
-  including several genuinely new ones this simplification introduces (lock granularity,
-  gap-locking, self-lock, and whether locking carries any approval/audit meaning at all).
+- **Purpose**, from the top-level user stories: a `project_manager` can see consultants'
+  timesheets **on projects they're assigned to**, edit them the same way the consultant would
+  edit their own, and **lock**/**unlock** a whole service line's period at a time to
+  freeze/unfreeze it from further edits.
+
+### Implementation note: one shared mechanism, not two
+
+**This is an architectural requirement, not just a preference.** My Timesheet (Clocking) and
+Validation are two views over the *same* mechanism — a grid/day-strip of service-line rows for a
+selected Week/Month period, autosaving cells on blur — not two independently-built screens that
+happen to look similar. Validation must reuse the same components My Timesheet (Clocking) already
+uses for: the Shared Header (`periodType`/`periodDate` switching, prev/next, period label — see
+§Shared header above), the responsive Mobile/Desktop split (§Mobile view/§Desktop / tablet view
+above), the per-cell input/autosave behavior (§Persistence above, including its bulk `PUT
+/time-entries` contract), and the "Add service line"/"Removing a service line" mechanics
+(§Interactions & Input Rules above). Validation's own additions — stacking multiple consultants'
+timesheets, and the lock/unlock control — must be expressed as parameters/composition over that
+shared mechanism (e.g. "whose timesheet," "how many, stacked," "does this row get a lock
+control") rather than a parallel implementation. Concretely, nothing described below should
+require its own copy of the grid, the cell-rendering logic, or the period-switching logic; the
+lock/unlock control is the one genuinely new piece of UI, added *alongside* the existing
+remove-service-line control, not replacing any of it. This matters enough to call out explicitly
+because getting it wrong here is exactly how a codebase ends up with two subtly-diverging
+implementations of "a timesheet grid" to maintain forever after.
+
+### Screen layout
+
+- **One shared header for the whole screen** (§Shared header above, reused verbatim) — a single
+  `periodType`/`periodDate` selection governs every consultant's timesheet shown below at once.
+  There is no per-consultant period picker; reviewing "everyone's August" is the point.
+- **One block per consultant**, each consisting of:
+  - A header showing the consultant's name, in bold (their `full_name` — see
+    [user.md](user.md)). Nothing else in the header; project/service-line detail is still shown
+    per-row exactly as on My Timesheet (project name + service line name — see §Desktop / tablet
+    view above).
+  - That consultant's timesheet, rendered through the exact same responsive component described
+    in §Screen layout's implementation note above (day-strip on mobile, spreadsheet grid on
+    desktop/tablet), scoped per §Scope below.
+- **A shadcn/ui `Separator` between consecutive consultant blocks** — after a block, before the
+  next one; no separator before the first block or after the last.
+- **Consultant block order**: proposed ascending by `full_name`, matching this doc's existing
+  row-ordering convention elsewhere (§State above) — not explicitly requested; flag if a
+  different order (e.g. by project) is wanted instead.
+
+### Scope: what a `project_manager` sees and can touch
+
+- **Project-scoped, not consultant-scoped.** A consultant can be assigned to service lines on
+  projects the viewing `project_manager` is *not* assigned to as project manager (see
+  [project.md § Project Managers](project.md#project-managers)) — those service lines are simply
+  never shown here, on this consultant's block or anywhere else on this screen. This is a hard
+  filter applied before anything else below, not a greyed-out/locked-looking placeholder for
+  out-of-scope lines — they don't exist on this screen at all, the same way an entirely
+  unrelated consultant's timesheet doesn't.
+- **Which consultants show up at all — revised: static membership, not data-dependent.** Every
+  consultant assigned to at least one service line meeting the same eligibility rule §Interactions
+  & Input Rules' "Add service line" already uses (project `status = "active"`, project
+  `is_active = true`, service line `is_active = true`, consultant assigned) on a project the
+  `project_manager` is assigned to (see [project.md § Project Managers](project.md#project-managers))
+  gets a block — **unconditionally, whether or not they have any logged time for the
+  currently-displayed period.** This replaces the earlier has-data-or-added-this-period rule at
+  the consultant level (that rule now applies one level down — see the next bullet). A consultant
+  who's ever logged time on an in-scope-at-the-time service line also keeps their block via that
+  historical data even if since unassigned or the project's gone inactive — the same "historical
+  data stays visible regardless of current assignment" principle §State already establishes for
+  My Timesheet, just applied one level up. **This is what resolves the earlier "zero-data
+  consultant discovery" gap**: a newly-assigned consultant with nothing logged yet still gets a
+  block, empty, ready to add a line into — see [Open Questions](#open-questions) below, now
+  marked resolved.
+- **Which service lines actually show, *within* a consultant's block — unchanged.** The existing
+  rule (§State above): a line shows if it has any entry for the currently-displayed period, or
+  was added via "Add service line" while viewing this period — intersected with the project-scope
+  filter above. A consultant who qualifies for a block per the bullet above but has no data this
+  period, and hasn't had a line added yet, gets a block with **zero rows** — rendered through the
+  exact same empty state My Timesheet's own component already has ("No service lines added yet.
+  Use 'Add service line' below to start logging time." — see §Mobile view/§Desktop / tablet view
+  above), inherited for free rather than needing its own design, per the implementation note
+  above.
+- **"Add service line," on a given consultant's block**: same UI as My Timesheet's own (a
+  constrained dropdown, not free text — see §Interactions & Input Rules above), and the same
+  eligibility filters (active project, active service line) — but computed from the
+  `project_manager`'s perspective, not the consultant's: service lines where **(a)** the
+  `project_manager` is assigned to the parent project and **(b)** this specific consultant is
+  assigned to the service line (i.e. one of its consultants — same `service_line_consultants`
+  check My Timesheet's own eligibility rule uses, just from the other side). Both conditions, not
+  either. This is the exact same set that determines block membership above, which is why an
+  empty block's "Add service line" dropdown is never actually empty — it always has at least the
+  service line(s) that qualified this consultant for a block in the first place (plus any others
+  they're also assigned to under this `project_manager`'s scope).
+- **Editing ("override")**: a `project_manager` can edit any *unlocked* cell on any displayed
+  consultant's block, through the exact same input/autosave-on-blur mechanism a consultant uses
+  on their own timesheet (§Persistence above, same bulk `PUT /time-entries` contract) — there is
+  no separate "override" endpoint or mode. `last_updated_by` on the resulting row is the
+  `project_manager`, not the consultant (§Data Model above already accounts for this — it's why
+  that column exists at all). **Editing a locked cell is not possible directly** — `PUT
+  /time-entries` already rejects a write against `is_locked = true` unconditionally, regardless
+  of caller (§Persistence's API contract above: "this endpoint never grants that authority to
+  anyone, including the original consultant") — a `project_manager` who needs to change a locked
+  value must unlock the service line's period first (see §Lock / Unlock below), make the edit,
+  and optionally re-lock afterward. This is deliberate, not a gap: it means the write endpoint
+  never has to special-case "unless the caller is a project_manager," keeping locked genuinely
+  meaning locked, for everyone, through that one endpoint.
+- **Removing a service line, on a consultant's block — resolved: full three-branch behavior,
+  unchanged.** Branch 2 (confirm, then bulk-clear the period's logged time — see §Interactions &
+  Input Rules above) applies exactly as on My Timesheet, including when a `project_manager`
+  invokes it against a consultant's own logged time — this is a direct consequence of "a
+  `project_manager` can override inputs" extending to removal, not just editing individual cells.
+  Branch 3 (any locked entry blocks removal entirely) still applies unchanged, same as always.
+
+### Lock / Unlock
+
+- **Granularity: one whole service line's period, per consultant — not per cell, not per day.**
+  This resolves the earlier open question of lock granularity. A single lock/unlock action always
+  targets exactly the row currently in view (one consultant, one service line) across every day
+  in the *currently-displayed* period (`days` — Week or Month, whichever is selected — see §State
+  above) — the same period-scoping already established for "Removing a service line" above.
+- **Control**: a new icon-button on the row, positioned immediately to the **left** of the
+  existing remove ("×") control (§Interactions & Input Rules above) — so the row's action order
+  becomes lock/unlock, then remove. Only rendered on Validation (via the shared component's
+  "does this row get a lock control" parameter — see the implementation note above); My Timesheet
+  (Clocking) never shows it, since a consultant has no locking authority over their own row.
+- **Icons represent the action a click performs, not the row's current state**: `lucide-lock`
+  (closed) means "click to lock"; `lucide-lock-open` (open) means "click to unlock." Concretely:
+  - **Shows `lucide-lock`** (→ clicking **locks**) whenever *any* day in the currently-displayed
+    period is not locked for this service line/consultant — whether that day has an unlocked
+    entry, or no entry at all (a gap). **Rule, stated directly**: if at least one day in the
+    period isn't locked, the icon shows lock.
+  - **Shows `lucide-lock-open`** (→ clicking **unlocks**) only when *every* day in the
+    currently-displayed period is already locked for this service line/consultant.
+  - **Worked example from the request**: a `project_manager` locks Week 34 (all 7 days become
+    locked). They switch to Month view. The rest of the month is untouched, so the icon still
+    shows `lucide-lock` — clicking it now locks every remaining unlocked/gap day in the *whole
+    month*, Week 34's already-locked days included in the target period but left as-is (locking
+    an already-locked day is a no-op, not an error). A lock action only ever moves days *toward*
+    locked; it never revisits or unlocks anything.
+- **What "lock" actually does, per day in the target period** (this resolves the earlier
+  gap-locking open question): for a day with an existing unlocked row, set `is_locked = true`,
+  value unchanged. For a day with **no** row at all (a gap), create one with `hours = 0` and
+  `is_locked = true` — i.e. locking *does* materialize gaps, deliberately, because "lock the
+  entire service line for the period" (as specified) only means something uniform if every day
+  in that period ends up in the same state. This is a narrow, explicit exception to §Persistence's
+  "a `0` entry has no reason to exist as a row" rule — that rule is about an *unlocked* `0`
+  specifically, not `0` rows in general (see §Persistence above, updated to say so).
+  **Resolved — must be written as a single atomic upsert per day, never a read-then-decide.**
+  `INSERT ... ON CONFLICT (user_id, service_line_id, date) DO UPDATE SET is_locked = true` — the
+  conflict branch touches `is_locked` **only**, never `hours`; the insert branch's `hours = 0`
+  applies solely when no row exists at the instant the statement runs. This is what closes the
+  race against a concurrent consultant edit (see §Open Questions below): whichever write actually
+  reaches Postgres first, the other composes correctly on top of it — a consultant's value that
+  lands moments before a lock request is locked *as entered*, never silently zeroed out by it.
+  Not a read-then-write check at the application layer; Postgres's own row-level serialization on
+  the unique key is what makes this safe under concurrency, not application code guessing who won.
+- **What "unlock" actually does, per day in the target period**: for a day whose row has
+  `hours > 0`, set `is_locked = false` (value unchanged, now editable again). For a day whose row
+  has `hours == 0` (i.e. one of lock's own gap-fill rows, since a genuine consultant-entered `0`
+  can never exist per §Persistence), **delete the row** rather than leaving a `0`, unlocked —
+  restoring the true gap that existed before it was locked, and keeping the existing invariant
+  intact ("a row exists only if `hours > 0` or `is_locked = true`," now stated as the general
+  rule rather than assumed).
+- **"Locked" carries no approval/audit meaning — resolved.** It is purely a mechanical
+  edit-freeze, not a "reviewed and signed off" signal the way the old `validated` state implied.
+  The one thing that *is* recorded is *who* locked (or unlocked) a row and *when* —
+  `last_updated_by`/`updated_at` (§Data Model above) already capture this as a side effect of
+  being a normal row update, the same as any other change to the row. That's a plain audit trail
+  of the mechanical action, not an approval/sign-off status — there's no separate "reviewed by"
+  concept, and nothing currently reads `last_updated_by` as meaning anything beyond "this is who
+  last touched this row."
+- **No race-outcome reporting to the `project_manager` — resolved, by design.** Once the atomic
+  write above guarantees a lock action always ends up locking whatever value genuinely existed
+  the instant it ran, there's no *wrong* outcome left to report — only "the right value got
+  locked, possibly a beat later than you assumed." The consultant's own side already surfaces the
+  race when it goes the other way (their `PUT /time-entries` item comes back rejected per
+  §Persistence's existing contract — toast, revert, no new mechanism needed). Deliberately not
+  building richer diff/report-back for the `project_manager` on top of that — see §Open Questions
+  below for why that was considered and set aside rather than just not thought of.
+- **Visual feedback**: a locked cell renders with a **light red background** (see §Both views
+  above, updated) — the same rendering on both My Timesheet (Clocking) and Validation, since both
+  render cells through the same component (see the implementation note above).
+- **No confirmation dialog on lock or unlock — resolved, by design.** Matches this app's "live,
+  low-friction editing surface" philosophy already established for hour edits (§Interactions &
+  Input Rules above) rather than
+  [frontend.md § Destructive Actions](../architecture/frontend.md#destructive-actions)'s
+  confirm-before-destructive-action rule — consistent with neither action destroying data (lock
+  preserves values; unlock's only deletion is of a `0` gap-fill row that was never real data to
+  begin with).
+
+#### API contract: locking is not part of `PUT /time-entries`
+
+§Persistence's API contract above already establishes that `PUT /time-entries` never grants
+unlock authority to anyone, including a `project_manager` — locking/unlocking needs its own
+mechanism entirely. Proposed shape, mirroring that same contract's rigor:
+
+- A new endpoint — e.g. `PUT /time-entries/lock` — taking the target consultant (`user_id`), the
+  `service_line_id`, the date range (`start_date`/`end_date` — i.e. whatever `days` currently is
+  on the caller's screen), and the target `locked` boolean (`true` to lock, `false` to unlock).
+  One call per lock/unlock click — this is a single (consultant, service line, period) action,
+  not a bulk array the way `PUT /time-entries` is (there's no equivalent "many independent items"
+  shape here — see [Open Questions](#open-questions) below for the one place this could still
+  raise a partial-failure question).
+- **Authorization, all required**: caller holds `project_manager`; caller is assigned (via
+  `project_managers`) to the project that owns `service_line_id`; the target consultant
+  (`user_id`) is actually assigned to `service_line_id` (i.e. is one of its consultants). Any
+  failing check is a rejection, not a partial success.
+- **Response**: proposed as the resulting set of `TimeEntryOut` rows for that
+  (`user_id`, `service_line_id`) across the requested date range, post-lock/unlock — same
+  "return authoritative state, don't make the client guess" pattern §Persistence's bulk contract
+  already uses — so the frontend can resync `entries` for that row directly from the response,
+  the same way it already does for `PUT /time-entries`.
+
+#### API contract: `GET /time-entries/managed` — one call loads the whole screen
+
+`GET /time-entries` (§My Timesheet (Clocking)'s own read endpoint) is deliberately scoped to "the
+calling user's own entries" — it has no notion of another user or a project-scoped consultant
+list, and reshaping it to sometimes mean "my team's entries, grouped" was considered and
+rejected: it would make the endpoint's response shape and authorization depend on which query
+params were passed, breaking the "one endpoint, one predictable meaning" rule this app's other
+endpoints already follow (`GET /time-entries/eligible-service-lines` included). A caller-supplied
+"whose data" parameter was also considered and rejected for the same reason every other endpoint
+in this app derives identity from the auth cookie rather than a client-supplied id: there's no
+legitimate value it could hold other than the caller's own, making it redundant at best and an
+easy thing to get wrong at worst.
+
+Instead: a new, purpose-built endpoint, `GET /time-entries/managed?start_date=&end_date=` —
+naming to match this doc's own recommendation, distinct from a rejected `/time-entries/team`
+alternative.
+
+- **No identity parameter.** Like `GET /time-entries/eligible-service-lines`, the caller's
+  identity and role come entirely from the auth cookie (`get_current_user`). The endpoint
+  requires the literal `project_manager` role (`require_roles("project_manager")`, same pattern
+  every other role-gated endpoint in this app already uses) — a 403 otherwise, not a
+  differently-shaped response.
+- **One query, all server-side scoping**: joins `project_managers` (this caller's assigned
+  projects) → eligible `service_lines` (the same active-project/active-service-line filters
+  §Interactions & Input Rules' "Add service line" already uses) → `service_line_consultants` for
+  the roster, unioned with anyone holding historical data on an in-scope-at-the-time line (see
+  §Scope above) — then one `time_entries` query across all those service lines for the requested
+  date range, grouped by consultant. This is the same "one indexed query beats N round trips"
+  reasoning `PUT /time-entries`'s own bulk contract above is already built on, applied to reads.
+- **Response, grouped by consultant** — one entry per in-scope consultant, each carrying:
+  - `user_id`, `full_name` (renders the bold consultant-name header — see §Screen layout above)
+  - `entries`: that consultant's `time_entries` for the requested range, restricted to service
+    lines under *this* `project_manager`'s scope only (never the consultant's service lines on
+    projects this `project_manager` isn't assigned to — §Scope's hard project-scoping rule) —
+    same `TimeEntryOut` shape §Data Model already defines, unchanged.
+  - `eligible_service_lines`: **(b) embedded directly in this same response**, rather than a
+    separate parameterized call to `eligible-service-lines` — *every* service line this specific
+    consultant is currently eligible for under this `project_manager`'s scope (§Scope above's
+    both-conditions rule: `project_manager` assigned to the project **and** this consultant
+    assigned to the service line), same unfiltered `EligibleServiceLineOut` shape `GET
+    /time-entries/eligible-service-lines` already defines and — deliberately — the same
+    *unfiltered* shape too: this is the raw eligibility set, not pre-filtered down to only
+    addable ones. Two things are derived from it client-side, mirroring exactly how My
+    Timesheet's own `eligibleLines`/`addOptions` split already works (§State above): the "Add
+    service line" dropdown's options (this set, minus whatever's already shown on the block —
+    the existing `addOptions` filter, unchanged), **and** — new, needed for §Persistence's
+    "Unassigned" cell state above — whether an *already-shown* row is still editable at all: a
+    row's service line not being in this consultant's `eligible_service_lines` is exactly what
+    "no longer currently assigned" means, checked against the consultant, not the caller. Chosen
+    over a second round trip per consultant because this screen's whole usage pattern is "load
+    once, review everyone" — a bigger single response beats N follow-up calls here, the same
+    reasoning that ruled out Option B's per-consultant loop above.
+  A consultant with nothing logged this period and nothing added yet still appears, with
+  `entries: []` — this is what makes §Scope's "static membership, unconditional" rule real: the
+  roster comes from this same call, not a separate one.
+- `GET /time-entries` and `GET /time-entries/eligible-service-lines` are **unchanged** — Validation
+  never calls either; My Timesheet (Clocking) keeps using them exactly as today.
+- No pagination on the consultant list — consistent with this doc's existing "no cap, scrolls
+  naturally" position (§Open Questions below), extended here the same way it already covers many
+  service lines or many empty consultant blocks.
 
 ## Data Model
 
 `time_entries` is the core underlying table both screens above are built on — table name plural,
 matching every other table in this project (see
 [database.md § Schema Conventions](../architecture/database.md#schema-conventions)) — §My
-Timesheet (Clocking) writes unlocked rows to it; §Validation (once specified) is the only thing
-that ever sets `is_locked = true` (or reverts it). An item in `time_entries` contains the
-following information:
+Timesheet (Clocking) writes unlocked rows to it; §Validation is the only thing that ever sets
+`is_locked = true` (or reverts it), including materializing/removing the `0`-hour gap rows its
+own lock/unlock actions need (see §Validation § Lock / Unlock above). An item in `time_entries`
+contains the following information:
 
  - `id` UUID PK -- matches every other table's PK type in this project (see
    [database.md](../architecture/database.md))
@@ -410,42 +702,51 @@ heading/slug until now.)
 
 **Critical — blocks implementation as written**
 
-- **The Validation screen — now the *entire* lock/unlock mechanism — is completely unspecified.**
-  With Submit gone, this single placeholder screen carries everything that used to be split
-  across My Timesheet's Submit button and the old Validate/re-open actions. Open sub-questions:
-  - **Lock granularity** — per cell, per day, per service line's whole period, or bulk across an
-    entire consultant + period in one action? (This is the direct replacement for the old Submit
-    granularity question, now entirely on the `project_manager`'s side.)
-  - **Gap-locking** (new, direct consequence of reinstating delete-on-zero — see §Persistence):
-    if a `project_manager` locks a range that includes untouched (rowless) days, are those days
-    materialized as locked `0` rows, or does locking silently skip gaps — leaving them open
-    indefinitely, so a consultant could still add hours to a "hole" inside an otherwise-locked
-    period? This needs an explicit answer; it didn't exist as a question under the old
-    force-fill-everything Submit mechanism.
-  - **Self-lock — resolved**: yes, no restriction. A `project_manager` who is also a `consultant`
-    on the same project (an already-supported multi-role combination) can lock/unlock their own
-    timesheet cells same as anyone else's — deliberately kept simple rather than adding a
-    self-assigned-work carve-out. See [user.md § Open Questions](user.md#open-questions).
-  - **Scope — resolved and implemented**: a `project_manager` can only lock/unlock timesheets for
-    consultants assigned to service lines on projects where *they themselves* are assigned as
-    project manager (see [user.md § Role → Screen Access](user.md#role--screen-access)) — this
-    replaces the earlier version of this question (whether any `manager` could act system-wide,
-    back when `project.md` had no concept of per-project responsibility). The assignment relation
-    itself is implemented: see [project.md § Project Managers](project.md#project-managers) (the
-    `project_managers` table and the Project Form's picker). **Still open**: how the Validation
-    screen itself queries against that assignment and surfaces it in its UI — left for this doc
-    to specify when the Validation screen is designed.
-  - **Does "locked" carry any approval/audit meaning, or is it purely a mechanical edit-freeze?**
-    (new) The old `validated` state implied a manager had reviewed and signed off — a real
-    business capability for billing/payroll/audit purposes. The new model is deliberately weaker
-    ("frozen from edits") and doesn't by itself say whether that reviewed-and-approved meaning
-    still exists somewhere, or whether it's been dropped along with the complexity. Worth
-    deciding explicitly rather than losing it silently.
-  - How a `project_manager` finds/picks which consultant's timesheet to look at (presumably
-    scoped to the consultants on their assigned projects, not every consultant in the system —
-    another consequence of the scoping above worth confirming explicitly), and what read-only vs.
-    editable states look like for whatever's shown, remain undefined too (carried over from the
-    original placeholder).
+- **Resolved — zero-data consultant discovery.** §Validation § Scope above now defines "which
+  consultants show up at all" as static membership (assigned to an eligible in-scope service
+  line, or has historical data on one) rather than data-dependent — a consultant block always
+  exists once someone qualifies, whether or not they've logged anything for the currently-viewed
+  period, so there's no longer a chicken-and-egg problem creating the first block. The read
+  endpoint this needs is now fully specified too — see §Validation's `GET /time-entries/managed`
+  API contract above.
+- **Resolved — lock/unlock race against a concurrent consultant edit.** Split into the two things
+  this was actually conflating: whether the race can *corrupt data*, and whether it needs
+  *reporting*.
+  - **Corruption — closed, not a judgment call.** §Validation § Lock / Unlock above now requires
+    the per-day lock write to be a single atomic `INSERT ... ON CONFLICT DO UPDATE SET is_locked
+    = true` (never touching `hours` in the conflict branch) rather than a read-then-decide at the
+    application layer. Postgres's own row-level serialization on the unique key means whichever
+    write — the consultant's save or the `project_manager`'s lock — actually lands first, the
+    other composes correctly on top of it. A consultant's value can no longer be silently zeroed
+    out by a lock landing moments later.
+  - **Reporting — resolved, deliberately minimal.** Once corruption is off the table, there's no
+    wrong outcome left to narrate to the `project_manager` — only "the right value got locked,
+    maybe a beat later than assumed." The consultant already learns of the race when it goes the
+    other way, via the existing rejected-item path in §Persistence's `PUT /time-entries` contract
+    (no new mechanism). A richer diff/report-back for `PUT /time-entries/lock` itself (an
+    expected-prior-state input, a `207`-style per-day response) was considered — architecturally
+    consistent with the bulk endpoint's own pattern, so not a foreign idea — but rejected as
+    disproportionate engineering for a millisecond-window race whose only remaining outcome,
+    once atomic, is already correct.
+- **Resolved — "locked" carries no approval/audit meaning.** Purely a mechanical edit-freeze; the
+  old `validated` state's implied "reviewed and signed off" meaning is not carried forward.
+  `last_updated_by`/`updated_at` (§Data Model above) do record who locked/unlocked a row and
+  when, as a side effect of it being a normal row update like any other — a mechanical audit
+  trail, not an approval/sign-off status. See §Validation § Lock / Unlock above.
+- **Resolved — "Removing a service line" applies in full on a consultant's block, including
+  branch 2.** A `project_manager`'s ability to override a consultant's input extends to removal,
+  not just editing individual cells — branch 2 (confirm, then bulk-clear) works exactly the same
+  whether it's your own timesheet or a consultant's. Branch 3 (any locked entry blocks removal
+  entirely) is unaffected. See §Validation § Scope above.
+- **Resolved — no confirmation dialog on lock/unlock, by design.** See §Validation § Lock / Unlock
+  above.
+- **Lock granularity, gap-locking, self-lock, and scope are all resolved** — see §Validation §
+  Lock / Unlock above for granularity (one whole service line's period, per consultant) and
+  gap-locking (locking materializes gap days as locked `0` rows; unlocking removes any that
+  weren't real data), [user.md § Open Questions](user.md#open-questions) for self-lock, and
+  [project.md § Project Managers](project.md#project-managers) for the scope mechanism itself,
+  now fully specified in how the screen surfaces it (§Validation § Scope above). Carried here
+  only as a pointer, not restated.
 
 **Resolved — raised by the "Removing a service line" revision above, since resolved**
 
@@ -468,3 +769,9 @@ heading/slug until now.)
   consultant with many service lines across projects gets a longer mobile vertical list / a
   taller desktop sticky first column, scrolling naturally like any other long list in the app —
   no cap, no pagination, no collapsing. Not an oversight; there's no reason to special-case this.
+  **Extends to Validation's consultant blocks too**, now that block membership is unconditional
+  (§Validation § Scope above) rather than data-gated: a `project_manager` on a project with many
+  consultants sees many blocks, most potentially empty for any given period — the same "scrolls
+  naturally, no cap" answer applies, consistent with everything else in this doc that could
+  otherwise grow long. Not re-opening this as a fresh question just because the specific case
+  (many *empty* blocks, not many *populated* rows) is new.

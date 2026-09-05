@@ -266,8 +266,7 @@ just on `New`) —
   `consultant`), they can lock/unlock their own cells — no restriction, kept deliberately simple
   rather than adding a carve-out for self-assigned work. Not yet implemented, same caveat as
   above — see [timesheet.md § Open Questions](timesheet.md#open-questions).
-- **Deliberately left open — consultant-picking scope on Validation**: confirmed intent — a
-  `project_manager` can only see/lock consultants assigned to service lines on projects where
-  *they themselves* are assigned as project manager (not every consultant system-wide). The
-  concrete mechanics of this (query shape, how it's surfaced in the Validation UI) are left for
-  [timesheet.md](timesheet.md) to specify when that screen is designed.
+- **Resolved — consultant-picking scope on Validation**: a `project_manager` can only see/lock
+  consultants assigned to service lines on projects where *they themselves* are assigned as
+  project manager (not every consultant system-wide) — now fully specified, including how it's
+  surfaced in the Validation UI, in [timesheet.md § Validation](timesheet.md#validation).

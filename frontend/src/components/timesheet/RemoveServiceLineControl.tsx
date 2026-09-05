@@ -19,6 +19,9 @@ interface RemoveServiceLineControlProps {
   hasEntries: boolean;
   /** Any *locked* entry for this line, for any day in the current period. */
   hasLockedEntries: boolean;
+  /** The entry owner is no longer currently assigned to this service line — see
+   * docs/requirements/timesheet.md#persistence: read-only, same as locked. */
+  isUnassigned?: boolean;
   /** e.g. "August 2026" or "Week 34" — same label the Shared Header shows. */
   periodLabel: string;
   /** No-dialog branch: no entries this period, purely a view-declutter action. */
@@ -39,6 +42,7 @@ interface RemoveServiceLineControlProps {
 export function RemoveServiceLineControl({
   hasEntries,
   hasLockedEntries,
+  isUnassigned = false,
   periodLabel,
   onRemove,
   onConfirmedClear,
@@ -57,6 +61,13 @@ export function RemoveServiceLineControl({
     }
   }
 
+  const disabled = hasLockedEntries || isUnassigned;
+  const disabledReason = hasLockedEntries
+    ? t("Can't remove — time logged for this period has been locked.")
+    : isUnassigned
+      ? t("Can't remove — this consultant is no longer assigned to this service line.")
+      : undefined;
+
   return (
     <>
       <Button
@@ -64,11 +75,11 @@ export function RemoveServiceLineControl({
         variant="ghost"
         size="icon"
         aria-label={t("Remove service line")}
-        disabled={hasLockedEntries}
+        disabled={disabled}
         // Native `title` rather than the Radix Tooltip component — this is the only
         // disabled-with-explanation control in the timesheet, not worth wiring up a
         // TooltipProvider for one button.
-        title={hasLockedEntries ? t("Can't remove — time logged for this period has been locked.") : undefined}
+        title={disabledReason}
         onClick={() => (hasEntries ? setConfirmOpen(true) : onRemove())}
       >
         <X className="h-4 w-4" aria-hidden="true" />

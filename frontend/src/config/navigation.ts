@@ -5,6 +5,8 @@ import type { Role } from "@/types/user";
 export interface NavSubItem {
   to: string;
   label: string;
+  /** undefined = visible to every user who can already see the parent item. */
+  requiredRoles?: Role[];
 }
 
 // Mirrors the Role -> Screen Access matrix in docs/requirements/user.md — keep in sync.
@@ -30,11 +32,16 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Timesheet",
     icon: CalendarClock,
     // Every role gets at least the own-timesheet screen (see
-    // docs/requirements/user.md#role--screen-access) — `project_manager` additionally
-    // gets the Validation sub-destination there, not yet built (see
-    // docs/requirements/home.md#timesheet-menu), so it isn't reflected as a `children`
-    // dropdown here yet.
+    // docs/requirements/user.md#role--screen-access). `project_manager` additionally
+    // gets the Validation sub-destination — see docs/requirements/home.md
+    // #timesheet-menu. Only a `child.requiredRoles`-visible count > 1 turns this into
+    // an actual dropdown (see canAccessNavItem/NavBar) — everyone else falls through
+    // to a plain direct link to `to`, same as before this child existed.
     requiredRoles: ["consultant", "project_admin", "project_manager", "administrator"],
+    children: [
+      { to: "/timesheet", label: "My timesheet" },
+      { to: "/validation", label: "Validation", requiredRoles: ["project_manager"] },
+    ],
   },
   {
     to: "/projects",

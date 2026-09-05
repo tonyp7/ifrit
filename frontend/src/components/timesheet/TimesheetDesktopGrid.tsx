@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 
 import { AddServiceLineSelect } from "@/components/timesheet/AddServiceLineSelect";
+import { LockServiceLineControl } from "@/components/timesheet/LockServiceLineControl";
 import { RemoveServiceLineControl } from "@/components/timesheet/RemoveServiceLineControl";
 import { serviceLineBorderColor } from "@/lib/timesheetColors";
 import {
@@ -32,6 +33,9 @@ interface TimesheetDesktopGridProps {
   onAddServiceLine: (serviceLineId: string) => void;
   hasEntriesInPeriod: (serviceLineId: string) => boolean;
   hasLockedEntriesInPeriod: (serviceLineId: string) => boolean;
+  /** The entry owner is no longer currently assigned to this service line — see
+   * docs/requirements/timesheet.md#persistence: read-only regardless of lock. */
+  isUnassignedInPeriod: (serviceLineId: string) => boolean;
   onRemoveServiceLine: (serviceLineId: string) => void;
   onClearAndRemoveServiceLine: (serviceLineId: string) => Promise<void>;
   onCellChange: (serviceLineId: string, dayKey: string, value: string) => void;
@@ -40,6 +44,10 @@ interface TimesheetDesktopGridProps {
   // desktop, so a later Week<->Month switch re-anchors on that day instead of a
   // stale value — see docs/requirements/timesheet.md#shared-header-all-breakpoints.
   onFocusDay: (dayKey: string) => void;
+  /** Validation screen only — see docs/requirements/timesheet.md's Validation §
+   * Lock / Unlock. Left undefined on My Timesheet, which has no lock control. */
+  isFullyLockedInPeriod?: (serviceLineId: string) => boolean;
+  onToggleLock?: (serviceLineId: string) => Promise<void>;
 }
 
 export function TimesheetDesktopGrid({
@@ -55,11 +63,14 @@ export function TimesheetDesktopGrid({
   onAddServiceLine,
   hasEntriesInPeriod,
   hasLockedEntriesInPeriod,
+  isUnassignedInPeriod,
   onRemoveServiceLine,
   onClearAndRemoveServiceLine,
   onCellChange,
   onCellBlur,
   onFocusDay,
+  isFullyLockedInPeriod,
+  onToggleLock,
 }: TimesheetDesktopGridProps) {
   const { t } = useTranslation(["timesheet"]);
 
@@ -137,9 +148,16 @@ export function TimesheetDesktopGrid({
                         {line.service_line_name ?? t("(unnamed service line)")}
                       </p>
                     </div>
+                    {isFullyLockedInPeriod && onToggleLock && (
+                      <LockServiceLineControl
+                        isFullyLocked={isFullyLockedInPeriod(line.service_line_id)}
+                        onToggle={() => onToggleLock(line.service_line_id)}
+                      />
+                    )}
                     <RemoveServiceLineControl
                       hasEntries={hasEntriesInPeriod(line.service_line_id)}
                       hasLockedEntries={hasLockedEntriesInPeriod(line.service_line_id)}
+                      isUnassigned={isUnassignedInPeriod(line.service_line_id)}
                       periodLabel={periodLabel}
                       onRemove={() => onRemoveServiceLine(line.service_line_id)}
                       onConfirmedClear={() =>
@@ -153,12 +171,17 @@ export function TimesheetDesktopGrid({
                   const key = cellKey(line.service_line_id, dayKey);
                   const cell = entries[key];
                   const locked = cell?.is_locked ?? false;
+                  const unassigned = !locked && isUnassignedInPeriod(line.service_line_id);
                   return (
                     <td
                       key={dayKey}
                       className={cn(
                         "border-b p-1 text-center",
                         isWeekend(day) && "bg-muted/40",
+                        // Locked wins over unassigned if both apply — see
+                        // docs/requirements/timesheet.md's Validation § Lock / Unlock.
+                        locked && "bg-red-100 dark:bg-red-950/40",
+                        unassigned && "bg-muted/60",
                       )}
                     >
                       <input
@@ -167,7 +190,14 @@ export function TimesheetDesktopGrid({
                         min={0}
                         max={24}
                         inputMode="decimal"
-                        disabled={locked}
+                        disabled={locked || unassigned}
+                        title={
+                          unassigned
+                            ? t(
+                                "This consultant is no longer assigned to this service line — read-only.",
+                              )
+                            : undefined
+                        }
                         value={cell?.hours ?? ""}
                         onChange={(e) =>
                           onCellChange(line.service_line_id, dayKey, e.target.value)
