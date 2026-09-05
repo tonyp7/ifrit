@@ -110,31 +110,50 @@ export function TimesheetPage() {
       });
   }, [selectedKey]);
 
+  // Checks live `entries` state directly — kept correctly in sync on every
+  // mutation (blur-save, blur-delete, and the clear-on-remove bulk call alike) —
+  // rather than `historicalServiceLines` below, which is only a snapshot from the
+  // last GET /time-entries fetch and goes stale the moment a line's entries change
+  // locally without a fresh fetch. Defined here, ahead of `serviceLines`, because
+  // that computation now depends on it (see its own comment below).
+  const hasEntriesInPeriod = useCallback(
+    (serviceLineId: string) =>
+      days.some((day) => entries[cellKey(serviceLineId, toDayKey(day))] !== undefined),
+    [days, entries],
+  );
+
+  const hasLockedEntriesInPeriod = useCallback(
+    (serviceLineId: string) =>
+      days.some((day) => entries[cellKey(serviceLineId, toDayKey(day))]?.is_locked === true),
+    [days, entries],
+  );
+
   const serviceLines = useMemo(() => {
     const merged: ServiceLineRow[] = [...addedServiceLines];
     const addedIds = new Set(addedServiceLines.map((l) => l.service_line_id));
     for (const line of historicalServiceLines) {
       if (!addedIds.has(line.service_line_id)) merged.push(line);
     }
-    // `historicalServiceLines` already only contains lines with a real time_entries
-    // row for *this* period's date range (see the listTimeEntries effect above) —
-    // so a line in it can never be hidden by the removed-set, even if it was
-    // removed earlier in the session for a different period. The app must never
-    // hide a service line that has entries for the period being viewed (see
-    // docs/requirements/timesheet.md#state) — this is re-evaluated on every period
-    // change, not a one-time decision, since historicalServiceLines is refetched
-    // per period too.
-    const historicalIds = new Set(historicalServiceLines.map((l) => l.service_line_id));
+    // The app must never hide a service line that has entries for the period being
+    // viewed (see docs/requirements/timesheet.md#state) — a line the removed-set
+    // would otherwise hide still shows if it currently has any entry this period.
+    // Deliberately checked via hasEntriesInPeriod (live `entries`), NOT a
+    // historicalServiceLines-derived set: historicalServiceLines is a snapshot
+    // from the last fetch, so right after a successful clear-and-remove it would
+    // still (wrongly) say "yes, has entries" for a line whose entries were just
+    // deleted, keeping the now-empty row stuck on screen until the next unrelated
+    // refetch. hasEntriesInPeriod reads the same `entries` state that clearing
+    // already correctly patches, so there's no separate snapshot to go stale.
     const visible = merged.filter(
       (line) =>
-        historicalIds.has(line.service_line_id) ||
+        hasEntriesInPeriod(line.service_line_id) ||
         !removedServiceLineIds.has(line.service_line_id),
     );
     // Ascending by project name, then service line name — a stable order
     // independent of add/discovery order or which period's date window was
     // last fetched (see docs/requirements/timesheet.md#state).
     return sortServiceLines(visible);
-  }, [addedServiceLines, historicalServiceLines, removedServiceLineIds]);
+  }, [addedServiceLines, historicalServiceLines, removedServiceLineIds, hasEntriesInPeriod]);
 
   const addOptions = useMemo(
     () =>
@@ -170,18 +189,6 @@ export function TimesheetPage() {
     periodType === "month"
       ? formatMonthLabel(periodDate)
       : t("Week {{number}}", { number: getIsoWeekNumber(periodDate) });
-
-  const hasEntriesInPeriod = useCallback(
-    (serviceLineId: string) =>
-      days.some((day) => entries[cellKey(serviceLineId, toDayKey(day))] !== undefined),
-    [days, entries],
-  );
-
-  const hasLockedEntriesInPeriod = useCallback(
-    (serviceLineId: string) =>
-      days.some((day) => entries[cellKey(serviceLineId, toDayKey(day))]?.is_locked === true),
-    [days, entries],
-  );
 
   function handlePeriodTypeChange(next: PeriodType) {
     const anchor = parseDayKey(selectedKey);
