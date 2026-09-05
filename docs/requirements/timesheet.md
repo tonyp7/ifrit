@@ -48,36 +48,37 @@ State needed at the top level:
   Date when `periodType === 'month'`, or the Monday of the active week when `periodType ===
   'week'`. One field instead of separate `monthDate`/`weekDate` fields, since exactly one of them
   is ever meaningful at a time — which one just depends on `periodType`.
-- `serviceLines` — array of `Service Lines` shown for the current period. Populated from the
-  union of: (1) service lines the user is currently assigned to and has added via "Add service
-  line" (see §Interactions & Input Rules below — assignment-gated), and (2) service lines with
-  *any* existing `time_entries` row for this user, regardless of current assignment. (2) is what
-  keeps historical locked time visible even after the user is later unassigned from that line.
-  **Revised**: this union is why a service line with no logged time in the current period can
-  safely disappear from view as a harmless, session-local action — reloading (or navigating to a
-  different period where it has data) always reconstitutes it from scratch. It is **not** why
-  removing a line *with* logged time in the current period is safe — that case now actually
-  deletes the underlying data (see §Interactions & Input Rules' "Removing a service line" below,
-  revised from the earlier non-destructive design).
-  **Resolved — the session-wide "removed" flag can never win against (2)**: a line the user
-  removed earlier in the session (harmlessly, branch 1 below — no data existed for it at the
-  time) must still reappear the moment the union's (2) actually has a row for it in whatever
-  period is currently displayed. Concretely: `removedServiceLineIds` (or however this is
-  implemented) only ever suppresses a line when the *current period* contributes nothing from
-  (2) for it — the moment the currently-viewed period has any entry for that line, membership
-  rule (2) wins outright and the line shows, full stop, independent of whether it's in the
-  removed set. The app must never hide a service line that has entries for the period being
-  viewed. This is a per-period check re-evaluated on every period change, not a one-time
-  decision — a line can legitimately be hidden in September (no data there) and visible in
-  August (real data there) in the very same session, no reload required. **Row order is always
-  ascending
-  by project name, then service line name** — a stable, identity-based sort applied to the whole
-  union after merging, not the order lines happened to be added/discovered in. This is
-  deliberate: an earlier draft left row order as an accidental side effect of fetch order (e.g.
-  whichever line's earliest `time_entries` row fell first within the currently-loaded date
-  range), which meant Week and Month could show the same lines in different orders since they
-  load different date windows — the two views must show identical ordering for the same
-  underlying data, never something that depends on which view happens to be open.
+- `serviceLines` — array of `Service Lines` shown for the *currently displayed period only*.
+  Populated from the union of: (1) service lines added via "Add service line" (see
+  §Interactions & Input Rules below — assignment-gated) **while this period is the one being
+  viewed**, and (2) service lines with *any* existing `time_entries` row for this user in this
+  period's date range, regardless of current assignment. (2) is what keeps historical (including
+  locked) time visible even after the user is later unassigned from that line.
+
+  **Deliberately not persisted across periods — simple by design, not an oversight**: there is
+  no session-wide "added" or "removed" memory. Switching `periodType`/`periodDate` re-derives
+  this union from scratch every time: (1) resets to empty (a line added while looking at August
+  is not still "added" once you're looking at September — add it again there if you want to log
+  time against it), and (2) is refetched for the new period's date range. The rule is simply:
+  *a line with data for the period being viewed shows; a line with none doesn't* — whether or
+  not it was ever manually added or removed, in this period or any other. An earlier design kept
+  "added"/"removed" as session-wide state that had to be reconciled against per-period data on
+  every render (e.g. "a line marked removed must still show if it turns out to have data") —
+  that reconciliation was a real source of bugs (a just-cleared line staying stuck on screen, a
+  manually-added line following the user into unrelated periods with nothing in them) and added
+  no capability an end user actually wanted; dropping the cross-period memory entirely removes
+  the bug class along with the state that caused it, not just the specific bugs found. See
+  §Interactions & Input Rules' "Removing a service line" below for how this makes removal fully
+  describable in three branches with no separate suppression state needed.
+
+  **Row order is always ascending by project name, then service line name** — a stable,
+  identity-based sort applied to the whole union after merging, not the order lines happened to
+  be added/discovered in. This is deliberate: an earlier draft left row order as an accidental
+  side effect of fetch order (e.g. whichever line's earliest `time_entries` row fell first within
+  the currently-loaded date range), which meant Week and Month could show the same lines in
+  different orders since they load different date windows — the two views must show identical
+  ordering for the same underlying data, never something that depends on which view happens to
+  be open.
 - `entries` — `Entries` map.
 - `selectedKey` — dayKey of the currently open/focused day. Drives the mobile day
   strip's highlighted chip (see §Mobile view), but isn't mobile-only in what *sets*
@@ -261,10 +262,12 @@ Both views have clean UI feedback on the cell's editability — just two states 
   the `days` in view — Week or Month, whichever the user currently has selected; a period with no
   logged time for this line is unaffected regardless of what's logged for it in other periods):
 
-  1. **No logged time for this line, this period** (no `entries` key for any day in `days`):
-     unchanged from before — removes the row from `serviceLines` only, no server call, no dialog.
-     Purely a view-declutter action; re-adding retrieves whatever already exists (nothing was ever
-     at risk, since there was nothing to lose for this period).
+  1. **No logged time for this line, this period** (no `entries` key for any day in `days`): the
+     line can only be visible in the first place because it was added via "Add service line"
+     while viewing this period (see §State above) — removing it here just takes it back out of
+     that per-period "added" set, no server call, no dialog. Purely undoing an add; re-adding
+     retrieves whatever already exists (nothing was ever at risk, since there was nothing to lose
+     for this period).
   2. **Logged (unlocked) time exists for this line, this period**: a confirmation dialog (shadcn/ui
      `AlertDialog`, matching every other destructive action in this app — see
      [frontend.md § Destructive Actions](../architecture/frontend.md#destructive-actions)) —
@@ -281,9 +284,11 @@ Both views have clean UI feedback on the cell's editability — just two states 
        in the current period's `days` with logged time for this line is cleared in **one bulk `PUT
        /time-entries` call** — one array item (`hours: 0`) per day being cleared, not one request
        per day (see §Persistence's API contract above). If the response is a plain `200`, every
-       item cleared and the line is removed from `serviceLines`; re-adding the same line afterward
-       does **not** restore these values — they're actually gone, which is the whole point of
-       warning first. If the response is a `207` (at least one day was rejected — in practice, a
+       item cleared and the line is removed from `serviceLines` (also out of this period's "added"
+       set, if it happened to be there too — e.g. added this period, then given data, then
+       removed); re-adding the same line afterward does **not** restore these values — they're
+       actually gone, which is the whole point of warning first. If the response is a `207` (at
+       least one day was rejected — in practice, a
        day someone locked in the moment between opening this dialog and clicking Confirm), the
        succeeded days are still cleared, but the line is **not** removed from view (branch 3 below
        now applies to it, since it has a locked entry in this period) — the user sees an error
@@ -300,11 +305,13 @@ Both views have clean UI feedback on the cell's editability — just two states 
      reappears regardless of assignment/add state; blocking removal here is just making the
      control honest about a case that population rule already made unavoidable.
 
-  In every case this remains **session-local** in the sense that the "removed from view" state
-  itself (branch 1 and the tail end of branch 2) isn't a persisted user preference — see §State's
-  population rule for what actually determines visibility on next load. But branch 2's data
-  deletion very much *is* persisted (that's the point of warning about it) — "session-local" here
-  describes the view-membership bookkeeping, not the underlying data.
+  In every case, "removed from view" itself (branch 1, and the tail end of a fully-succeeded
+  branch 2) is **not persisted anywhere** — it's not even session-wide, let alone saved server
+  state; it only ever reflects §State's per-period union at the moment you're looking at it (see
+  §State above). Switching periods, or reloading, re-derives visibility from scratch every time.
+  Branch 2's data deletion is the one genuinely persisted effect here (that's the point of
+  warning about it) — everything else described in this section is just this period's transient
+  view of already-persisted (or, for branch 1, never-persisted) data.
 - No confirmation dialogs for hour edits — this is a live, low-friction data entry surface.
 - The "Add service line" dropdown only lists service lines meeting **all** of:
   - the parent project's `status` is `"active"`
@@ -452,10 +459,6 @@ heading/slug until now.)
 
 **Edge cases / smaller inconsistencies**
 
-- **Session-wide vs. per-period "removed" visibility — resolved.** A service line with entries in
-  the currently-displayed period must always show, regardless of the session-wide removed-set —
-  see §State's `serviceLines` bullet above for the full rule. `removedServiceLineIds` (or
-  equivalent) only ever suppresses a line when the current period has nothing for it.
 - **Confirmation dialog button labels — resolved.** Uses this app's established
   Cancel/destructive-verb `AlertDialog` convention (matching every other confirm dialog in the
   app — see [frontend.md § Destructive Actions](../architecture/frontend.md#destructive-actions)),

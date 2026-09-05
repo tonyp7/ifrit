@@ -49,8 +49,10 @@ export function TimesheetPage() {
 
   const [entries, setEntries] = useState<Record<string, EntryCell>>({});
   const [historicalServiceLines, setHistoricalServiceLines] = useState<ServiceLineRow[]>([]);
+  // Lines added via "Add service line" while *this* period is the one being
+  // viewed — deliberately reset on every period change (see the listTimeEntries
+  // effect below), not session-wide. See docs/requirements/timesheet.md#state.
   const [addedServiceLines, setAddedServiceLines] = useState<ServiceLineRow[]>([]);
-  const [removedServiceLineIds, setRemovedServiceLineIds] = useState<Set<string>>(new Set());
   const [eligibleLines, setEligibleLines] = useState<EligibleServiceLine[]>([]);
   const [monthToDateTotal, setMonthToDateTotal] = useState(0);
 
@@ -67,6 +69,11 @@ export function TimesheetPage() {
   }, [t]);
 
   useEffect(() => {
+    // "Added" is per-period, not session-wide (see docs/requirements/timesheet.md
+    // #state) — reset it here, in lockstep with the fetch below, rather than
+    // leaving it to linger from whatever period was previously viewed.
+    setAddedServiceLines([]);
+
     const start = toDayKey(days[0]);
     const end = toDayKey(days[days.length - 1]);
     listTimeEntries(start, end)
@@ -134,26 +141,22 @@ export function TimesheetPage() {
     for (const line of historicalServiceLines) {
       if (!addedIds.has(line.service_line_id)) merged.push(line);
     }
-    // The app must never hide a service line that has entries for the period being
-    // viewed (see docs/requirements/timesheet.md#state) — a line the removed-set
-    // would otherwise hide still shows if it currently has any entry this period.
-    // Deliberately checked via hasEntriesInPeriod (live `entries`), NOT a
-    // historicalServiceLines-derived set: historicalServiceLines is a snapshot
-    // from the last fetch, so right after a successful clear-and-remove it would
-    // still (wrongly) say "yes, has entries" for a line whose entries were just
-    // deleted, keeping the now-empty row stuck on screen until the next unrelated
-    // refetch. hasEntriesInPeriod reads the same `entries` state that clearing
-    // already correctly patches, so there's no separate snapshot to go stale.
+    // A line shows if it's this period's "added" set (addedIds — unconditional,
+    // that's the whole point of adding it) or has any entry this period
+    // (hasEntriesInPeriod, checked against live `entries` rather than
+    // historicalServiceLines directly — historicalServiceLines is only a snapshot
+    // from the last fetch, so right after a successful clear it would still
+    // wrongly say "has entries" for a line whose entries were just deleted). No
+    // separate suppression/removed state needed — see docs/requirements/
+    // timesheet.md#state.
     const visible = merged.filter(
-      (line) =>
-        hasEntriesInPeriod(line.service_line_id) ||
-        !removedServiceLineIds.has(line.service_line_id),
+      (line) => addedIds.has(line.service_line_id) || hasEntriesInPeriod(line.service_line_id),
     );
     // Ascending by project name, then service line name — a stable order
     // independent of add/discovery order or which period's date window was
     // last fetched (see docs/requirements/timesheet.md#state).
     return sortServiceLines(visible);
-  }, [addedServiceLines, historicalServiceLines, removedServiceLineIds, hasEntriesInPeriod]);
+  }, [addedServiceLines, historicalServiceLines, hasEntriesInPeriod]);
 
   const addOptions = useMemo(
     () =>
@@ -209,19 +212,17 @@ export function TimesheetPage() {
   function handleAddServiceLine(serviceLineId: string) {
     const line = eligibleLines.find((option) => option.service_line_id === serviceLineId);
     if (!line) return;
-    setRemovedServiceLineIds((prev) => {
-      if (!prev.has(serviceLineId)) return prev;
-      const next = new Set(prev);
-      next.delete(serviceLineId);
-      return next;
-    });
     setAddedServiceLines((prev) =>
       prev.some((l) => l.service_line_id === serviceLineId) ? prev : [...prev, line],
     );
   }
 
+  // No-data branch (see docs/requirements/timesheet.md's "Removing a service
+  // line", branch 1) — a line can only be visible with nothing logged this period
+  // because it's in this period's `addedServiceLines`, so removing it here is
+  // just undoing that add. No separate "removed" state to track.
   function handleRemoveServiceLine(serviceLineId: string) {
-    setRemovedServiceLineIds((prev) => new Set(prev).add(serviceLineId));
+    setAddedServiceLines((prev) => prev.filter((l) => l.service_line_id !== serviceLineId));
   }
 
   // Confirmed-destructive branch (see docs/requirements/timesheet.md's "Removing a
@@ -237,7 +238,7 @@ export function TimesheetPage() {
     if (targetDayKeys.length === 0) {
       // Nothing to clear — shouldn't normally happen (the confirm dialog only opens
       // when hasEntriesInPeriod is true), but stay safe rather than no-op silently.
-      setRemovedServiceLineIds((prev) => new Set(prev).add(serviceLineId));
+      setAddedServiceLines((prev) => prev.filter((l) => l.service_line_id !== serviceLineId));
       return;
     }
 
@@ -284,7 +285,10 @@ export function TimesheetPage() {
         return;
       }
 
-      setRemovedServiceLineIds((prev) => new Set(prev).add(serviceLineId));
+      // Fully cleared — also drop it from this period's "added" set in case it
+      // happened to be there too (added this period, then given data, then
+      // removed); harmless no-op filter if it wasn't.
+      setAddedServiceLines((prev) => prev.filter((l) => l.service_line_id !== serviceLineId));
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : t("Failed to remove service line."));
     }
