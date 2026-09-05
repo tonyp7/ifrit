@@ -172,17 +172,31 @@ export function TimesheetDesktopGrid({
                   const cell = entries[key];
                   const locked = cell?.is_locked ?? false;
                   const unassigned = !locked && isUnassignedInPeriod(line.service_line_id);
+                  const weekend = isWeekend(day);
+                  // Resolved to a single class, not left as several `cn()` entries that
+                  // could combine — `cn()`/`tailwind-merge` treats same-property
+                  // background-color utilities as conflicting and silently drops all but
+                  // the last one, so e.g. `isWeekend && "bg-muted/40"` plus
+                  // `locked && "bg-red-100"` on the same weekend+locked cell would only
+                  // ever render the red, losing the weekend shading entirely. Each branch
+                  // here already bakes the weekend variant in, so there's nothing left to
+                  // merge/collide. Locked still wins over unassigned if both apply — see
+                  // docs/requirements/timesheet.md's Validation § Lock / Unlock.
+                  const backgroundClass = locked
+                    ? weekend
+                      ? "bg-red-200 dark:bg-red-900/50"
+                      : "bg-red-100 dark:bg-red-950/40"
+                    : unassigned
+                      ? weekend
+                        ? "bg-muted/80"
+                        : "bg-muted/60"
+                      : weekend
+                        ? "bg-muted/40"
+                        : undefined;
                   return (
                     <td
                       key={dayKey}
-                      className={cn(
-                        "border-b p-1 text-center",
-                        isWeekend(day) && "bg-muted/40",
-                        // Locked wins over unassigned if both apply — see
-                        // docs/requirements/timesheet.md's Validation § Lock / Unlock.
-                        locked && "bg-red-100 dark:bg-red-950/40",
-                        unassigned && "bg-muted/60",
-                      )}
+                      className={cn("border-b p-1 text-center", backgroundClass)}
                     >
                       <input
                         type="number"
