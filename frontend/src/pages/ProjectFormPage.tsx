@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
 import { formatMoney } from "@/lib/format";
 import type { CompanyListItem } from "@/types/company";
 import type { Currency } from "@/types/currency";
@@ -352,7 +353,9 @@ export function ProjectFormPage() {
               </div>
             </div>
 
-            <div className="flex flex-col gap-2 border-t pt-6">
+            <Separator />
+
+            <div className="flex flex-col gap-2">
               <Label>{t("Project Managers")}</Label>
               <ProjectManagersPicker
                 selected={selectedManagers}
@@ -361,20 +364,22 @@ export function ProjectFormPage() {
               />
             </div>
 
-            <div className="border-t pt-6">
-              <ServiceLinesTable
-                projectId={project?.id ?? null}
-                serviceLines={project?.service_lines ?? []}
-                onChanged={refreshProject}
-                ensureSaved={ensureSaved}
-                readOnly={isReadOnly}
-                minorUnit={selectedCurrency?.minor_unit}
-              />
-            </div>
+            <Separator />
+
+            <ServiceLinesTable
+              projectId={project?.id ?? null}
+              serviceLines={project?.service_lines ?? []}
+              onChanged={refreshProject}
+              ensureSaved={ensureSaved}
+              readOnly={isReadOnly}
+              minorUnit={selectedCurrency?.minor_unit}
+            />
 
             {formError && <p className="text-sm text-destructive">{formError}</p>}
 
-            <div className="flex justify-between border-t pt-6">
+            <Separator />
+
+            <div className="flex justify-between">
               <Button type="button" variant="outline" onClick={() => navigate("/projects")}>
                 {t("Close", { ns: "common" })}
               </Button>

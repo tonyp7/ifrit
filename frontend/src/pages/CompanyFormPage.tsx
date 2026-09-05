@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import type { CompanyDetail } from "@/types/company";
 
 const BLANK_VALUES = {
@@ -211,27 +212,29 @@ export function CompanyFormPage() {
               </div>
             </div>
 
-            <div className="border-t pt-6">
-              <PartyIdentifiersTable
-                companyId={company?.id ?? null}
-                identifiers={company?.identifiers ?? []}
-                onChanged={refreshCompany}
-                ensureSaved={ensureSaved}
-              />
-            </div>
+            <Separator />
 
-            <div className="border-t pt-6">
-              <AddressesTable
-                companyId={company?.id ?? null}
-                addresses={company?.addresses ?? []}
-                onChanged={refreshCompany}
-                ensureSaved={ensureSaved}
-              />
-            </div>
+            <PartyIdentifiersTable
+              companyId={company?.id ?? null}
+              identifiers={company?.identifiers ?? []}
+              onChanged={refreshCompany}
+              ensureSaved={ensureSaved}
+            />
+
+            <Separator />
+
+            <AddressesTable
+              companyId={company?.id ?? null}
+              addresses={company?.addresses ?? []}
+              onChanged={refreshCompany}
+              ensureSaved={ensureSaved}
+            />
 
             {formError && <p className="text-sm text-destructive">{formError}</p>}
 
-            <div className="flex justify-between border-t pt-6">
+            <Separator />
+
+            <div className="flex justify-between">
               <Button
                 type="button"
                 variant="outline"

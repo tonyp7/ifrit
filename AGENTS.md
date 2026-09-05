@@ -70,6 +70,37 @@ When reviewing code, do NOT comment on:
 See [backend.md](docs/architecture/backend.md#testing) and
 [frontend.md](docs/architecture/frontend.md#testing) for framework-specific testing conventions.
 
+### Live UI verification (Playwright)
+
+There is no Playwright MCP tool registered for this project (`claude mcp list` returns none) —
+don't conclude from that alone that live browser verification is unavailable. Playwright itself
+*is* usable here: run it as a plain npm package via Bash/Node, not through a dedicated tool.
+Chromium builds are cached under `~/.cache/ms-playwright`, but the exact build a freshly
+`npm install`ed `playwright` expects can be newer than what's cached — if `browserType.launch`
+complains a browser executable doesn't exist, run `npx playwright install chromium` (skip
+`--with-deps`, which needs interactive `sudo` and fails silently in a non-interactive shell) to
+fetch the matching one, then re-run.
+
+For a real end-to-end check against the actual dev stack (not just `tsc`/`eslint`/`build`, which
+verify correctness, not feature behavior):
+
+- Confirm the dev servers are already running before starting your own (`ps aux | grep -E
+  "uvicorn|vite"`) — this project's convention is to reuse the ones already up rather than
+  spawning duplicates.
+- Log in as the seeded dev user (`admin@ifrit.local` / `changeme123`, from `.env`'s
+  `SEED_ADMIN_EMAIL`/`SEED_ADMIN_PASSWORD` — see `backend/scripts/seed_admin.py`), which holds
+  every role (`administrator`, `project_admin`, `project_manager`) precisely so one account can
+  exercise any screen.
+- Prefer existing dev DB data over inventing new fixtures — query it directly first (e.g. `docker
+  exec ifrit-db-1 psql -U ifrit -d ifrit -c "..."`) to find a scenario that already fits (a
+  project, service lines, assignments, time entries) before creating anything.
+- If a test does mutate data (an edit, a lock), revert it afterward and verify via a direct DB
+  query that row counts/state match what they were before — same "never leave the dev DB worse
+  off than found" rule that applies to any other destructive testing.
+- Write the script to a throwaway `.js` file in the session's scratchpad directory (`require("playwright")`,
+  `chromium.launch()`), `npm install playwright` there first if needed, and clean up
+  `node_modules`/`package.json` afterward — don't leave scratch npm installs behind either.
+
 ## Project-Specific Conventions
 
 ### Directory Structure (target layout)

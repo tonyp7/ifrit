@@ -15,6 +15,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { PasswordStrengthMeter } from "@/components/users/PasswordStrengthMeter";
 import { useAuth } from "@/hooks/useAuth";
@@ -263,7 +264,9 @@ export function UserFormPage() {
 
             {formError && <p className="text-sm text-destructive">{formError}</p>}
 
-            <div className="flex justify-between border-t pt-6">
+            <Separator />
+
+            <div className="flex justify-between">
               <Button
                 type="button"
                 variant="outline"
