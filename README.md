@@ -19,6 +19,18 @@ Log in with admin@ifrit.local / changeme123 — it should land on the empty plac
 
 One thing worth flagging: scripts/seed_admin.py is dev-only and documented as such, but there's no real user-registration/admin-creation flow yet (per the open question in user.md) — that's the natural next piece once you're ready to move past login.
 
+## Production-shaped stack (Docker)
+
+See [docs/architecture/infra.md](docs/architecture/infra.md) for the full picture. Short version:
+
+    cp .env.example .env   # fill in real secrets, never commit .env
+    docker compose up --build
+    docker compose exec app python -m scripts.seed_admin   # first run only
+
+This builds one combined image (nginx + the built SPA + FastAPI/uvicorn — `docker/Dockerfile`)
+alongside a stock `postgres:18` container. Unlike the native-dev flow above, nothing seeds a
+default admin automatically — see `docker/Dockerfile`'s header comment for why.
+
 
 uv run alembic stamp base   # reset bookkeeping only, no DDL
 uv run alembic upgrade head # recreates tables fresh

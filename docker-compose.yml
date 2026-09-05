@@ -1,0 +1,53 @@
+# Production-shaped stack: the combined app image (nginx + static frontend +
+# FastAPI, see docker/Dockerfile) + a stock, unmodified PostgreSQL 18 — see
+# docs/architecture/infra.md § Deployment.
+#
+# NOT the dev stack — see docker-compose.dev.yml for a disposable Postgres-only
+# container used when running the backend natively.
+#
+#   cp .env.example .env   # fill in real secrets, never commit .env
+#   docker compose up --build
+#   docker compose down
+#
+# AI agents should never run these commands directly unless instructed (see
+# docs/architecture/infra.md).
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@db:5432/${POSTGRES_DB:?}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:?}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:?}
+      REFRESH_TOKEN_EXPIRE_MINUTES: ${REFRESH_TOKEN_EXPIRE_MINUTES:?}
+      CORS_ORIGINS: ${CORS_ORIGINS:?}
+      COOKIE_SECURE: ${COOKIE_SECURE:?}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:?}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: ${POSTGRES_DB:?}
+    volumes:
+      - ifrit-db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?} -d ${POSTGRES_DB:?}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  ifrit-db:

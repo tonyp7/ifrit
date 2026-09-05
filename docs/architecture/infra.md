@@ -1,5 +1,11 @@
 # Infrastructure, Deployment and CI/CD NFR
 
+**Implemented**: `docker/Dockerfile`, `docker/nginx.conf`, `docker/entrypoint.sh`,
+`docker/build.sh`, root `docker-compose.yml`, and root `.env.example` — this section is now
+the description of what those files actually do, not a plan. See `docker/Dockerfile`'s own
+header comment for the two points deliberately left unresolved (no auto-seeding of the
+bootstrap admin, uvicorn running as root inside the container) rather than decided silently.
+
 ## Containerisation
 
 - **Backend base image**: the backend build stage must run on Debian Trixie Slim
@@ -51,6 +57,10 @@ docker compose -f docker-compose.dev.yml up -d
 - Backend config via environment variables (`.env` for local dev, never committed)
 - Secrets (JWT signing key, DB credentials) come from the environment / compose secrets,
   never hardcoded
+- For the `docker-compose.yml` stack specifically: copy root `.env.example` to `.env` (same
+  directory as `docker-compose.yml`) and fill in real values — distinct from
+  `backend/.env.example`, which is for running the backend natively against
+  `docker-compose.dev.yml`'s database instead.
 
 ## CI/CD
 
