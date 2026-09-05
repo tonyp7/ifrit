@@ -1,8 +1,7 @@
-import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { AddServiceLineSelect } from "@/components/timesheet/AddServiceLineSelect";
-import { Button } from "@/components/ui/button";
+import { RemoveServiceLineControl } from "@/components/timesheet/RemoveServiceLineControl";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { serviceLineBorderColor } from "@/lib/timesheetColors";
@@ -18,9 +17,13 @@ interface TimesheetMobileViewProps {
   entries: Record<string, EntryCell>;
   dayTotal: (dayKey: string) => number;
   monthToDateTotal: number;
+  periodLabel: string;
   addOptions: EligibleServiceLine[];
   onAddServiceLine: (serviceLineId: string) => void;
+  hasEntriesInPeriod: (serviceLineId: string) => boolean;
+  hasLockedEntriesInPeriod: (serviceLineId: string) => boolean;
   onRemoveServiceLine: (serviceLineId: string) => void;
+  onClearAndRemoveServiceLine: (serviceLineId: string) => Promise<void>;
   onCellChange: (serviceLineId: string, dayKey: string, value: string) => void;
   onCellBlur: (serviceLineId: string, dayKey: string) => void;
 }
@@ -33,9 +36,13 @@ export function TimesheetMobileView({
   entries,
   dayTotal,
   monthToDateTotal,
+  periodLabel,
   addOptions,
   onAddServiceLine,
+  hasEntriesInPeriod,
+  hasLockedEntriesInPeriod,
   onRemoveServiceLine,
+  onClearAndRemoveServiceLine,
   onCellChange,
   onCellBlur,
 }: TimesheetMobileViewProps) {
@@ -127,15 +134,15 @@ export function TimesheetMobileView({
                   className="w-20 text-right"
                   aria-label={t("Hours")}
                 />
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="icon"
-                  aria-label={t("Remove service line")}
-                  onClick={() => onRemoveServiceLine(line.service_line_id)}
-                >
-                  <X className="h-4 w-4" aria-hidden="true" />
-                </Button>
+                <RemoveServiceLineControl
+                  hasEntries={hasEntriesInPeriod(line.service_line_id)}
+                  hasLockedEntries={hasLockedEntriesInPeriod(line.service_line_id)}
+                  periodLabel={periodLabel}
+                  onRemove={() => onRemoveServiceLine(line.service_line_id)}
+                  onConfirmedClear={() =>
+                    onClearAndRemoveServiceLine(line.service_line_id)
+                  }
+                />
               </div>
             );
           })}

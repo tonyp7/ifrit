@@ -1,8 +1,7 @@
-import { X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { AddServiceLineSelect } from "@/components/timesheet/AddServiceLineSelect";
-import { Button } from "@/components/ui/button";
+import { RemoveServiceLineControl } from "@/components/timesheet/RemoveServiceLineControl";
 import { serviceLineBorderColor } from "@/lib/timesheetColors";
 import {
   formatWeekdayNarrow,
@@ -28,9 +27,13 @@ interface TimesheetDesktopGridProps {
   dayTotal: (dayKey: string) => number;
   serviceLineTotal: (serviceLineId: string) => number;
   periodTotal: number;
+  periodLabel: string;
   addOptions: EligibleServiceLine[];
   onAddServiceLine: (serviceLineId: string) => void;
+  hasEntriesInPeriod: (serviceLineId: string) => boolean;
+  hasLockedEntriesInPeriod: (serviceLineId: string) => boolean;
   onRemoveServiceLine: (serviceLineId: string) => void;
+  onClearAndRemoveServiceLine: (serviceLineId: string) => Promise<void>;
   onCellChange: (serviceLineId: string, dayKey: string, value: string) => void;
   onCellBlur: (serviceLineId: string, dayKey: string) => void;
   // Keeps `selectedKey` pointed at whatever day the user is actually looking at on
@@ -47,9 +50,13 @@ export function TimesheetDesktopGrid({
   dayTotal,
   serviceLineTotal,
   periodTotal,
+  periodLabel,
   addOptions,
   onAddServiceLine,
+  hasEntriesInPeriod,
+  hasLockedEntriesInPeriod,
   onRemoveServiceLine,
+  onClearAndRemoveServiceLine,
   onCellChange,
   onCellBlur,
   onFocusDay,
@@ -130,15 +137,15 @@ export function TimesheetDesktopGrid({
                         {line.service_line_name ?? t("(unnamed service line)")}
                       </p>
                     </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      size="icon"
-                      aria-label={t("Remove service line")}
-                      onClick={() => onRemoveServiceLine(line.service_line_id)}
-                    >
-                      <X className="h-4 w-4" aria-hidden="true" />
-                    </Button>
+                    <RemoveServiceLineControl
+                      hasEntries={hasEntriesInPeriod(line.service_line_id)}
+                      hasLockedEntries={hasLockedEntriesInPeriod(line.service_line_id)}
+                      periodLabel={periodLabel}
+                      onRemove={() => onRemoveServiceLine(line.service_line_id)}
+                      onConfirmedClear={() =>
+                        onClearAndRemoveServiceLine(line.service_line_id)
+                      }
+                    />
                   </div>
                 </td>
                 {days.map((day) => {

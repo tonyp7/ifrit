@@ -9,14 +9,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.project import Project, ServiceLine, service_line_consultants
 from app.models.time_entry import TimeEntry
 from app.models.user import User
-from app.schemas.time_entry import EligibleServiceLineOut, TimeEntryOut, TimeEntryUpsert
-
-
-class NotEligibleError(Exception):
-    """Raised when saving a time entry against a service line the user isn't currently
-    assigned to (see docs/requirements/timesheet.md#persistence) — mirrors
-    project_service's InvalidReferenceError, kept as its own type so this module has no
-    dependency on project_service."""
+from app.schemas.time_entry import (
+    EligibleServiceLineOut,
+    TimeEntryOut,
+    TimeEntryUpsert,
+    TimeEntryUpsertResult,
+)
 
 
 def _hours_to_timedelta(hours: Decimal) -> timedelta:
@@ -118,38 +116,64 @@ async def _fetch_entry_with_context(
     return (row[0], row[1], row[2]) if row is not None else None
 
 
-async def upsert_time_entry(
-    db: AsyncSession, user: User, data: TimeEntryUpsert
-) -> tuple[TimeEntry, ServiceLine, Project] | None:
-    """Blur-triggered save (see docs/requirements/timesheet.md#persistence): hours == 0
-    deletes any existing row instead of saving a zero; hours > 0 upserts, always
-    unlocked, only if the user is currently assigned to the service line. Returns None
-    for the delete case."""
-    if data.hours == 0:
-        result = await db.execute(
-            select(TimeEntry).where(
-                TimeEntry.user_id == user.id,
-                TimeEntry.service_line_id == data.service_line_id,
-                TimeEntry.date == data.date,
-            )
+async def _fetch_existing(
+    db: AsyncSession, user_id: uuid.UUID, service_line_id: uuid.UUID, entry_date: date
+) -> TimeEntry | None:
+    result = await db.execute(
+        select(TimeEntry).where(
+            TimeEntry.user_id == user_id,
+            TimeEntry.service_line_id == service_line_id,
+            TimeEntry.date == entry_date,
         )
-        existing = result.scalar_one_or_none()
+    )
+    return result.scalar_one_or_none()
+
+
+async def _upsert_one(
+    db: AsyncSession, user: User, item: TimeEntryUpsert
+) -> TimeEntryUpsertResult:
+    """One item of the bulk `PUT /time-entries` request (see
+    docs/requirements/timesheet.md's "API contract: PUT /time-entries is bulk, not
+    single-entry"). hours == 0 deletes any existing row instead of saving a zero;
+    hours > 0 upserts, always unlocked, only if the user is currently assigned to the
+    service line. **Every path here checks `is_locked` first, unconditionally** —
+    locked rows are immutable through this endpoint regardless of direction
+    (delete or overwrite) or who's calling; unlocking is exclusively a
+    `project_manager`'s action via the (not yet built) Validation screen, never this
+    one. This is enforced here, server-side, independent of whatever the frontend
+    believes the lock state is — see the same section's note on why relying on the
+    frontend disabling a locked input alone isn't sufficient."""
+    existing = await _fetch_existing(db, user.id, item.service_line_id, item.date)
+
+    if existing is not None and existing.is_locked:
+        return TimeEntryUpsertResult(
+            service_line_id=item.service_line_id, date=item.date, ok=False, error="locked"
+        )
+
+    if item.hours == 0:
         if existing is not None:
             await db.delete(existing)
             await db.commit()
-        return None
+        return TimeEntryUpsertResult(
+            service_line_id=item.service_line_id, date=item.date, ok=True
+        )
 
-    if not await _is_eligible(db, user.id, data.service_line_id):
-        raise NotEligibleError("You are not assigned to this service line")
+    if not await _is_eligible(db, user.id, item.service_line_id):
+        return TimeEntryUpsertResult(
+            service_line_id=item.service_line_id,
+            date=item.date,
+            ok=False,
+            error="not_eligible",
+        )
 
-    time_value = _hours_to_timedelta(data.hours)
+    time_value = _hours_to_timedelta(item.hours)
     stmt = (
         pg_insert(TimeEntry)
         .values(
             id=uuid.uuid4(),
             user_id=user.id,
-            service_line_id=data.service_line_id,
-            date=data.date,
+            service_line_id=item.service_line_id,
+            date=item.date,
             time_entry=time_value,
             last_updated_by=user.id,
             is_locked=False,
@@ -166,7 +190,29 @@ async def upsert_time_entry(
     )
     await db.execute(stmt)
     await db.commit()
-    return await _fetch_entry_with_context(db, user.id, data.service_line_id, data.date)
+    context = await _fetch_entry_with_context(db, user.id, item.service_line_id, item.date)
+    assert context is not None
+    entry, line, project = context
+    return TimeEntryUpsertResult(
+        service_line_id=item.service_line_id,
+        date=item.date,
+        ok=True,
+        entry=to_time_entry_out(entry, line, project),
+    )
+
+
+async def upsert_time_entries(
+    db: AsyncSession, user: User, items: list[TimeEntryUpsert]
+) -> list[TimeEntryUpsertResult]:
+    """Bulk blur-triggered save — a single cell edit sends a one-element list; the
+    clear-on-remove-service-line flow sends one list covering every day being
+    cleared in the current period, in one call (see
+    docs/requirements/timesheet.md#interactions--input-rules, "Removing a service
+    line"). Each item is processed and persisted **independently** — one item's
+    rejection (see _upsert_one above) never blocks or rolls back any other item in
+    this same list; that's the API layer's job to report (207 vs 200), not this
+    function's."""
+    return [await _upsert_one(db, user, item) for item in items]
 
 
 def to_time_entry_out(

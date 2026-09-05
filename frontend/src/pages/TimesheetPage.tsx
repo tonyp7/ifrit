@@ -3,13 +3,15 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { ApiError } from "@/api/client";
-import { listEligibleServiceLines, listTimeEntries, upsertTimeEntry } from "@/api/timeEntries";
+import { listEligibleServiceLines, listTimeEntries, upsertTimeEntries } from "@/api/timeEntries";
 import { TimesheetDesktopGrid } from "@/components/timesheet/TimesheetDesktopGrid";
 import { TimesheetHeader } from "@/components/timesheet/TimesheetHeader";
 import { TimesheetMobileView } from "@/components/timesheet/TimesheetMobileView";
 import {
   defaultPeriodDate,
   defaultPeriodType,
+  formatMonthLabel,
+  getIsoWeekNumber,
   getPeriodDays,
   parseDayKey,
   shiftPeriod,
@@ -24,7 +26,16 @@ import type {
   EntryCell,
   PeriodType,
   ServiceLineRow,
+  TimeEntryUpsertResult,
 } from "@/types/timesheet";
+
+// Per-item error codes the bulk PUT /time-entries can report — see
+// docs/requirements/timesheet.md's "API contract" and TimeEntryUpsertResult.
+function errorMessage(error: TimeEntryUpsertResult["error"], t: (key: string) => string): string {
+  if (error === "locked") return t("This entry has been locked and can't be changed.");
+  if (error === "not_eligible") return t("You're not assigned to this service line.");
+  return t("Failed to save time entry.");
+}
 
 export function TimesheetPage() {
   const { t } = useTranslation(["timesheet"]);
@@ -105,7 +116,20 @@ export function TimesheetPage() {
     for (const line of historicalServiceLines) {
       if (!addedIds.has(line.service_line_id)) merged.push(line);
     }
-    const visible = merged.filter((line) => !removedServiceLineIds.has(line.service_line_id));
+    // `historicalServiceLines` already only contains lines with a real time_entries
+    // row for *this* period's date range (see the listTimeEntries effect above) —
+    // so a line in it can never be hidden by the removed-set, even if it was
+    // removed earlier in the session for a different period. The app must never
+    // hide a service line that has entries for the period being viewed (see
+    // docs/requirements/timesheet.md#state) — this is re-evaluated on every period
+    // change, not a one-time decision, since historicalServiceLines is refetched
+    // per period too.
+    const historicalIds = new Set(historicalServiceLines.map((l) => l.service_line_id));
+    const visible = merged.filter(
+      (line) =>
+        historicalIds.has(line.service_line_id) ||
+        !removedServiceLineIds.has(line.service_line_id),
+    );
     // Ascending by project name, then service line name — a stable order
     // independent of add/discovery order or which period's date window was
     // last fetched (see docs/requirements/timesheet.md#state).
@@ -137,6 +161,26 @@ export function TimesheetPage() {
   const periodTotal = useMemo(
     () => serviceLines.reduce((sum, line) => sum + serviceLineTotal(line.service_line_id), 0),
     [serviceLines, serviceLineTotal],
+  );
+
+  // Same label TimesheetHeader itself shows (e.g. "August 2026" / "Week 34") — used
+  // by the "Removing a service line" confirmation dialog to name exactly the range
+  // about to be cleared (see docs/requirements/timesheet.md#interactions--input-rules).
+  const periodLabel =
+    periodType === "month"
+      ? formatMonthLabel(periodDate)
+      : t("Week {{number}}", { number: getIsoWeekNumber(periodDate) });
+
+  const hasEntriesInPeriod = useCallback(
+    (serviceLineId: string) =>
+      days.some((day) => entries[cellKey(serviceLineId, toDayKey(day))] !== undefined),
+    [days, entries],
+  );
+
+  const hasLockedEntriesInPeriod = useCallback(
+    (serviceLineId: string) =>
+      days.some((day) => entries[cellKey(serviceLineId, toDayKey(day))]?.is_locked === true),
+    [days, entries],
   );
 
   function handlePeriodTypeChange(next: PeriodType) {
@@ -173,6 +217,72 @@ export function TimesheetPage() {
     setRemovedServiceLineIds((prev) => new Set(prev).add(serviceLineId));
   }
 
+  // Confirmed-destructive branch (see docs/requirements/timesheet.md's "Removing a
+  // service line" — this is only ever invoked once RemoveServiceLineControl has
+  // already confirmed via its dialog, for a line with logged, unlocked time this
+  // period). Clears every day in the current period that has an entry for this
+  // line, in one bulk call — never one request per day.
+  async function handleClearAndRemoveServiceLine(serviceLineId: string) {
+    const targetDayKeys = days
+      .map((day) => toDayKey(day))
+      .filter((dayKey) => entries[cellKey(serviceLineId, dayKey)] !== undefined);
+
+    if (targetDayKeys.length === 0) {
+      // Nothing to clear — shouldn't normally happen (the confirm dialog only opens
+      // when hasEntriesInPeriod is true), but stay safe rather than no-op silently.
+      setRemovedServiceLineIds((prev) => new Set(prev).add(serviceLineId));
+      return;
+    }
+
+    try {
+      const results = await upsertTimeEntries(
+        targetDayKeys.map((dayKey) => ({
+          service_line_id: serviceLineId,
+          date: dayKey,
+          hours: "0",
+        })),
+      );
+
+      setEntries((prev) => {
+        const next = { ...prev };
+        for (const result of results) {
+          const key = cellKey(serviceLineId, result.date);
+          if (result.ok) {
+            delete next[key];
+          } else {
+            // The only rejection reason this flow can hit is "locked" (eligibility
+            // is never checked for an hours=0 item — see the backend's per-item
+            // logic) — most plausibly a day a project_manager locked between
+            // opening the confirmation dialog and clicking Confirm. The response
+            // doesn't carry a fresh `entry` for a rejected item (only `ok`/`error`),
+            // so patch `is_locked` in ourselves rather than leaving this cell's
+            // local state stale — otherwise RemoveServiceLineControl would keep
+            // seeing this line as freely removable until a full reload.
+            next[key] = { hours: next[key]?.hours ?? "", is_locked: true };
+          }
+        }
+        return next;
+      });
+
+      const rejected = results.filter((r) => !r.ok);
+      if (rejected.length > 0) {
+        // The line must NOT be removed from view: it now has a locked entry this
+        // period, which already makes it non-removable (RemoveServiceLineControl's
+        // hasLockedEntries reflects this from the updated `entries` state above).
+        toast.error(
+          t(
+            "Some time for this service line couldn't be cleared because it's since been locked. The service line remains visible.",
+          ),
+        );
+        return;
+      }
+
+      setRemovedServiceLineIds((prev) => new Set(prev).add(serviceLineId));
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : t("Failed to remove service line."));
+    }
+  }
+
   function handleCellChange(serviceLineId: string, dayKey: string, value: string) {
     const key = cellKey(serviceLineId, dayKey);
     setEntries((prev) => ({
@@ -196,26 +306,7 @@ export function TimesheetPage() {
       setEntries((prev) => ({ ...prev, [key]: { hours: corrected, is_locked: false } }));
     }
 
-    try {
-      const result = await upsertTimeEntry({
-        service_line_id: serviceLineId,
-        date: dayKey,
-        hours: corrected,
-      });
-      setEntries((prev) => {
-        const next = { ...prev };
-        if (result) {
-          next[key] = {
-            hours: formatHours(Number(result.hours)),
-            is_locked: result.is_locked,
-          };
-        } else {
-          delete next[key];
-        }
-        return next;
-      });
-    } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : t("Failed to save time entry."));
+    function revert() {
       setEntries((prev) => {
         const next = { ...prev };
         if (previous && Number(previous) > 0) {
@@ -225,6 +316,34 @@ export function TimesheetPage() {
         }
         return next;
       });
+    }
+
+    try {
+      // Always an array — a single cell blur sends a one-element request/response,
+      // never a bare object (see docs/requirements/timesheet.md's "API contract").
+      const [result] = await upsertTimeEntries([
+        { service_line_id: serviceLineId, date: dayKey, hours: corrected },
+      ]);
+      if (result.ok) {
+        setEntries((prev) => {
+          const next = { ...prev };
+          if (result.entry) {
+            next[key] = {
+              hours: formatHours(Number(result.entry.hours)),
+              is_locked: result.entry.is_locked,
+            };
+          } else {
+            delete next[key];
+          }
+          return next;
+        });
+      } else {
+        toast.error(errorMessage(result.error, t));
+        revert();
+      }
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : t("Failed to save time entry."));
+      revert();
     }
   }
 
@@ -246,9 +365,13 @@ export function TimesheetPage() {
         entries={entries}
         dayTotal={dayTotal}
         monthToDateTotal={monthToDateTotal}
+        periodLabel={periodLabel}
         addOptions={addOptions}
         onAddServiceLine={handleAddServiceLine}
+        hasEntriesInPeriod={hasEntriesInPeriod}
+        hasLockedEntriesInPeriod={hasLockedEntriesInPeriod}
         onRemoveServiceLine={handleRemoveServiceLine}
+        onClearAndRemoveServiceLine={handleClearAndRemoveServiceLine}
         onCellChange={handleCellChange}
         onCellBlur={handleCellBlur}
       />
@@ -261,9 +384,13 @@ export function TimesheetPage() {
         dayTotal={dayTotal}
         serviceLineTotal={serviceLineTotal}
         periodTotal={periodTotal}
+        periodLabel={periodLabel}
         addOptions={addOptions}
         onAddServiceLine={handleAddServiceLine}
+        hasEntriesInPeriod={hasEntriesInPeriod}
+        hasLockedEntriesInPeriod={hasLockedEntriesInPeriod}
         onRemoveServiceLine={handleRemoveServiceLine}
+        onClearAndRemoveServiceLine={handleClearAndRemoveServiceLine}
         onCellChange={handleCellChange}
         onCellBlur={handleCellBlur}
         onFocusDay={setSelectedKey}

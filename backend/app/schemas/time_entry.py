@@ -34,6 +34,21 @@ class TimeEntryListResponse(BaseModel):
     items: list[TimeEntryOut]
 
 
+class TimeEntryUpsertResult(BaseModel):
+    """One request item's outcome from the bulk `PUT /time-entries` (see
+    docs/requirements/timesheet.md's "API contract" — every item in the request
+    array is processed and reported independently, never all-or-nothing).
+    `entry`/`error` are mutually exclusive: `entry` is set (or left `None` for a
+    successful delete) when `ok` is `True`; `error` is set — `"locked"` or
+    `"not_eligible"` — when `ok` is `False`."""
+
+    service_line_id: uuid.UUID
+    date: date_
+    ok: bool
+    entry: TimeEntryOut | None = None
+    error: str | None = None
+
+
 class EligibleServiceLineOut(BaseModel):
     service_line_id: uuid.UUID
     service_line_name: str | None

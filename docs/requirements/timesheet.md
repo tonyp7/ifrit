@@ -52,10 +52,25 @@ State needed at the top level:
   union of: (1) service lines the user is currently assigned to and has added via "Add service
   line" (see §Interactions & Input Rules below — assignment-gated), and (2) service lines with
   *any* existing `time_entries` row for this user, regardless of current assignment. (2) is what
-  keeps historical locked time visible even after the user is later unassigned from that line —
-  this is also why "removing" a service line (see §Interactions & Input Rules) can safely be a
-  session-local view action rather than something that needs to persist or guard against locked
-  data: reloading always reconstitutes this union from scratch. **Row order is always ascending
+  keeps historical locked time visible even after the user is later unassigned from that line.
+  **Revised**: this union is why a service line with no logged time in the current period can
+  safely disappear from view as a harmless, session-local action — reloading (or navigating to a
+  different period where it has data) always reconstitutes it from scratch. It is **not** why
+  removing a line *with* logged time in the current period is safe — that case now actually
+  deletes the underlying data (see §Interactions & Input Rules' "Removing a service line" below,
+  revised from the earlier non-destructive design).
+  **Resolved — the session-wide "removed" flag can never win against (2)**: a line the user
+  removed earlier in the session (harmlessly, branch 1 below — no data existed for it at the
+  time) must still reappear the moment the union's (2) actually has a row for it in whatever
+  period is currently displayed. Concretely: `removedServiceLineIds` (or however this is
+  implemented) only ever suppresses a line when the *current period* contributes nothing from
+  (2) for it — the moment the currently-viewed period has any entry for that line, membership
+  rule (2) wins outright and the line shows, full stop, independent of whether it's in the
+  removed set. The app must never hide a service line that has entries for the period being
+  viewed. This is a per-period check re-evaluated on every period change, not a one-time
+  decision — a line can legitimately be hidden in September (no data there) and visible in
+  August (real data there) in the very same session, no reload required. **Row order is always
+  ascending
   by project name, then service line name** — a stable, identity-based sort applied to the whole
   union after merging, not the order lines happened to be added/discovered in. This is
   deliberate: an earlier draft left row order as an accidental side effect of fetch order (e.g.
@@ -103,6 +118,55 @@ State needed at the top level:
   §Interactions & Input Rules' removal rule), and those stay untouched and read-only regardless.
   Whether the UI proactively disables such a cell rather than letting the user type into it and
   fail on blur is not yet specified.
+
+#### API contract: `PUT /time-entries` is bulk, not single-entry
+
+**Revised** — resolving the "Bulk-clear mechanism is unspecified" and "backend doesn't enforce
+the lock" points from an earlier review pass (see §Open Questions' change history below). The
+request body is a **JSON array** of `TimeEntryUpsert` items (`service_line_id`, `date`, `hours`),
+length 1 or more — never a bare single object. A normal cell blur (see above) sends a
+**one-element array**; removing a service line with logged time in the current period (see
+§Interactions & Input Rules' "Removing a service line") sends **one array covering every day
+being cleared in the period**, in a single request — never one request per day.
+
+- **Each item is processed and persisted independently** — this is not an all-or-nothing
+  transaction across the array. One item failing (see below) never rolls back or blocks any other
+  item in the same request.
+- **Every item is checked against `is_locked` before being applied, regardless of direction**:
+  attempting to delete (`hours == 0`) or overwrite (`hours > 0`) a row where `is_locked = true` is
+  rejected for that item — locked rows are fully immutable through this endpoint, full stop.
+  Unlocking is exclusively `project_manager`'s domain via §Validation (a different, not-yet-built
+  mechanism entirely) — this endpoint never grants that authority to anyone, including the
+  original consultant. This closes the gap an earlier review pass found: the lock check used to
+  exist only in the frontend (a disabled input), not the backend, so a direct API call could
+  delete a locked entry; it's now enforced server-side, unconditionally, on every item.
+- Eligibility (`hours > 0` against a service line the user isn't currently assigned to — the
+  existing rule above) is likewise checked **per item**, not once for the whole request.
+- **Response is also a JSON array**, one result per request item (same order), each reporting its
+  own outcome:
+  - **Succeeded** — the resulting `TimeEntryOut` (for `hours > 0`) or `null` (for a successful
+    `hours == 0` delete), same shape §Data Model already defines.
+  - **Rejected** — an error indicator plus a human-readable reason (`"locked"` — the row is
+    locked; `"not_eligible"` — see the existing eligibility rule above).
+- **Status code**: `200` only if **every** item succeeded. `207 Multi-Status` if **any** item was
+  rejected — whether that's 1 of 30 or all 30 — since the response array already carries the
+  per-item detail a client needs; there's no separate all-failed status. This replaces the
+  existing single-item endpoint's behavior of throwing a `422` for an ineligible save — that's
+  now just one rejected item in an always-array response, even for a length-1 array.
+- **Frontend handling of a `207`** (relevant to both a single cell and the bulk clear-on-remove
+  flow): apply every succeeded item's result to local `entries` state as normal; surface an error
+  for the rejected item(s) (e.g. a toast). Specifically for the clear-on-remove flow: if **any**
+  item in that request came back rejected (most plausibly a day that got locked by a
+  `project_manager` in the moment between opening the confirmation dialog and clicking Confirm —
+  see the "race" point below), the service line must **not** be removed from `serviceLines` — it
+  now has at least one locked entry in the current period, which §Interactions & Input Rules'
+  removal rule already says makes a line non-removable. The line stays visible, showing whatever
+  mix of now-cleared and still-locked cells the response actually produced, and the error
+  surfaces why the clear was incomplete.
+- A practical upper bound on array length isn't specified here (Month view tops out around 31
+  items from the clear-on-remove flow) — presumably fine unbounded at this scale, but worth a
+  sanity-check limit at implementation time defending against a malformed/abusive request rather
+  than trusting the frontend's own bounds.
 
 ### Shared header (all breakpoints)
 - Option to switch `periodType` between Month view or Week view.
@@ -183,16 +247,64 @@ Both views have clean UI feedback on the cell's editability — just two states 
   not gated behind desktop-only hover or a mobile-only gesture (swipe/long-press). Unifying on an
   always-visible control avoids needing two different reveal mechanisms per breakpoint, and
   matches this app's existing row-action style rather than a hover-only pattern that has no touch
-  equivalent. **Non-destructive**: it only removes the row from the current view (`serviceLines`
-  state) — the underlying `time_entries` rows are never touched, locked or not. Re-adding the same
-  service line via "Add service line" just retrieves and redisplays whatever already exists for
-  it. Since nothing is actually destroyed, **no confirmation dialog is needed** — this also
-  resolves the earlier open question about locked/historical rows, since there's no data-loss
-  risk to guard against in the first place; the lock-related removal restriction from an earlier
-  draft is gone. In practice this is session-local, not a persisted preference: on next load,
-  §State's population rule (assigned-and-added, or has-any-history) brings back anything that
-  still qualifies regardless of whether it was removed before — "remove" is a decluttering action
-  for the current session, not a permanent dismissal.
+  equivalent.
+
+  **Revised — no longer unconditionally non-destructive.** The earlier design ("remove" only ever
+  touches the view, `time_entries` rows are never touched) let a user re-add the same line via
+  "Add service line" and get their old values back — which felt like an undo, but actually meant
+  "remove" never hid anything the user had entered; it just made adding/removing service lines
+  from the view a costless, reversible way to declutter a timesheet with many assigned-but-
+  currently-unused projects. That's the intended use case (see the top of this doc), but the
+  *actual* behavior — silently preserving every value, forever, behind an innocuous-looking "×" —
+  isn't honest about what's about to happen when a line **does** have real logged time. Removing a
+  service line now branches three ways, based on the currently-displayed period only (i.e. exactly
+  the `days` in view — Week or Month, whichever the user currently has selected; a period with no
+  logged time for this line is unaffected regardless of what's logged for it in other periods):
+
+  1. **No logged time for this line, this period** (no `entries` key for any day in `days`):
+     unchanged from before — removes the row from `serviceLines` only, no server call, no dialog.
+     Purely a view-declutter action; re-adding retrieves whatever already exists (nothing was ever
+     at risk, since there was nothing to lose for this period).
+  2. **Logged (unlocked) time exists for this line, this period**: a confirmation dialog (shadcn/ui
+     `AlertDialog`, matching every other destructive action in this app — see
+     [frontend.md § Destructive Actions](../architecture/frontend.md#destructive-actions)) —
+
+     > This will delete any time logged for this service line for the period **{{period}}**. Are
+     > you sure you want to proceed?
+
+     `{{period}}` is the same label the Shared Header already shows for the current view — e.g.
+     "August 2026" for Month, "Week 34" for Week (see §Shared header above) — so the dialog always
+     names exactly the range that's about to be affected.
+     - **Cancel**: no action; the row, its values, and its lock states (there are none, by
+       construction of this branch) are untouched.
+     - **Confirm** (destructive-styled, matching every other confirm action in this app): every day
+       in the current period's `days` with logged time for this line is cleared in **one bulk `PUT
+       /time-entries` call** — one array item (`hours: 0`) per day being cleared, not one request
+       per day (see §Persistence's API contract above). If the response is a plain `200`, every
+       item cleared and the line is removed from `serviceLines`; re-adding the same line afterward
+       does **not** restore these values — they're actually gone, which is the whole point of
+       warning first. If the response is a `207` (at least one day was rejected — in practice, a
+       day someone locked in the moment between opening this dialog and clicking Confirm), the
+       succeeded days are still cleared, but the line is **not** removed from view (branch 3 below
+       now applies to it, since it has a locked entry in this period) — the user sees an error
+       explaining the clear was incomplete and why. Time logged for this same line in a *different*
+       period (not currently in view) is never touched by this action either way.
+  3. **Any locked entry exists for this line, this period**: removal is **blocked entirely** — the
+     icon renders disabled (with a tooltip explaining why), and clicking it does nothing. There is
+     no partial removal that clears only the unlocked days and leaves the locked ones; a single
+     locked day anywhere in the current period's `days` for this line disables the control for the
+     *whole* line, for that period. This is intentional, not a limitation to fix later: once a
+     `project_manager` has locked any part of a period, a consultant must not be able to make that
+     service line disappear from their own timesheet — see §State's population rule above, which
+     already guarantees a line with any existing `time_entries` row (locked or not) always
+     reappears regardless of assignment/add state; blocking removal here is just making the
+     control honest about a case that population rule already made unavoidable.
+
+  In every case this remains **session-local** in the sense that the "removed from view" state
+  itself (branch 1 and the tail end of branch 2) isn't a persisted user preference — see §State's
+  population rule for what actually determines visibility on next load. But branch 2's data
+  deletion very much *is* persisted (that's the point of warning about it) — "session-local" here
+  describes the view-membership bookkeeping, not the underlying data.
 - No confirmation dialogs for hour edits — this is a live, low-friction data entry surface.
 - The "Add service line" dropdown only lists service lines meeting **all** of:
   - the parent project's `status` is `"active"`
@@ -328,7 +440,28 @@ heading/slug until now.)
     editable states look like for whatever's shown, remain undefined too (carried over from the
     original placeholder).
 
+**Resolved — raised by the "Removing a service line" revision above, since resolved**
+
+- **Backend lock enforcement, bulk-clear mechanism, and the confirm/Confirm race** are all now
+  resolved together by making `PUT /time-entries` a bulk, per-item-validated endpoint — see
+  §Persistence's "API contract" above for the full design (array in, array out, `is_locked`
+  checked per item server-side regardless of caller, `207 Multi-Status` on partial rejection, and
+  the frontend's defined handling of that response for the clear-on-remove flow specifically).
+  What's still open, not resolved by this: a concrete request-size sanity limit (see that section)
+  — a minor implementation detail, not a design question.
+
 **Edge cases / smaller inconsistencies**
 
-- No cap/overflow behavior stated for a consultant with many assigned service lines across
-  projects (mobile vertical list / desktop sticky column) — probably low-risk, but unaddressed.
+- **Session-wide vs. per-period "removed" visibility — resolved.** A service line with entries in
+  the currently-displayed period must always show, regardless of the session-wide removed-set —
+  see §State's `serviceLines` bullet above for the full rule. `removedServiceLineIds` (or
+  equivalent) only ever suppresses a line when the current period has nothing for it.
+- **Confirmation dialog button labels — resolved.** Uses this app's established
+  Cancel/destructive-verb `AlertDialog` convention (matching every other confirm dialog in the
+  app — see [frontend.md § Destructive Actions](../architecture/frontend.md#destructive-actions)),
+  not literal "Yes"/"No" buttons — see §Interactions & Input Rules' "Removing a service line"
+  above.
+- **No cap/overflow behavior for many assigned service lines — resolved, intentional.** A
+  consultant with many service lines across projects gets a longer mobile vertical list / a
+  taller desktop sticky first column, scrolling naturally like any other long list in the app —
+  no cap, no pagination, no collapsing. Not an oversight; there's no reason to special-case this.

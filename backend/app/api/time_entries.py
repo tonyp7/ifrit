@@ -1,6 +1,6 @@
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user
@@ -9,11 +9,10 @@ from app.models.user import User
 from app.schemas.time_entry import (
     EligibleServiceLineListResponse,
     TimeEntryListResponse,
-    TimeEntryOut,
     TimeEntryUpsert,
+    TimeEntryUpsertResult,
 )
 from app.services import time_entry_service
-from app.services.time_entry_service import NotEligibleError
 
 router = APIRouter(
     prefix="/time-entries",
@@ -52,19 +51,21 @@ async def list_eligible_service_lines(
     )
 
 
-@router.put("", response_model=TimeEntryOut | None)
-async def upsert_time_entry(
-    payload: TimeEntryUpsert,
+@router.put("", response_model=list[TimeEntryUpsertResult])
+async def upsert_time_entries(
+    payload: list[TimeEntryUpsert],
+    response: Response,
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
-) -> TimeEntryOut | None:
-    try:
-        result = await time_entry_service.upsert_time_entry(db, user, payload)
-    except NotEligibleError as err:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(err)
-        ) from err
-    if result is None:
-        return None
-    entry, line, project = result
-    return time_entry_service.to_time_entry_out(entry, line, project)
+) -> list[TimeEntryUpsertResult]:
+    """Bulk, per-item-validated (see docs/requirements/timesheet.md's "API contract"
+    section) — a single cell blur sends a one-element `payload`, the timesheet's
+    clear-on-remove-service-line flow sends one covering every day being cleared.
+    `200` only if every item succeeded; `207 Multi-Status` if any item was rejected
+    (locked, or not currently assigned to the service line) — whether that's one item
+    or all of them, the response array already carries the per-item detail a caller
+    needs, so there's no separate all-rejected status."""
+    results = await time_entry_service.upsert_time_entries(db, user, payload)
+    if any(not result.ok for result in results):
+        response.status_code = status.HTTP_207_MULTI_STATUS
+    return results

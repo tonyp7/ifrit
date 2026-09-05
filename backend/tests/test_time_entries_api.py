@@ -90,14 +90,19 @@ async def test_upsert_and_list_time_entry(client, db_session) -> None:
 
     upsert = await client.put(
         "/api/time-entries",
-        json={"service_line_id": service_line_id, "date": "2026-08-05", "hours": "1.5"},
+        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "1.5"}],
     )
     assert upsert.status_code == 200
-    body = upsert.json()
-    assert body["hours"] == "1.50"
-    assert body["is_locked"] is False
-    assert body["service_line_name"] == "Discovery"
-    assert body["project_name"] == "Acme Rollout"
+    results = upsert.json()
+    assert len(results) == 1
+    assert results[0]["ok"] is True
+    assert results[0]["service_line_id"] == service_line_id
+    assert results[0]["date"] == "2026-08-05"
+    entry = results[0]["entry"]
+    assert entry["hours"] == "1.50"
+    assert entry["is_locked"] is False
+    assert entry["service_line_name"] == "Discovery"
+    assert entry["project_name"] == "Acme Rollout"
 
     listing = await client.get(
         "/api/time-entries",
@@ -119,14 +124,23 @@ async def test_upsert_zero_deletes_existing_entry(client, db_session) -> None:
 
     await client.put(
         "/api/time-entries",
-        json={"service_line_id": service_line_id, "date": "2026-08-05", "hours": "2"},
+        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "2"}],
     )
     zero = await client.put(
         "/api/time-entries",
-        json={"service_line_id": service_line_id, "date": "2026-08-05", "hours": "0"},
+        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "0"}],
     )
     assert zero.status_code == 200
-    assert zero.json() is None
+    results = zero.json()
+    assert results == [
+        {
+            "service_line_id": service_line_id,
+            "date": "2026-08-05",
+            "ok": True,
+            "entry": None,
+            "error": None,
+        }
+    ]
 
     listing = await client.get(
         "/api/time-entries",
@@ -142,15 +156,19 @@ async def test_upsert_rejects_invalid_hours(client, db_session) -> None:
     )
     await _login_as(client, "consultant@example.com")
 
+    # Malformed hours (out of range / not a half-step) fail Pydantic validation on the
+    # request item itself — a 422 for the whole request, distinct from a per-item
+    # {ok: false} outcome (which is for otherwise-valid items rejected by business
+    # rules — locked, not eligible).
     too_high = await client.put(
         "/api/time-entries",
-        json={"service_line_id": service_line_id, "date": "2026-08-05", "hours": "25"},
+        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "25"}],
     )
     assert too_high.status_code == 422
 
     not_half_step = await client.put(
         "/api/time-entries",
-        json={"service_line_id": service_line_id, "date": "2026-08-05", "hours": "1.3"},
+        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "1.3"}],
     )
     assert not_half_step.status_code == 422
 
@@ -170,9 +188,133 @@ async def test_upsert_rejects_unassigned_service_line(client, db_session) -> Non
 
     response = await client.put(
         "/api/time-entries",
-        json={"service_line_id": service_line_id, "date": "2026-08-05", "hours": "1"},
+        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "1"}],
     )
-    assert response.status_code == 422
+    assert response.status_code == 207
+    results = response.json()
+    assert results == [
+        {
+            "service_line_id": service_line_id,
+            "date": "2026-08-05",
+            "ok": False,
+            "entry": None,
+            "error": "not_eligible",
+        }
+    ]
+
+
+async def test_upsert_rejects_locked_entry_regardless_of_direction(
+    client, db_session
+) -> None:
+    await _login_manager_first(client, db_session)
+    _project_id, service_line_id = await _setup_project_with_consultant(
+        client, db_session, consultant_name_id="consultant@example.com"
+    )
+    await _login_as(client, "consultant@example.com")
+
+    await client.put(
+        "/api/time-entries",
+        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "3"}],
+    )
+
+    # No Validation/lock endpoint exists yet (see docs/requirements/timesheet.md's
+    # Validation placeholder) — lock the row directly for this test.
+    from sqlalchemy import update
+
+    from app.models.time_entry import TimeEntry
+
+    await db_session.execute(
+        update(TimeEntry)
+        .where(TimeEntry.service_line_id == service_line_id)
+        .values(is_locked=True)
+    )
+    await db_session.commit()
+
+    # Attempting to overwrite a locked entry is rejected...
+    overwrite = await client.put(
+        "/api/time-entries",
+        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "5"}],
+    )
+    assert overwrite.status_code == 207
+    assert overwrite.json() == [
+        {
+            "service_line_id": service_line_id,
+            "date": "2026-08-05",
+            "ok": False,
+            "entry": None,
+            "error": "locked",
+        }
+    ]
+
+    # ...and so is attempting to delete (zero out) one — regardless of direction, a
+    # locked row is immutable through this endpoint (see
+    # docs/requirements/timesheet.md's "API contract").
+    delete_attempt = await client.put(
+        "/api/time-entries",
+        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "0"}],
+    )
+    assert delete_attempt.status_code == 207
+    assert delete_attempt.json()[0]["ok"] is False
+    assert delete_attempt.json()[0]["error"] == "locked"
+
+    # The entry is untouched by either attempt.
+    listing = await client.get(
+        "/api/time-entries",
+        params={"start_date": "2026-08-01", "end_date": "2026-08-31"},
+    )
+    items = listing.json()["items"]
+    assert len(items) == 1
+    assert items[0]["hours"] == "3.00"
+    assert items[0]["is_locked"] is True
+
+
+async def test_bulk_upsert_processes_items_independently(client, db_session) -> None:
+    await _login_manager_first(client, db_session)
+    _project_id, service_line_id = await _setup_project_with_consultant(
+        client, db_session, consultant_name_id="consultant@example.com"
+    )
+    await _login_as(client, "consultant@example.com")
+
+    await client.put(
+        "/api/time-entries",
+        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "3"}],
+    )
+
+    from sqlalchemy import update
+
+    from app.models.time_entry import TimeEntry
+
+    await db_session.execute(
+        update(TimeEntry)
+        .where(TimeEntry.service_line_id == service_line_id)
+        .values(is_locked=True)
+    )
+    await db_session.commit()
+
+    # A single bulk request: one item clears a locked day (must fail), one clears an
+    # untouched day (must succeed) — this is exactly the shape the clear-on-remove
+    # flow sends. Neither item's outcome should affect the other.
+    response = await client.put(
+        "/api/time-entries",
+        json=[
+            {"service_line_id": service_line_id, "date": "2026-08-05", "hours": "0"},
+            {"service_line_id": service_line_id, "date": "2026-08-06", "hours": "4"},
+        ],
+    )
+    assert response.status_code == 207
+    results = {r["date"]: r for r in response.json()}
+    assert results["2026-08-05"]["ok"] is False
+    assert results["2026-08-05"]["error"] == "locked"
+    assert results["2026-08-06"]["ok"] is True
+    assert results["2026-08-06"]["entry"]["hours"] == "4.00"
+
+    listing = await client.get(
+        "/api/time-entries",
+        params={"start_date": "2026-08-01", "end_date": "2026-08-31"},
+    )
+    items = {i["date"]: i for i in listing.json()["items"]}
+    assert items["2026-08-05"]["is_locked"] is True
+    assert items["2026-08-06"]["hours"] == "4.00"
 
 
 async def test_eligible_service_lines_lists_only_assigned_active_lines(
@@ -200,7 +342,7 @@ async def test_entries_remain_visible_after_unassignment(client, db_session) -> 
     await _login_as(client, "consultant@example.com")
     await client.put(
         "/api/time-entries",
-        json={"service_line_id": service_line_id, "date": "2026-08-05", "hours": "3"},
+        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "3"}],
     )
 
     # Manager unassigns the consultant from the service line entirely.
@@ -228,6 +370,8 @@ async def test_entries_remain_visible_after_unassignment(client, db_session) -> 
 
     blocked = await client.put(
         "/api/time-entries",
-        json={"service_line_id": service_line_id, "date": "2026-08-06", "hours": "1"},
+        json=[{"service_line_id": service_line_id, "date": "2026-08-06", "hours": "1"}],
     )
-    assert blocked.status_code == 422
+    assert blocked.status_code == 207
+    assert blocked.json()[0]["ok"] is False
+    assert blocked.json()[0]["error"] == "not_eligible"
