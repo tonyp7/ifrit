@@ -448,6 +448,26 @@ def upgrade() -> None:
     op.create_index("ix_projects_vendor_company_id", "projects", ["vendor_company_id"])
     op.create_index("ix_projects_client_company_id", "projects", ["client_company_id"])
 
+    # Users (holding the project_manager role) assigned to review/lock a project's
+    # timesheets — see docs/requirements/project.md#1-entity-project. Same shape as
+    # service_line_consultants below: a plain composite-PK join table, no extra
+    # columns — this only ever reflects *current* assignment, not history.
+    op.create_table(
+        "project_managers",
+        sa.Column(
+            "project_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("projects.id", ondelete="CASCADE"),
+            primary_key=True,
+        ),
+        sa.Column(
+            "user_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="CASCADE"),
+            primary_key=True,
+        ),
+    )
+
     op.create_table(
         "service_lines",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
@@ -560,6 +580,7 @@ def downgrade() -> None:
     op.drop_table("time_entries")
     op.drop_table("service_line_consultants")
     op.drop_table("service_lines")
+    op.drop_table("project_managers")
     op.drop_table("projects")
     op.drop_table("currencies")
     op.drop_table("addresses")

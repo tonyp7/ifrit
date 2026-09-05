@@ -69,5 +69,9 @@
   "Select consultants…": "Select consultants…",
   "Search consultants…": "Search consultants…",
   "No consultants found.": "No consultants found.",
-  "Remove {{name}}": "Remove {{name}}"
+  "Remove {{name}}": "Remove {{name}}",
+  "Project Managers": "Project Managers",
+  "Select Project Managers…": "Select Project Managers…",
+  "Search project managers…": "Search project managers…",
+  "No project managers found.": "No project managers found."
 }

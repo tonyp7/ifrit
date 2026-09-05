@@ -10,9 +10,9 @@ would have no way to reach `projects` to verify/manage anything there. `project_
 included for the same reason: it's the only way to reach the `Validation` sub-destination
 (see docs/requirements/home.md#timesheet-menu), and this bootstrap account is meant to be
 able to exercise every screen. Note `project_manager`'s actual authority is scoped to
-projects that user is assigned to (see docs/requirements/user.md#open-questions, assignment
-mechanism not yet specified) — holding the role alone is what's needed to reach the nav
-entry point, not to see non-empty data there.
+projects that user is assigned to (see docs/requirements/project.md#project-managers) —
+holding the role alone is what's needed to reach the nav entry point, not to see non-empty
+data there unless this account is also assigned as a project manager on a real project.
 
 Usage (from backend/): uv run python -m scripts.seed_admin
 """

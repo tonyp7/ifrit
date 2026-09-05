@@ -42,6 +42,30 @@ service_line_consultants = Table(
     ),
 )
 
+# Users (holding the project_manager role) assigned to review/lock a project's
+# timesheets — see docs/requirements/project.md#1-entity-project. Only reflects
+# current assignment, not history. Named `project_manager_assignments`, distinct
+# from `Project.project_managers` below (the relationship attribute) — same
+# distinct-names precaution as `service_line_consultants`/`ServiceLine.users`
+# above, since `secondary=project_managers` would otherwise shadow this Table
+# with the class attribute being defined on the same line.
+project_manager_assignments = Table(
+    "project_managers",
+    Base.metadata,
+    Column(
+        "project_id",
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+    Column(
+        "user_id",
+        UUID(as_uuid=True),
+        ForeignKey("users.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+)
+
 
 class Project(Base):
     __tablename__ = "projects"
@@ -85,6 +109,9 @@ class Project(Base):
 
     service_lines: Mapped[list["ServiceLine"]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
+    )
+    project_managers: Mapped[list["User"]] = relationship(
+        "User", secondary=project_manager_assignments
     )
 
     __table_args__ = (

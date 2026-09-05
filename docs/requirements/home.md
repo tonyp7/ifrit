@@ -69,9 +69,8 @@ distinct destinations under it while everyone else only has one:
     above.
   - **Validation** — navigates to a separate screen for reviewing/validating consultants'
     submitted timesheets, restricted to the specific projects that user is assigned to as a
-    project manager (assignment mechanism not yet specified — see
-    [project.md](project.md) and [user.md § Open Questions](user.md#open-questions)). **Screen
-    itself not yet specified** — see
+    project manager (see [project.md § Project Managers](project.md#project-managers) for that
+    assignment mechanism). **Screen itself not yet specified** — see
     [timesheet.md § Open Questions](timesheet.md#open-questions).
 
 This mirrors the [Configuration Menu](#configuration-menu)'s pattern (icon → dropdown → distinct

@@ -16,10 +16,10 @@ from [index.md](index.md) — review and adjust before treating as final.
 - **`project_manager`**: authority to review and lock/unlock consultants' submitted timesheets
   via the `Validation` sub-destination (see [home.md § Timesheet Menu](home.md#timesheet-menu)
   and [timesheet.md § Validation](timesheet.md#validation)) — **scoped to the specific projects
-  that user is assigned to as a project manager**, a per-project assignment to be specified in
-  [project.md](project.md) (not yet specified there — see [Open Questions](#open-questions)
-  below, which also covers why this is a deliberate exception to the "roles are global" note
-  further down). Holding `project_manager` does not by itself grant the `projects` screen, and
+  that user is assigned to as a project manager**, a per-project assignment (see
+  [project.md § Project Managers](project.md#project-managers) — also why this is a deliberate
+  exception to the "roles are global" note further down). Holding `project_manager` does not by
+  itself grant the `projects` screen, and
   holding `project_admin` does not by itself grant `Validation` — the two are independent axes,
   even though the same person often needs both in practice (e.g. someone who both builds out a
   project's service lines and later locks its consultants' time).
@@ -63,13 +63,14 @@ above: a `consultant`, an `administrator`, or a `project_admin` — any of these
 don't *also* hold `project_manager` — goes straight to their own timesheet. A `project_manager`
 (the literal role — not inferred from `administrator` or `project_admin`) additionally gets a
 `Validation` sub-destination for reviewing/locking consultants' submitted timesheets, restricted
-to the specific projects that user is assigned to as a project manager (assignment mechanism not
-yet specified — see [project.md](project.md) and [Open Questions](#open-questions) below) — see
-[home.md § Timesheet Menu](home.md#timesheet-menu) for how this is exposed in navigation, and
+to the specific projects that user is assigned to as a project manager (see
+[project.md § Project Managers](project.md#project-managers) for that assignment mechanism) —
+see [home.md § Timesheet Menu](home.md#timesheet-menu) for how this is exposed in navigation, and
 [timesheet.md](timesheet.md) for the timesheet screen itself.
 
-Since a user can hold multiple roles, their visible screens are inferred to be the union of the
-screens granted by each role they hold — see [Open Questions](#open-questions) below.
+Since a user can hold multiple roles, their visible screens are the union of the screens granted
+by each role they hold — confirmed by the `administrator` + `project_admin` combination the seed
+script relies on to give the bootstrap account full access (see `scripts/seed_admin.py`).
 
 ## User Stories
 
@@ -142,7 +143,8 @@ bespoke layout:
   `name_id`/`full_name` are deliberately left **blank**, not copied, since `name_id` must be
   unique and copying it verbatim would just be rejected on save (the same class of issue
   company.md flags for its own `Duplicate` — see
-  [Company Form](company.md#company-form-create--edit--duplicate)).
+  [Company Form](company.md#company-form-create--edit--duplicate)). One-at-a-time only — no
+  batch/"create N similar accounts" functionality, matching Company's `Duplicate`.
 - The form stays close to the data model, exposing:
 
   | Field              | Input                                             | Notes                                                                                                                                                                                                                                                                                                    |
@@ -229,20 +231,14 @@ just on `New`) —
 - Roles are global, NOT scoped per-project/per-company — **with one deliberate exception**:
   holding `project_manager` is a global eligibility flag (same pattern as `consultant`, which
   gates eligibility for Service Line assignment — see [project.md § Service Lines](project.md#service-lines)),
-  but that role's actual *authority* is scoped per-project via a separate assignment, not global.
-  See [Open Questions](#open-questions) below — the assignment mechanism itself is not yet
-  specified.
+  but that role's actual *authority* is scoped per-project via a separate assignment — see
+  [project.md § Project Managers](project.md#project-managers).
 - User identity is `name_id` (see Entity above), not necessarily an email address. It must be
   unique.
 - User should be soft-deleted to preserve referential integrity through the is_active flag
 
 ## Open Questions
 
-- **Resolved**: visibility is the union of the screens granted by each role a user holds (see
-  §Role → Screen Access above) — confirmed by the `administrator` + `project_admin` combination
-  the seed script relies on to give the bootstrap account full access.
-- **Resolved**: at least one role is required — no role-less accounts. `consultant` is the
-  default pre-checked role on `New` (see §User Form's `roles` field above).
 - **Resolved — self-lockout**: an administrator can never reduce their **own** administrative
   standing, full stop — this isn't scoped to "the last remaining administrator," it applies
   regardless of how many other administrators exist. Blocked in both places it could happen:
@@ -258,38 +254,18 @@ just on `New`) —
 
   > **"You can't remove your own administrator access — ask another administrator to make this
   > change for you."**
-- **Resolved — `is_sso` mutability**: yes, mutable after creation via `Edit`, in both
-  directions — see "Toggling `is_sso` on `Edit`" in §User Form above for the full behavior
-  (password cleared server-side + warning `Alert` going local → SSO; password field reappears
-  and becomes required going SSO → local).
-- **Resolved**: `Duplicate` is one-at-a-time only — no batch/"create N similar accounts"
-  functionality at this stage, matching Company's `Duplicate`.
-- **Deliberately left open — `project_manager` assignment mechanism**: the intended pattern (by
-  direct analogy with `consultant`/Service Line assignment — see
-  [project.md § Service Lines](project.md#service-lines)) is that holding `project_manager` is a
-  global eligibility flag, and the actual scope (which projects) is a separate per-project
-  assignment. Confirmed as the right shape, but the assignment relation itself (a Project↔User
-  many-to-many) and where it's edited (presumably a Project-form picker, the same way the Service
-  Line `Consultants` picker works) are intentionally deferred — to be specified separately in
-  [project.md](project.md), not as part of this role-model change.
-- **Resolved — zero-assignment state (the project side)**: yes, a project can exist with zero
-  `project_manager`s assigned — a valid state, not blocked. Its timesheets simply can't be
-  validated (locked/unlocked) by anyone until someone is assigned. See
-  [project.md § Open Questions](project.md#open-questions).
 - **Resolved — zero-assignment state (the user side)**: a user can hold `project_manager` while
-  assigned to zero projects. The `timesheet` nav icon's dropdown still shows the **Validation**
-  entry (not hidden), and the Validation screen itself renders empty — no special-casing to hide
-  the entry point.
+  assigned to zero projects (see [project.md § Project Managers](project.md#project-managers) for
+  the project side of this, where it's also a valid state). The `timesheet` nav icon's dropdown
+  still shows the **Validation** entry (not hidden), and the Validation screen itself renders
+  empty — no special-casing to hide the entry point. Not yet implemented (the Validation screen
+  itself doesn't exist yet — see [timesheet.md § Open Questions](timesheet.md#open-questions)),
+  but decided ahead of building it.
 - **Resolved — self-lock**: yes. If a `project_manager` is also a `consultant` on the same
   project (an already-supported multi-role combination, same pattern as today's `project_admin` +
   `consultant`), they can lock/unlock their own cells — no restriction, kept deliberately simple
-  rather than adding a carve-out for self-assigned work.
-- **Resolved — assignment write access**: `project_admin`-only. Since `project_admin` is already
-  the only role that can edit a project at all, assigning `project_manager`s to it (whatever form
-  that assignment UI takes — see the deferred item above) is naturally scoped to that same role;
-  a `project_manager` cannot assign themselves or others.
-- **Resolved — empty-assignment guard**: no guard. A project can go/stay `active` with zero
-  `project_manager`s assigned — see the zero-assignment resolution above.
+  rather than adding a carve-out for self-assigned work. Not yet implemented, same caveat as
+  above — see [timesheet.md § Open Questions](timesheet.md#open-questions).
 - **Deliberately left open — consultant-picking scope on Validation**: confirmed intent — a
   `project_manager` can only see/lock consultants assigned to service lines on projects where
   *they themselves* are assigned as project manager (not every consultant system-wide). The

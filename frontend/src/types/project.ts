@@ -28,6 +28,11 @@ export interface ServiceLineConsultant {
   full_name: string;
 }
 
+// Same shape as ServiceLineConsultant — kept as a distinct name since it's a
+// conceptually separate assignment (project-level authority, not a service line's
+// billable-time consultant) — see docs/requirements/project.md#project-managers.
+export type ProjectManager = ServiceLineConsultant;
+
 export interface ServiceLine {
   id: string;
   project_id: string;
@@ -79,6 +84,7 @@ export interface ProjectDetail {
   created_at: string;
   updated_at: string;
   service_lines: ServiceLine[];
+  project_managers: ProjectManager[];
   total_value: string;
 }
 
@@ -89,4 +95,5 @@ export interface ProjectInput {
   invoicing_currency: string;
   project_type: ProjectType;
   status: ProjectStatus;
+  project_manager_ids: string[];
 }

@@ -10,6 +10,7 @@ import { ApiError } from "@/api/client";
 import { listCompanies } from "@/api/companies";
 import { listCurrencies } from "@/api/currencies";
 import { createProject, getProject, updateProject } from "@/api/projects";
+import { ProjectManagersPicker } from "@/components/projects/ProjectManagersPicker";
 import { ServiceLinesTable } from "@/components/projects/ServiceLinesTable";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,6 +30,7 @@ import {
   PROJECT_TYPE_LABELS,
   STATUS_LABELS,
   type ProjectDetail,
+  type ProjectManager,
   type ProjectStatus,
   type ProjectType,
 } from "@/types/project";
@@ -43,6 +45,7 @@ const BLANK_VALUES = {
   invoicing_currency: "",
   project_type: "time_and_material" as ProjectType,
   status: "draft" as ProjectStatus,
+  project_manager_ids: [] as string[],
 };
 
 export function ProjectFormPage() {
@@ -57,6 +60,11 @@ export function ProjectFormPage() {
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
+  // Full manager objects, kept alongside the form's own project_manager_ids field —
+  // the field is the source of truth for submission, this is only so the picker's
+  // chips can render a full_name without an extra fetch (same split as
+  // ServiceLineFormDialog's selectedConsultants/user_ids).
+  const [selectedManagers, setSelectedManagers] = useState<ProjectManager[]>([]);
 
   const isReadOnly = project?.status === "closed";
 
@@ -71,6 +79,7 @@ export function ProjectFormPage() {
         invoicing_currency: z.string().min(1, t("Currency is required")),
         project_type: z.enum(PROJECT_TYPE_VALUES),
         status: z.enum(STATUS_VALUES),
+        project_manager_ids: z.array(z.string()),
       }),
     [t],
   );
@@ -102,6 +111,7 @@ export function ProjectFormPage() {
     getProject(routeProjectId)
       .then((detail) => {
         setProject(detail);
+        setSelectedManagers(detail.project_managers);
         reset({
           name: detail.name,
           vendor_company_id: detail.vendor_company_id,
@@ -109,6 +119,7 @@ export function ProjectFormPage() {
           invoicing_currency: detail.invoicing_currency,
           project_type: detail.project_type,
           status: detail.status,
+          project_manager_ids: detail.project_managers.map((m) => m.id),
         });
       })
       .catch((err: unknown) => {
@@ -121,6 +132,7 @@ export function ProjectFormPage() {
       refreshProject();
     } else {
       setProject(null);
+      setSelectedManagers([]);
       reset(BLANK_VALUES);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -170,6 +182,14 @@ export function ProjectFormPage() {
         () => resolve(null),
       )();
     });
+  }
+
+  function handleManagersChange(next: ProjectManager[]) {
+    setSelectedManagers(next);
+    setValue(
+      "project_manager_ids",
+      next.map((m) => m.id),
+    );
   }
 
   if (routeProjectId && loadError) {
@@ -330,6 +350,15 @@ export function ProjectFormPage() {
                   </p>
                 </div>
               </div>
+            </div>
+
+            <div className="flex flex-col gap-2 border-t pt-6">
+              <Label>{t("Project Managers")}</Label>
+              <ProjectManagersPicker
+                selected={selectedManagers}
+                onChange={handleManagersChange}
+                disabled={isReadOnly}
+              />
             </div>
 
             <div className="border-t pt-6">

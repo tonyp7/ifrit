@@ -208,9 +208,8 @@ is no Submit step anywhere else (see §My Timesheet (Clocking)'s intro).
 
 - **Access**: the literal `project_manager` role only — not inferred from `administrator` or
   `project_admin` — reached via the `timesheet` nav icon's dropdown, "Validation" item. Further
-  scoped to the specific projects that user is assigned to as project manager — assignment
-  mechanism not yet specified, see [project.md](project.md) and
-  [user.md § Open Questions](user.md#open-questions). See
+  scoped to the specific projects that user is assigned to as project manager — see
+  [project.md § Project Managers](project.md#project-managers) for that assignment mechanism. See
   [home.md § Timesheet Menu](home.md#timesheet-menu) and
   [user.md § Role → Screen Access](user.md#role--screen-access).
 - **Purpose**, from the top-level user stories: a `project_manager` can see their own timesheet,
@@ -281,11 +280,14 @@ This is intended. The design of the model is to remain simple (e.g. on the 8th o
   §Validation both run constantly: "this user's entries across a date range," without needing to
   know `service_line_id` up front (e.g. loading a whole period's grid in one query).
 
-### Review pass (draft feedback — not yet resolved)
+## Open Questions
 
 The points below came out of a first review of this draft. Grouped roughly by severity;
 addressing the "Critical" ones is a prerequisite for implementation, the rest can probably be
-resolved alongside them or deferred.
+resolved alongside them or deferred. (Was titled "Review pass" — renamed to match every other
+requirements doc's `## Open Questions` convention; several other docs already linked to
+`timesheet.md#open-questions`, which didn't actually resolve to this section under its old
+heading/slug until now.)
 
 **Critical — blocks implementation as written**
 
@@ -305,17 +307,15 @@ resolved alongside them or deferred.
     on the same project (an already-supported multi-role combination) can lock/unlock their own
     timesheet cells same as anyone else's — deliberately kept simple rather than adding a
     self-assigned-work carve-out. See [user.md § Open Questions](user.md#open-questions).
-  - **Scope — resolved in principle, mechanism deliberately deferred**: a `project_manager` can
-    only lock/unlock timesheets for consultants assigned to service lines on projects where
-    *they themselves* are assigned as project manager (see
-    [user.md § Role → Screen Access](user.md#role--screen-access)) — this replaces the earlier
-    version of this question (whether any `manager` could act system-wide, back when `project.md`
-    had no concept of per-project responsibility). Confirmed as the intended scoping; the
-    concrete mechanics (the assignment relation itself, and how the Validation screen queries
-    against it) are left for this doc to specify when the Validation screen itself is designed —
-    see [project.md § Open Questions](project.md#open-questions) and
-    [user.md § Open Questions](user.md#open-questions) for the related, also-deferred
-    project↔user assignment mechanism.
+  - **Scope — resolved and implemented**: a `project_manager` can only lock/unlock timesheets for
+    consultants assigned to service lines on projects where *they themselves* are assigned as
+    project manager (see [user.md § Role → Screen Access](user.md#role--screen-access)) — this
+    replaces the earlier version of this question (whether any `manager` could act system-wide,
+    back when `project.md` had no concept of per-project responsibility). The assignment relation
+    itself is implemented: see [project.md § Project Managers](project.md#project-managers) (the
+    `project_managers` table and the Project Form's picker). **Still open**: how the Validation
+    screen itself queries against that assignment and surfaces it in its UI — left for this doc
+    to specify when the Validation screen is designed.
   - **Does "locked" carry any approval/audit meaning, or is it purely a mechanical edit-freeze?**
     (new) The old `validated` state implied a manager had reviewed and signed off — a real
     business capability for billing/payroll/audit purposes. The new model is deliberately weaker

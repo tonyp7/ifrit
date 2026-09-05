@@ -36,8 +36,7 @@ change — done to avoid confusion with the newer `project_manager` role, which 
   keep project data current.
 - As a project_admin, I want to assign one or more `project_manager`s to a project, so that
   there's someone with authority to review and lock/unlock consultants' submitted timesheets for
-  it — see [Open Questions](#open-questions) below; this assignment mechanism is not yet
-  specified.
+  it — see §Project Managers under Project Form below.
 - As a consultant, I want to log time (via the `timesheet` screen) against a service line I'm
   assigned to, so that my work is tracked and billable.
 - As a consultant assigned to more than one service line on the same project, I want each line
@@ -93,14 +92,50 @@ Lines) is unaffected, since it's already a horizontally-scrollable Data Table, n
   on the list. **`status` is the one exception**: it stays editable even in this read-only state,
   specifically so a `closed` project can always be moved back to `active`/`draft` — otherwise a
   project could get soft-locked into `closed` with no way out (see §Status enum below).
-- **`Duplicate`**: copies everything — header fields (vendor/client/currency/type) **and** all
-  service lines with their consultant assignments — but the new project is always created with
-  `status = draft`, regardless of the source project's status, so every copied field/line starts
-  fully editable (see §Status enum and the Service Line edit/delete rules below). Unlike `Edit`,
-  `Duplicate` is **not** affected by the source project being `closed` — it always produces a
-  fresh, fully-editable `draft` copy. `is_active` is not copied either — same as `Company`'s
-  `Duplicate` (see [company.md](company.md#company-form-create--edit--duplicate)), it's not one
-  of the exposed form fields, so a duplicated project is never created pre-deleted.
+- **`Duplicate`**: copies everything — header fields (vendor/client/currency/type), all
+  service lines with their consultant assignments, **and** `project_managers` (see §Project
+  Managers below) — copied verbatim for the same consistency reason consultant assignments are:
+  a duplicated project starts with the same people already responsible for it, rather than
+  silently starting with nobody able to validate its timesheets. The new project is always
+  created with `status = draft`, regardless of the source project's status, so every copied
+  field/line starts fully editable (see §Status enum and the Service Line edit/delete rules
+  below). Unlike `Edit`, `Duplicate` is **not** affected by the source project being `closed` —
+  it always produces a fresh, fully-editable `draft` copy. `is_active` is not copied either —
+  same as `Company`'s `Duplicate` (see
+  [company.md](company.md#company-form-create--edit--duplicate)), it's not one of the exposed
+  form fields, so a duplicated project is never created pre-deleted.
+
+### Project Managers
+
+Separated from the header fields above by a horizontal rule: a "Project Managers" heading,
+followed by a **`Select Project Managers…`** trigger button. Same design language as the Service
+Line `Consultants` picker (see §Service Lines below) — a `Popover` containing a `Command`
+palette: a search input (autofocused, filters as you type) above the list of active
+`project_manager`-role users (same "active-role-holder" filtering the Consultants picker already
+applies, just against `project_manager` instead of `consultant`). Selecting a user adds them to
+the assignment and shows them as a removable chip (`Badge`, with an `×` to unassign) below the
+trigger; the popover stays open so multiple people can be added in one pass, same interaction
+shape as Consultants. Search is server-side, reusing the same extended `GET /users` endpoint the
+Consultants picker uses (see §Service Lines' Add/Edit Modal below), filtered to
+`role=project_manager` instead of `role=consultant` — no new endpoint needed.
+
+**Persistence differs from the Consultants picker**, and deliberately so: `project_managers` is
+a field on the `Project` itself (same category as `vendor`/`client`), not a separate child-entity
+list with its own add/edit modal and its own save timing. Selections are held in the Project
+Form's local state and submitted together with the rest of the header fields on the form's own
+**`Save`** action. Concretely, this means a `New` (not-yet-saved) project does **not** need the
+"silently save the project first" auto-save-on-first-use handling that the Service Lines **`+`**
+button needs (see §Service Lines below) — there's no premature FK to satisfy, since
+`project_managers` goes out in the same create/update payload as everything else.
+
+**Placement**: below the responsive two-per-line header field grid described above, full-width —
+same treatment as the Service Lines table, not part of that grid.
+
+**Edit rules by project status**: follows the same rule as every other header field (see §Status
+enum below) — freely editable on `draft`/`active`, and read-only once `closed`. Unlike `status`
+itself, `project_managers` is **not** exempted from `closed`'s read-only state — there's no
+lock-out risk to guard against here the way there is for `status` (see §Status enum's transition
+rules), since reassignment isn't needed to move a project back out of `closed`.
 
 ### Service Lines
 
@@ -197,13 +232,16 @@ Bottom of the form: A Save button
 Two entities:
 
 1. **Project** — the billing engagement itself: vendor/client companies, currency, type,
-   status, and its service lines.
+   status, its service lines, and its assigned project managers.
 2. **Service Line** — one-to-many billable line items belonging to a project, each with its own
    quantity/unit/price and assigned consultants.
 
 ```
 Project (1) ──< Service Line (N)
 Service Line (N) ──< User (N)   [many-to-many: consultants assigned to a line]
+Project (N) ──< User (N)        [many-to-many: project managers assigned to a project,
+                                  via the `project_managers` join table — see §1. Entity:
+                                  `Project`'s `project_managers` field below]
 ```
 
 ### 1. Entity: `Project`
@@ -220,6 +258,7 @@ Service Line (N) ──< User (N)   [many-to-many: consultants assigned to a lin
 | `is_active`                           | boolean                 | Yes          | Soft-delete flag, same pattern as `Company`/`User` (default `true`) — set to `false` by the `Delete` action on the projects list. **Independent of `status`**: `closed` is a real lifecycle state, not a synonym for deleted; a project can be `closed` and still `is_active = true`. Not exposed on the Project form — only ever set via `Delete`, same as `Company.is_active` (see [company.md](company.md#1-entity-company)). |
 | `created_at`                         | timestamp               | Yes          | Record creation                                                                                                                                                                                                            |
 | `updated_at`                          | timestamp               | Yes          | Record last modified                                                                                                                                                                                                        |
+| `project_managers`                    | User[] (0..N)            | No           | Users holding the `project_manager` role, assigned to review/lock this project's consultants' timesheets (see [user.md § Entity](user.md#entity)) — many-to-many via a dedicated `project_managers` join table (`project_id`, `user_id`, both `ON DELETE CASCADE` — same shape as `service_line_consultants`, see §2. Entity: `Service Line` below). Valid to be empty (see §Project Managers under Project Form above, and [Open Questions](#open-questions)) — a project with none simply can't have its timesheets validated by anyone yet. |
 
 #### Validation rules
 
@@ -298,9 +337,12 @@ not grant it). Because of this, `status` is deliberately the **one field exempte
   and [timesheet.md](timesheet.md#open-questions). On a `closed` parent project, the line is
   fully read-only (no add/edit/delete, including no soft-delete). See the Edit/delete rules
   under §Service Lines above.
-- Otherwise not specified in the original draft beyond field presence. Candidates worth deciding
-  explicitly: `quantity > 0`, `unit_price >= 0`, whether a service line needs at least one
-  assigned consultant before a `draft` project can move to `active`.
+- Otherwise not specified in the original draft beyond field presence. `quantity > 0` and
+  `unit_price >= 0` are **resolved and implemented** — enforced by `ServiceLineWrite`'s
+  `check_amounts` validator (`backend/app/schemas/project.py`), a 422 on violation. **Still
+  open**: whether a service line needs at least one assigned consultant before a `draft` project
+  can move to `active` — no such check exists anywhere today; a service line can be `active` with
+  zero consultants assigned.
 
 #### UOM enum
 
@@ -353,29 +395,9 @@ display `Label` rather than relying on the raw value being shown as-is.
 
 ## Open Questions
 
-- **`project_manager` assignment — deliberately deferred, not yet specified**: introduced
-  alongside the `project_admin`/`project_manager` role split (see
-  [user.md § Entity](user.md#entity)), a project must be able to have "one or more
-  `project_manager`s assigned" so that role's `Validation`/timesheet-locking authority can be
-  scoped to specific projects rather than being global. Two sub-questions are confirmed already
-  (see below); the mechanism itself is intentionally left for later, separate design work:
-  - **Data model**: presumed a Project↔User many-to-many, mirroring `Service Line.users`
-    (see §2. Entity: `Service Line` above) — not yet added to §Project Schema. **Left open for
-    now, by design.**
-  - **Where it's edited**: presumed a picker on the Project form, analogous to the Service Line
-    `Consultants` picker (see §Service Lines above), filtered to active `project_manager`-role
-    users — not yet added to §Project Form. **Left open for now, by design.**
-  - **Write access — resolved**: `project_admin`-only. `project_admin` is already the only role
-    that can edit a project at all, so assigning `project_manager`s to it is naturally scoped to
-    that same role — a `project_manager` cannot assign themselves or others. See
-    [user.md § Open Questions](user.md#open-questions).
-  - **Empty-assignment guard — resolved**: no guard. A project can validly exist (including
-    `active`) with zero `project_manager`s assigned; its timesheets simply can't be
-    validated/locked by anyone until someone is assigned. This is an accepted valid state, not an
-    error condition.
-- See also §2. Entity: `Service Line`'s own Validation rules above for the still-open
-  `quantity > 0` / `unit_price >= 0` / minimum-one-consultant questions this doc already carried
-  before the `project_manager` role existed.
+- **Minimum-one-consultant before `active`**: whether a service line needs at least one assigned
+  consultant before a `draft` project can move to `active` — see §2. Entity: `Service Line`'s own
+  Validation rules above. No such check exists today; still genuinely open.
 
 ## Reference JSON Representation
 
@@ -389,7 +411,8 @@ display `Label` rather than relying on the raw value being shown as-is.
     "invoicing_currency": "EUR",
     "project_type": "time_and_material",
     "status": "active",
-    "is_active": true
+    "is_active": true,
+    "project_managers": ["c2d3e4f5-a6b7-4c3d-9e8f-1a2b3c4d5e6f"]
   },
   "service_lines": [
     {

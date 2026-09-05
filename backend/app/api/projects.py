@@ -86,7 +86,12 @@ async def create_project(
     payload: ProjectWrite, db: AsyncSession = Depends(get_db)
 ) -> ProjectDetail:
     await _validate_references_or_422(db, payload)
-    project = await project_service.create_project(db, payload)
+    try:
+        project = await project_service.create_project(db, payload)
+    except InvalidReferenceError as err:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(err)
+        ) from err
     return project_service.to_project_detail(project)
 
 
@@ -109,6 +114,10 @@ async def update_project(
     except ProjectReadOnlyError as err:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=str(err)
+        ) from err
+    except InvalidReferenceError as err:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(err)
         ) from err
     return project_service.to_project_detail(project)
 

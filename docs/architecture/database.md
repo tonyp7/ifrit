@@ -214,7 +214,7 @@ file, not enumerated row-by-row here). At seed time, `is_enabled = true` for exa
 — every other currency ships with `is_enabled = false` (the column default), selectable later by
 flipping the flag rather than a schema change.
 
-### `projects`, `service_lines`, `service_line_consultants`
+### `projects`, `project_managers`, `service_lines`, `service_line_consultants`
 
 Implemented (source of truth: `backend/app/models/project.py`, migration
 `backend/alembic/versions/0001_initial.py`). Derived from [project.md](../requirements/project.md#project-schema).
@@ -238,6 +238,22 @@ Indexes on `vendor_company_id` and `client_company_id` support the list screen's
 joins. `vendor_company_id`/`client_company_id` are two separate FKs to the same `companies`
 table (not a composite/self-referencing key) — each depends on the whole of the single-column
 `id` PK, so this satisfies BCNF trivially.
+
+#### `project_managers` (join table)
+
+| Column     | Type | Constraints                                |
+| ----------- | ---- | --------------------------------------------- |
+| project_id   | UUID | PK, FK → `projects.id` (`ON DELETE CASCADE`)     |
+| user_id       | UUID | PK, FK → `users.id` (`ON DELETE CASCADE`)          |
+
+Many-to-many between `projects` and `users` — the users assigned to review/lock a project's
+consultants' submitted timesheets via the (not yet built) Validation screen (see
+[project.md § Project Managers](../requirements/project.md#project-managers) and
+[user.md § Entity](../requirements/user.md#entity) for the `project_manager` role this gates
+eligibility against). Same shape and same BCNF reasoning as `service_line_consultants` below —
+the composite PK is the only candidate key. Only reflects *current* assignment, not history; the
+API layer enforces that an assigned user actually holds the `project_manager` role and is
+active, same pattern as `service_line_consultants`' `consultant` check.
 
 #### `service_lines`
 

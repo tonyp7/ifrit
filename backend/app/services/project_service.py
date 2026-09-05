@@ -11,6 +11,7 @@ from app.models.project import Project, ServiceLine
 from app.models.user import User
 from app.schemas.project import (
     ProjectDetail,
+    ProjectManagerOut,
     ProjectWrite,
     ServiceLineConsultantOut,
     ServiceLineOut,
@@ -91,7 +92,10 @@ async def list_projects(
 async def get_project(db: AsyncSession, project_id: uuid.UUID) -> Project | None:
     result = await db.execute(
         select(Project)
-        .options(selectinload(Project.service_lines).selectinload(ServiceLine.users))
+        .options(
+            selectinload(Project.service_lines).selectinload(ServiceLine.users),
+            selectinload(Project.project_managers),
+        )
         .where(Project.id == project_id, Project.is_active.is_(True))
         .execution_options(populate_existing=True)
     )
@@ -129,7 +133,9 @@ async def validate_references(db: AsyncSession, data: ProjectWrite) -> None:
 
 
 async def create_project(db: AsyncSession, data: ProjectWrite) -> Project:
-    project = Project(**data.model_dump())
+    fields = data.model_dump(exclude={"project_manager_ids"})
+    managers = await _resolve_project_managers(db, data.project_manager_ids)
+    project = Project(**fields, project_managers=managers)
     db.add(project)
     await db.commit()
     persisted = await get_project(db, project.id)
@@ -141,16 +147,23 @@ async def update_project(
     db: AsyncSession, project: Project, data: ProjectWrite
 ) -> Project:
     # `status` is the one field exempted from a `closed` project's read-only state
-    # (see docs/requirements/project.md#status-enum) — everything else must be
-    # unchanged while closed.
+    # (see docs/requirements/project.md#status-enum) — everything else, including
+    # `project_managers` (see docs/requirements/project.md#project-managers, which is
+    # NOT exempted the way `status` is), must be unchanged while closed.
     if project.status == "closed":
-        other_fields = data.model_dump(exclude={"status"})
+        other_fields = data.model_dump(exclude={"status", "project_manager_ids"})
         current = {field: getattr(project, field) for field in other_fields}
-        if other_fields != current:
+        manager_ids_changed = {u.id for u in project.project_managers} != set(
+            data.project_manager_ids
+        )
+        if other_fields != current or manager_ids_changed:
             raise ProjectReadOnlyError("Only status can change on a closed project")
 
-    for field, value in data.model_dump().items():
+    for field, value in data.model_dump(exclude={"project_manager_ids"}).items():
         setattr(project, field, value)
+    project.project_managers = await _resolve_project_managers(
+        db, data.project_manager_ids
+    )
     await db.commit()
     return project
 
@@ -169,6 +182,9 @@ async def duplicate_project(db: AsyncSession, source: Project) -> Project:
         project_type=source.project_type,
         status="draft",
         is_active=True,
+        # Copied verbatim, same consistency reason service lines' consultant
+        # assignments are — see docs/requirements/project.md#project-managers.
+        project_managers=list(source.project_managers),
     )
     for line in source.service_lines:
         if not line.is_active:
@@ -208,6 +224,34 @@ async def _resolve_consultants(
         role_names = {role.name for role in user.roles}
         if not user.is_active or "consultant" not in role_names:
             raise InvalidReferenceError(f"User {user.id} is not an active consultant")
+    return users
+
+
+async def _resolve_project_managers(
+    db: AsyncSession, user_ids: list[uuid.UUID]
+) -> list[User]:
+    """Same shape as _resolve_consultants above, checking `project_manager` instead
+    of `consultant` — see docs/requirements/project.md#project-managers. Holding the
+    role is the only eligibility check; there is deliberately no minimum-one or
+    empty-assignment guard (see docs/requirements/project.md#1-entity-project)."""
+    if not user_ids:
+        return []
+    result = await db.execute(
+        select(User).options(selectinload(User.roles)).where(User.id.in_(user_ids))
+    )
+    users = list(result.scalars().all())
+    found_ids = {u.id for u in users}
+    missing = set(user_ids) - found_ids
+    if missing:
+        raise InvalidReferenceError(
+            f"Unknown user id(s): {', '.join(str(m) for m in missing)}"
+        )
+    for user in users:
+        role_names = {role.name for role in user.roles}
+        if not user.is_active or "project_manager" not in role_names:
+            raise InvalidReferenceError(
+                f"User {user.id} is not an active project_manager"
+            )
     return users
 
 
@@ -280,6 +324,10 @@ def to_consultant_out(user: User) -> ServiceLineConsultantOut:
     return ServiceLineConsultantOut(id=user.id, full_name=user.full_name)
 
 
+def to_project_manager_out(user: User) -> ProjectManagerOut:
+    return ProjectManagerOut(id=user.id, full_name=user.full_name)
+
+
 def to_service_line_out(line: ServiceLine) -> ServiceLineOut:
     return ServiceLineOut(
         id=line.id,
@@ -308,5 +356,6 @@ def to_project_detail(project: Project) -> ProjectDetail:
         created_at=project.created_at,
         updated_at=project.updated_at,
         service_lines=[to_service_line_out(line) for line in active_lines],
+        project_managers=[to_project_manager_out(u) for u in project.project_managers],
         total_value=project_total_value(project),
     )

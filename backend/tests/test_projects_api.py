@@ -289,6 +289,119 @@ async def test_duplicate_project_copies_service_lines_and_resets_to_draft(
     assert body["service_lines"][0]["value"] == "1000.0000"
 
 
+async def test_create_and_update_project_managers(client, db_session) -> None:
+    await _login_manager(client, db_session)
+    vendor, client_company, currency = await _setup_refs(db_session)
+    pm1 = await create_user(
+        db_session, name_id="pm1@example.com", password="pw", role_name="project_manager"
+    )
+    pm2 = await create_user(
+        db_session, name_id="pm2@example.com", password="pw", role_name="project_manager"
+    )
+
+    create = await client.post(
+        "/api/projects",
+        json=_project_payload(
+            vendor, client_company, currency, project_manager_ids=[str(pm1.id)]
+        ),
+    )
+    assert create.status_code == 201
+    body = create.json()
+    assert [pm["id"] for pm in body["project_managers"]] == [str(pm1.id)]
+    assert body["project_managers"][0]["full_name"] == pm1.full_name
+
+    project_id = body["id"]
+    update = await client.patch(
+        f"/api/projects/{project_id}",
+        json=_project_payload(
+            vendor,
+            client_company,
+            currency,
+            project_manager_ids=[str(pm1.id), str(pm2.id)],
+        ),
+    )
+    assert update.status_code == 200
+    assert {pm["id"] for pm in update.json()["project_managers"]} == {
+        str(pm1.id),
+        str(pm2.id),
+    }
+
+    cleared = await client.patch(
+        f"/api/projects/{project_id}",
+        json=_project_payload(vendor, client_company, currency, project_manager_ids=[]),
+    )
+    assert cleared.status_code == 200
+    assert cleared.json()["project_managers"] == []
+
+
+async def test_project_rejects_non_project_manager_user(client, db_session) -> None:
+    await _login_manager(client, db_session)
+    vendor, client_company, currency = await _setup_refs(db_session)
+    consultant = await create_user(
+        db_session, name_id="not-a-pm@example.com", password="pw", role_name="consultant"
+    )
+
+    response = await client.post(
+        "/api/projects",
+        json=_project_payload(
+            vendor, client_company, currency, project_manager_ids=[str(consultant.id)]
+        ),
+    )
+    assert response.status_code == 422
+
+
+async def test_duplicate_project_copies_project_managers(client, db_session) -> None:
+    await _login_manager(client, db_session)
+    vendor, client_company, currency = await _setup_refs(db_session)
+    pm = await create_user(
+        db_session, name_id="pm@example.com", password="pw", role_name="project_manager"
+    )
+
+    create = await client.post(
+        "/api/projects",
+        json=_project_payload(
+            vendor, client_company, currency, project_manager_ids=[str(pm.id)]
+        ),
+    )
+    project_id = create.json()["id"]
+
+    duplicate = await client.post(f"/api/projects/{project_id}/duplicate")
+    assert duplicate.status_code == 200
+    assert [p["id"] for p in duplicate.json()["project_managers"]] == [str(pm.id)]
+
+
+async def test_closed_project_blocks_project_manager_reassignment(
+    client, db_session
+) -> None:
+    await _login_manager(client, db_session)
+    vendor, client_company, currency = await _setup_refs(db_session)
+    pm = await create_user(
+        db_session, name_id="pm-closed@example.com", password="pw", role_name="project_manager"
+    )
+
+    create = await client.post(
+        "/api/projects", json=_project_payload(vendor, client_company, currency)
+    )
+    project_id = create.json()["id"]
+    close = await client.patch(
+        f"/api/projects/{project_id}",
+        json=_project_payload(vendor, client_company, currency, status="closed"),
+    )
+    assert close.status_code == 200
+
+    blocked = await client.patch(
+        f"/api/projects/{project_id}",
+        json=_project_payload(
+            vendor,
+            client_company,
+            currency,
+            status="closed",
+            project_manager_ids=[str(pm.id)],
+        ),
+    )
+    assert blocked.status_code == 409
+
+
 async def test_closed_project_blocks_edits_except_status(client, db_session) -> None:
     await _login_manager(client, db_session)
     vendor, client_company, currency = await _setup_refs(db_session)

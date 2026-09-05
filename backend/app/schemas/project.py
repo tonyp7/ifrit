@@ -14,6 +14,9 @@ class ProjectWrite(BaseModel):
     invoicing_currency: str
     project_type: ProjectType
     status: ProjectStatus = "draft"
+    # Held/saved as part of the Project itself, not a separate child-entity flow —
+    # see docs/requirements/project.md#project-managers.
+    project_manager_ids: list[uuid.UUID] = []
 
     @model_validator(mode="after")
     def check_name(self) -> "ProjectWrite":
@@ -62,6 +65,11 @@ class ServiceLineConsultantOut(BaseModel):
     full_name: str
 
 
+class ProjectManagerOut(BaseModel):
+    id: uuid.UUID
+    full_name: str
+
+
 class ServiceLineOut(BaseModel):
     id: uuid.UUID
     project_id: uuid.UUID
@@ -86,4 +94,5 @@ class ProjectDetail(BaseModel):
     created_at: datetime
     updated_at: datetime
     service_lines: list[ServiceLineOut]
+    project_managers: list[ProjectManagerOut]
     total_value: Decimal
