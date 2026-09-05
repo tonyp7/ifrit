@@ -7,7 +7,7 @@ from app.models.user import ThemePreference
 # See docs/requirements/user.md#password-policy.
 PASSWORD_MIN_LENGTH = 12
 PASSWORD_MAX_LENGTH = 255
-VALID_ROLES = {"administrator", "manager", "consultant"}
+VALID_ROLES = {"administrator", "project_admin", "project_manager", "consultant"}
 
 
 def _check_password_value(password: str) -> None:

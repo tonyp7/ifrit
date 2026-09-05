@@ -12,24 +12,32 @@ implemented.
 
 ## User Stories
 
-Per [user.md](user.md#role--screen-access), only the `manager` role has access to the `projects`
-screen by default — `administrator` does not, unless that specific user also separately holds
-`manager` (e.g. the dev-seeded default admin, which is assigned both). Stories below say
-"manager" since that's the actual gating role, not just the primary persona.
+Per [user.md](user.md#role--screen-access), only the `project_admin` role has access to the
+`projects` screen by default — `administrator` does not, unless that specific user also
+separately holds `project_admin` (e.g. the dev-seeded default admin, which is assigned both).
+Stories below say "project_admin" since that's the actual gating role, not just the primary
+persona. (`project_admin` is a rename of the earlier `manager` role — same access, no functional
+change — done to avoid confusion with the newer `project_manager` role, which governs
+`Validation`/timesheet-locking access instead of this screen; see
+[user.md § Entity](user.md#entity).)
 
-- As a manager, when I land on the project page, I want to see a list of all projects, so that
-  I can view or edit existing projects.
-- As a manager, when I land on the project page, I want a new-project button, so that I can
+- As a project_admin, when I land on the project page, I want to see a list of all projects, so
+  that I can view or edit existing projects.
+- As a project_admin, when I land on the project page, I want a new-project button, so that I can
   create a new project.
-- As a manager, I want to create a project by selecting any company as the client, a
+- As a project_admin, I want to create a project by selecting any company as the client, a
   vendor-flagged company as the vendor, an invoicing currency, and a project type, so that the
   project is correctly set up for billing.
-- As a manager, I want to add service lines to a project, each with a quantity and unit price,
-  so that I can define the billable scope of work.
-- As a manager, I want to assign consultants to a service line, so that they can log time/work
-  against it.
-- As a manager, I want to view and edit the projects I'm responsible for, so that I can keep
-  project data current.
+- As a project_admin, I want to add service lines to a project, each with a quantity and unit
+  price, so that I can define the billable scope of work.
+- As a project_admin, I want to assign consultants to a service line, so that they can log
+  time/work against it.
+- As a project_admin, I want to view and edit the projects I'm responsible for, so that I can
+  keep project data current.
+- As a project_admin, I want to assign one or more `project_manager`s to a project, so that
+  there's someone with authority to review and lock/unlock consultants' submitted timesheets for
+  it — see [Open Questions](#open-questions) below; this assignment mechanism is not yet
+  specified.
 - As a consultant, I want to log time (via the `timesheet` screen) against a service line I'm
   assigned to, so that my work is tracked and billable.
 - As a consultant assigned to more than one service line on the same project, I want each line
@@ -233,11 +241,11 @@ Service Line (N) ──< User (N)   [many-to-many: consultants assigned to a lin
 **Transition rules**: unrestricted — a project can move from any status to any other status
 directly (no enforced workflow, e.g. `active` → `draft` or `closed` → `active` are both valid).
 `status` is primarily a filtering/sorting aid and a switch for the edit rules above, not a strict
-lifecycle gate. No role restriction beyond having `manager` access to the screen itself (see
-[user.md § Role → Screen Access](user.md#role--screen-access) — `administrator` alone does not
-grant it). Because of this, `status` is deliberately the **one field exempted** from `closed`'s
-read-only form (see Project Form above) — a project must always be movable out of `closed`, so
-it can never get soft-locked with no way to change it back.
+lifecycle gate. No role restriction beyond having `project_admin` access to the screen itself
+(see [user.md § Role → Screen Access](user.md#role--screen-access) — `administrator` alone does
+not grant it). Because of this, `status` is deliberately the **one field exempted** from
+`closed`'s read-only form (see Project Form above) — a project must always be movable out of
+`closed`, so it can never get soft-locked with no way to change it back.
 
 #### Project Type enum
 
@@ -342,6 +350,32 @@ display `Label` rather than relying on the raw value being shown as-is.
   - This comma/dot grouping is the current fixed format (matching the app's English-only
     state — see [frontend.md](../architecture/frontend.md#internationalization-i18n)); revisit
     if/when a second locale with different grouping conventions is actually added.
+
+## Open Questions
+
+- **`project_manager` assignment — deliberately deferred, not yet specified**: introduced
+  alongside the `project_admin`/`project_manager` role split (see
+  [user.md § Entity](user.md#entity)), a project must be able to have "one or more
+  `project_manager`s assigned" so that role's `Validation`/timesheet-locking authority can be
+  scoped to specific projects rather than being global. Two sub-questions are confirmed already
+  (see below); the mechanism itself is intentionally left for later, separate design work:
+  - **Data model**: presumed a Project↔User many-to-many, mirroring `Service Line.users`
+    (see §2. Entity: `Service Line` above) — not yet added to §Project Schema. **Left open for
+    now, by design.**
+  - **Where it's edited**: presumed a picker on the Project form, analogous to the Service Line
+    `Consultants` picker (see §Service Lines above), filtered to active `project_manager`-role
+    users — not yet added to §Project Form. **Left open for now, by design.**
+  - **Write access — resolved**: `project_admin`-only. `project_admin` is already the only role
+    that can edit a project at all, so assigning `project_manager`s to it is naturally scoped to
+    that same role — a `project_manager` cannot assign themselves or others. See
+    [user.md § Open Questions](user.md#open-questions).
+  - **Empty-assignment guard — resolved**: no guard. A project can validly exist (including
+    `active`) with zero `project_manager`s assigned; its timesheets simply can't be
+    validated/locked by anyone until someone is assigned. This is an accepted valid state, not an
+    error condition.
+- See also §2. Entity: `Service Line`'s own Validation rules above for the still-open
+  `quantity > 0` / `unit_price >= 0` / minimum-one-consultant questions this doc already carried
+  before the `project_manager` role existed.
 
 ## Reference JSON Representation
 

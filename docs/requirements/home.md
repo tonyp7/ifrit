@@ -24,7 +24,7 @@ screen — it's the app-wide navigation shell).
   [user.md](user.md#role--screen-access) for the authoritative role → screen mapping
   (`timesheet`, `projects`, `configuration`).
 - **Timesheet**: behavior depends on role — a plain navigation link for most users, but opens its
-  own dropdown menu for a `manager`. See [Timesheet Menu](#timesheet-menu). role-gated.
+  own dropdown menu for a `project_manager`. See [Timesheet Menu](#timesheet-menu). role-gated.
 - **Configuration**: Opens its own DrownDrop menu, see [Configuration Menu](#configuration-menu).
   role-gated.
 - **Profile icon**: pinned at the bottom of the nav bar, separate from the role-gated screen
@@ -53,19 +53,25 @@ screen — it's the app-wide navigation shell).
 
 ### Timesheet Menu
 
-The `timesheet` nav icon's click behavior depends on role, since a `manager` has two distinct
-destinations under it while everyone else only has one:
+The `timesheet` nav icon's click behavior depends on role, since a `project_manager` has two
+distinct destinations under it while everyone else only has one:
 
-- **`consultant`, or `administrator` without the `manager` role**: clicking the icon navigates
-  directly to the timesheet screen (the consultant's/administrator's own timesheet) — same
-  single-destination behavior as `home`, no dropdown.
-- **`manager`** (the literal role — an `administrator` who does *not* also hold `manager` gets
-  the direct-navigation behavior above, not this menu): clicking the icon opens a Dropdown menu
-  with two items:
+- **Anyone who doesn't hold `project_manager`** — a `consultant`, an `administrator`, a
+  `project_admin`, or any combination of those without `project_manager`: clicking the icon
+  navigates directly to the timesheet screen (their own timesheet) — same single-destination
+  behavior as `home`, no dropdown. Note this means `project_admin` alone (the role that grants
+  the `projects` screen — see [user.md](user.md#role--screen-access)) does **not** get this
+  dropdown; `Validation` access is entirely a `project_manager` matter, independent of
+  `project_admin`.
+- **`project_manager`** (the literal role — not inferred from `administrator` or
+  `project_admin`): clicking the icon opens a Dropdown menu with two items:
   - **My timesheet** — navigates to the same own-timesheet screen as the single-destination case
     above.
   - **Validation** — navigates to a separate screen for reviewing/validating consultants'
-    submitted timesheets. **Not yet specified** — see
+    submitted timesheets, restricted to the specific projects that user is assigned to as a
+    project manager (assignment mechanism not yet specified — see
+    [project.md](project.md) and [user.md § Open Questions](user.md#open-questions)). **Screen
+    itself not yet specified** — see
     [timesheet.md § Open Questions](timesheet.md#open-questions).
 
 This mirrors the [Configuration Menu](#configuration-menu)'s pattern (icon → dropdown → distinct
@@ -135,12 +141,13 @@ icons — the radio-style selection indicator already marks the current choice.
   log out from anywhere in the app.
 - As a consultant, whose only other accessible screen is `timesheet`, I want a minimal nav bar
   showing just `home` and `timesheet`, so that I'm not shown icons for screens I can't use.
-- As a manager or administrator, I want the home screen to show quick links to the screens I
-  can access (`projects`, `configuration`, `timesheet` as applicable), so that I can quickly
+- As a project_admin or administrator, I want the home screen to show quick links to the screens
+  I can access (`projects`, `configuration`, `timesheet` as applicable), so that I can quickly
   get to what I need.
-- As a manager, I want the `timesheet` icon to open a menu with "My timesheet" and "Validation",
-  so that I can quickly switch between filling in my own timesheet and reviewing/validating
-  consultants' submitted ones, without them being conflated into a single screen.
+- As a project_manager, I want the `timesheet` icon to open a menu with "My timesheet" and
+  "Validation", so that I can quickly switch between filling in my own timesheet and
+  reviewing/validating consultants' submitted ones, without them being conflated into a single
+  screen.
 - As a user, I want to choose `Light`, `Dark`, or `System` from my profile menu, so that I can
   control how the app looks.
 - As a user, I want `System` to be the default, so that the app matches my OS theme
@@ -169,9 +176,11 @@ icons — the radio-style selection indicator already marks the current choice.
 - Should the app avoid a flash-of-wrong-theme on load (e.g. a blocking inline script applying
   the persisted/system theme before first paint), or is a brief flash acceptable for v1? Not
   yet implemented — the current implementation accepts the brief flash.
-- **Resolved**: the Timesheet Menu's role split is the literal `manager` role, not
-  `manager`-or-`administrator` — an `administrator` who doesn't also hold `manager` gets the
-  direct-navigation behavior (own timesheet only), same as a `consultant`, with no Validation
-  entry point. See [Timesheet Menu](#timesheet-menu).
-- The **Validation** screen itself (layout, what a manager sees/does there) is not yet
+- **Resolved**: the Timesheet Menu's role split is the literal `project_manager` role,
+  independent of `administrator`/`project_admin` — holding either of those without
+  `project_manager` gets the direct-navigation behavior (own timesheet only), same as a
+  `consultant`, with no Validation entry point. See [Timesheet Menu](#timesheet-menu). (Prior to
+  the `project_manager`/`project_admin` split, this was gated by the single `manager` role — see
+  [user.md § Entity](user.md#entity).)
+- The **Validation** screen itself (layout, what a `project_manager` sees/does there) is not yet
   specified — see [timesheet.md § Open Questions](timesheet.md#open-questions).

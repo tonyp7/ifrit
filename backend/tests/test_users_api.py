@@ -36,13 +36,13 @@ async def test_admin_can_reset_local_user_password(client, db_session) -> None:
 
 async def test_non_admin_cannot_reset_password(client, db_session) -> None:
     await create_user(
-        db_session, name_id="manager@example.com", password="manager-pass", role_name="manager"
+        db_session, name_id="project_admin@example.com", password="project_admin-pass", role_name="project_admin"
     )
     target = await create_user(
         db_session, name_id="jane@example.com", password="old-pass", role_name="consultant"
     )
 
-    await _login(client, "manager@example.com", "manager-pass")
+    await _login(client, "project_admin@example.com", "project_admin-pass")
     response = await client.post(
         f"/api/users/{target.id}/reset-password", json={"new_password": "new-secret-pass"}
     )
@@ -363,9 +363,9 @@ async def test_create_user_rejects_duplicate_name_id(client, db_session) -> None
 
 async def test_create_user_requires_administrator(client, db_session) -> None:
     await create_user(
-        db_session, name_id="manager@example.com", password="manager-pass", role_name="manager"
+        db_session, name_id="project_admin@example.com", password="project_admin-pass", role_name="project_admin"
     )
-    await _login(client, "manager@example.com", "manager-pass")
+    await _login(client, "project_admin@example.com", "project_admin-pass")
 
     response = await client.post(
         "/api/users",
@@ -399,7 +399,7 @@ async def test_admin_cannot_remove_own_administrator_role(client, db_session) ->
             "full_name": "Admin User",
             "name_id": "admin@example.com",
             "is_sso": False,
-            "roles": ["manager"],
+            "roles": ["project_admin"],
         },
     )
     assert response.status_code == 400

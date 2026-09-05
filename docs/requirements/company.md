@@ -24,8 +24,8 @@ implemented; this doc explains the *why* behind them.
   it can be selected as a project's vendor — every company is already selectable as a project's
   client, with no flag needed.
 - As an administrator, I want to edit company details, so that records stay accurate over time.
-- As a manager, I want to select an existing vendor-flagged company as a project's vendor, and
-  any company (including that same vendor) as its client, so that I don't have to re-enter
+- As a project_admin, I want to select an existing vendor-flagged company as a project's vendor,
+  and any company (including that same vendor) as its client, so that I don't have to re-enter
   company data per project, and can represent inter-company/self-billing when it happens.
 - As an administrator, I want to record a company's legal/VAT/Peppol identifiers and its
   addresses (registered, billing, shipping), so that invoices generated for that company are

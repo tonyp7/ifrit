@@ -42,6 +42,7 @@
   "Good": "Good",
   "Strong": "Strong",
   "Administrator": "Administrator",
-  "Manager": "Manager",
+  "Project Admin": "Project Admin",
+  "Project Manager": "Project Manager",
   "Consultant": "Consultant"
 }

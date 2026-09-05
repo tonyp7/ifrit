@@ -47,7 +47,7 @@ async def list_users_endpoint(
     page: int = Query(default=1, ge=1),
     is_active: bool | None = None,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_roles("manager", "administrator")),  # noqa: B008
+    current_user: User = Depends(require_roles("project_admin", "administrator")),  # noqa: B008
 ) -> UserListResponse:
     """Users, optionally filtered by role and/or a `full_name`/`name_id` substring
     (`search`) — used by both the Service Line consultant picker (see

@@ -20,7 +20,7 @@ from app.services.project_service import InvalidReferenceError, ProjectReadOnlyE
 router = APIRouter(
     prefix="/projects",
     tags=["projects"],
-    dependencies=[Depends(require_roles("manager"))],
+    dependencies=[Depends(require_roles("project_admin"))],
 )
 
 

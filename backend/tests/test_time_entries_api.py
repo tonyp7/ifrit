@@ -17,7 +17,7 @@ async def _setup_project_with_consultant(
     )
     await client.post(
         "/api/auth/login",
-        json={"email": "manager@example.com", "password": "manager-pw"},
+        json={"email": "project_admin@example.com", "password": "project_admin-pw"},
     )
     vendor = await create_company(db_session, legal_name="Acme Vendor", is_vendor=True)
     client_company = await create_company(db_session, legal_name="Beta Client")
@@ -60,9 +60,9 @@ async def _setup_project_with_consultant(
 async def _login_manager_first(client, db_session) -> None:
     await create_user(
         db_session,
-        name_id="manager@example.com",
-        password="manager-pw",
-        role_name="manager",
+        name_id="project_admin@example.com",
+        password="project_admin-pw",
+        role_name="project_admin",
     )
 
 
@@ -204,7 +204,7 @@ async def test_entries_remain_visible_after_unassignment(client, db_session) -> 
     )
 
     # Manager unassigns the consultant from the service line entirely.
-    await _login_as(client, "manager@example.com", "manager-pw")
+    await _login_as(client, "project_admin@example.com", "project_admin-pw")
     await client.patch(
         f"/api/projects/{project_id}/service-lines/{service_line_id}",
         json={

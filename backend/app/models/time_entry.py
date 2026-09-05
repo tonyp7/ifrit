@@ -44,7 +44,7 @@ class TimeEntry(Base):
     # Unused in the current UI — deliberate scope-fencing for a later iteration.
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Deliberately not CASCADE, unlike user_id/service_line_id above: this just records
-    # who last touched the row (e.g. a manager's lock/unlock), not whose data it is.
+    # who last touched the row (e.g. a project_manager's lock/unlock), not whose data it is.
     last_updated_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )

@@ -21,7 +21,7 @@ export default function App() {
         <Route element={<AppLayout />}>
           <Route path="/" element={<HomePage />} />
           <Route path="/timesheet" element={<TimesheetPage />} />
-          <Route element={<RequireRoles roles={["manager"]} />}>
+          <Route element={<RequireRoles roles={["project_admin"]} />}>
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/projects/new" element={<ProjectFormPage />} />
             <Route path="/projects/:projectId" element={<ProjectFormPage />} />

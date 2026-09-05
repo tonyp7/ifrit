@@ -1,4 +1,4 @@
-export type Role = "administrator" | "manager" | "consultant";
+export type Role = "administrator" | "project_admin" | "project_manager" | "consultant";
 
 export type ThemePreference = "light" | "dark" | "system";
 
@@ -7,7 +7,8 @@ export type ThemePreference = "light" | "dark" | "system";
 // never shown to the user.
 export const ROLE_LABELS: Record<Role, string> = {
   administrator: "Administrator",
-  manager: "Manager",
+  project_admin: "Project Admin",
+  project_manager: "Project Manager",
   consultant: "Consultant",
 };
 

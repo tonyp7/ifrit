@@ -4,13 +4,13 @@ from tests.factories import create_company, create_currency, create_user
 async def _login_manager(client, db_session) -> None:
     await create_user(
         db_session,
-        name_id="manager@example.com",
-        password="manager-pass",
-        role_name="manager",
+        name_id="project_admin@example.com",
+        password="project_admin-pass",
+        role_name="project_admin",
     )
     response = await client.post(
         "/api/auth/login",
-        json={"email": "manager@example.com", "password": "manager-pass"},
+        json={"email": "project_admin@example.com", "password": "project_admin-pass"},
     )
     assert response.status_code == 200
 
@@ -58,7 +58,7 @@ async def test_list_projects_rejects_consultant(client, db_session) -> None:
 async def test_list_projects_rejects_administrator_without_manager_role(
     client, db_session
 ) -> None:
-    # `projects` is granted by the literal `manager` role only — not inferred from
+    # `projects` is granted by the literal `project_admin` role only — not inferred from
     # `administrator` (see docs/requirements/user.md#role--screen-access).
     await create_user(
         db_session,

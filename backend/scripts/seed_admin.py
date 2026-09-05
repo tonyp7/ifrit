@@ -3,10 +3,16 @@ before a real user-management flow exists. Credentials come from env vars
 (SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD); do not run against production data
 with the default password.
 
-Assigned both `administrator` and `manager` roles — `projects` access is granted by the
-literal `manager` role only, not inferred from `administrator` (see
+Assigned `administrator`, `project_admin`, and `project_manager` roles — `projects` access
+is granted by the literal `project_admin` role only, not inferred from `administrator` (see
 docs/requirements/user.md#role--screen-access), so an administrator-only bootstrap account
-would have no way to reach `projects` to verify/manage anything there.
+would have no way to reach `projects` to verify/manage anything there. `project_manager` is
+included for the same reason: it's the only way to reach the `Validation` sub-destination
+(see docs/requirements/home.md#timesheet-menu), and this bootstrap account is meant to be
+able to exercise every screen. Note `project_manager`'s actual authority is scoped to
+projects that user is assigned to (see docs/requirements/user.md#open-questions, assignment
+mechanism not yet specified) — holding the role alone is what's needed to reach the nav
+entry point, not to see non-empty data there.
 
 Usage (from backend/): uv run python -m scripts.seed_admin
 """
@@ -20,6 +26,8 @@ from app.core.config import settings
 from app.core.db import async_session_factory
 from app.models.user import Role, User
 
+_BOOTSTRAP_ROLE_NAMES = ["administrator", "project_admin", "project_manager"]
+
 
 async def seed_admin() -> None:
     async with async_session_factory() as db:
@@ -30,26 +38,23 @@ async def seed_admin() -> None:
             print(f"Admin user {settings.seed_admin_email} already exists, skipping.")
             return
 
-        admin_role = (
-            await db.execute(select(Role).where(Role.name == "administrator"))
-        ).scalar_one_or_none()
-        if admin_role is None:
-            raise RuntimeError(
-                "'administrator' role not found — run migrations first (uv run alembic upgrade head)"
-            )
-        manager_role = (
-            await db.execute(select(Role).where(Role.name == "manager"))
-        ).scalar_one_or_none()
-        if manager_role is None:
-            raise RuntimeError(
-                "'manager' role not found — run migrations first (uv run alembic upgrade head)"
-            )
+        roles = []
+        for role_name in _BOOTSTRAP_ROLE_NAMES:
+            role = (
+                await db.execute(select(Role).where(Role.name == role_name))
+            ).scalar_one_or_none()
+            if role is None:
+                raise RuntimeError(
+                    f"'{role_name}' role not found — run migrations first "
+                    "(uv run alembic upgrade head)"
+                )
+            roles.append(role)
 
         user = User(
             name_id=settings.seed_admin_email,
             hashed_password=hash_password(settings.seed_admin_password),
             full_name="Default Administrator",
-            roles=[admin_role, manager_role],
+            roles=roles,
         )
         db.add(user)
         await db.commit()

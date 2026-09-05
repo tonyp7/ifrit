@@ -19,13 +19,13 @@ async def test_list_companies_requires_auth(client, db_session) -> None:
 async def _login_manager(client, db_session) -> None:
     await create_user(
         db_session,
-        name_id="manager@example.com",
-        password="manager-pass",
-        role_name="manager",
+        name_id="project_admin@example.com",
+        password="project_admin-pass",
+        role_name="project_admin",
     )
     response = await client.post(
         "/api/auth/login",
-        json={"email": "manager@example.com", "password": "manager-pass"},
+        json={"email": "project_admin@example.com", "password": "project_admin-pass"},
     )
     assert response.status_code == 200
 
@@ -45,9 +45,9 @@ async def test_list_companies_rejects_consultant(client, db_session) -> None:
 
 
 async def test_list_and_get_company_allow_manager(client, db_session) -> None:
-    # Read-only lookups are also needed by the `projects` screen (manager-accessible)
+    # Read-only lookups are also needed by the `projects` screen (project_admin-accessible)
     # to populate its vendor/client pickers — see docs/requirements/project.md's
-    # "As a manager, I want to create a project by selecting... vendor... client..."
+    # "As a project_admin, I want to create a project by selecting... vendor... client..."
     # user story. Only company-configuration *writes* stay administrator-only (see
     # test_company_writes_reject_manager below).
     company = await create_company(db_session, legal_name="Acme Vendor", is_vendor=True)

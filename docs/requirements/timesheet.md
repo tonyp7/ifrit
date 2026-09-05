@@ -5,19 +5,21 @@ THIS IS A DRAFT - NOT YET REVIEWED AND NOT YET IMPLEMENTED
 Two distinct screens live under this doc, both reached via the `timesheet` nav icon — see
 [home.md § Timesheet Menu](home.md#timesheet-menu) for how the icon's behavior branches by role.
 They're kept clearly separate below: one is the data-entry mechanism, the other is the
-manager-only review workflow built on top of it.
+`project_manager`-only review workflow built on top of it.
 
 - **My Timesheet** (see §My Timesheet (Clocking) below) — where a user logs their own time
   against a `Service Line` they're assigned to (see [project.md](project.md)). Cells are freely
-  editable — **there is no Submit step** — until a manager locks them via §Validation.
+  editable — **there is no Submit step** — until a `project_manager` locks them via §Validation.
 - **Validation** (see §Validation below — **placeholder only, not yet specified**) — where a
-  `manager` sees their own timesheet, but also those of consultants, and **locks**/**unlocks**
-  cells to freeze/unfreeze them from further edits.
+  `project_manager` sees their own timesheet, but also those of consultants **on projects they're
+  assigned to as project manager** (see [user.md § Entity](user.md#entity) for the
+  `project_admin`/`project_manager` split — this was gated by a single `manager` role before that
+  split), and **locks**/**unlocks** cells to freeze/unfreeze them from further edits.
 
 ## My Timesheet (Clocking)
 
 The screen where a user enters their own time. This section covers the data-entry mechanism
-only — see §Validation below for the separate manager-facing lock/unlock screen.
+only — see §Validation below for the separate `project_manager`-facing lock/unlock screen.
 
 - Each **service line** is a logical row (shown with its parent project's name for context — a
   consultant assigned to multiple service lines on the same project gets one row per service
@@ -91,7 +93,7 @@ State needed at the top level:
 - On blur, if the value is `> 0`: the row is upserted (`INSERT ... ON CONFLICT (user_id,
   service_line_id, date) DO UPDATE`, matching the table's unique constraint) with `is_locked =
   false`. A row created this way is always unlocked by construction — the consultant's own save
-  path can never set `is_locked = true`; only a manager's action on §Validation can.
+  path can never set `is_locked = true`; only a `project_manager`'s action on §Validation can.
 - This flow only ever applies while `is_locked = false` — once a row is locked its cell renders
   read-only (see the user stories above), so there's no blur-to-save path to guard against
   separately.
@@ -204,12 +206,16 @@ Both views have clean UI feedback on the cell's editability — just two states 
 above, not an extra mode bolted onto it. It's now the *only* place lock state ever changes — there
 is no Submit step anywhere else (see §My Timesheet (Clocking)'s intro).
 
-- **Access**: the literal `manager` role only — not inferred from `administrator` — reached via
-  the `timesheet` nav icon's dropdown, "Validation" item. See
+- **Access**: the literal `project_manager` role only — not inferred from `administrator` or
+  `project_admin` — reached via the `timesheet` nav icon's dropdown, "Validation" item. Further
+  scoped to the specific projects that user is assigned to as project manager — assignment
+  mechanism not yet specified, see [project.md](project.md) and
+  [user.md § Open Questions](user.md#open-questions). See
   [home.md § Timesheet Menu](home.md#timesheet-menu) and
   [user.md § Role → Screen Access](user.md#role--screen-access).
-- **Purpose**, from the top-level user stories: a manager can see their own timesheet, but also
-  those of consultants, and **lock**/**unlock** cells to freeze/unfreeze them from further edits.
+- **Purpose**, from the top-level user stories: a `project_manager` can see their own timesheet,
+  but also those of consultants **on projects they're assigned to**, and **lock**/**unlock**
+  cells to freeze/unfreeze them from further edits.
 - **Not yet defined** — see §Open Questions below for the full list of unresolved sub-questions,
   including several genuinely new ones this simplification introduces (lock granularity,
   gap-locking, self-lock, and whether locking carries any approval/audit meaning at all).
@@ -252,8 +258,9 @@ following information:
    scope-fencing for a later iteration, not an oversight
  - `last_updated_by` FK → Users, `ON DELETE SET NULL` -- **deliberately not `CASCADE`**, unlike
    `user_id`/`service_line_id` above: this column just records who last touched the row (e.g. a
-   manager's lock/unlock action), not whose data it is. Deleting that manager should never delete
-   someone else's time entry as a side effect — the two FKs to `Users` on this table have
+   `project_manager`'s lock/unlock action), not whose data it is. Deleting that `project_manager`
+   should never delete someone else's time entry as a side effect — the two FKs to `Users` on
+   this table have
    different, not-interchangeable delete semantics. `last_updated_by`/`updated_at` update on
    *any* change to the row, including a lock/unlock that only touches `is_locked` and not
    `time_entry` — standard practice, not scoped to value-only edits
@@ -287,24 +294,37 @@ resolved alongside them or deferred.
   across My Timesheet's Submit button and the old Validate/re-open actions. Open sub-questions:
   - **Lock granularity** — per cell, per day, per service line's whole period, or bulk across an
     entire consultant + period in one action? (This is the direct replacement for the old Submit
-    granularity question, now entirely on the manager's side.)
+    granularity question, now entirely on the `project_manager`'s side.)
   - **Gap-locking** (new, direct consequence of reinstating delete-on-zero — see §Persistence):
-    if a manager locks a range that includes untouched (rowless) days, are those days
+    if a `project_manager` locks a range that includes untouched (rowless) days, are those days
     materialized as locked `0` rows, or does locking silently skip gaps — leaving them open
     indefinitely, so a consultant could still add hours to a "hole" inside an otherwise-locked
     period? This needs an explicit answer; it didn't exist as a question under the old
     force-fill-everything Submit mechanism.
-  - **Self-lock** — can a manager lock/unlock their own timesheet cells, or only other people's?
-  - **Scope** — can any manager lock any consultant's timesheet system-wide, or only ones on
-    projects they're "responsible for" — a concept `project.md` itself never formalized (no
-    owner/manager FK on `Project`)? This doc inherits that same unresolved question.
+  - **Self-lock — resolved**: yes, no restriction. A `project_manager` who is also a `consultant`
+    on the same project (an already-supported multi-role combination) can lock/unlock their own
+    timesheet cells same as anyone else's — deliberately kept simple rather than adding a
+    self-assigned-work carve-out. See [user.md § Open Questions](user.md#open-questions).
+  - **Scope — resolved in principle, mechanism deliberately deferred**: a `project_manager` can
+    only lock/unlock timesheets for consultants assigned to service lines on projects where
+    *they themselves* are assigned as project manager (see
+    [user.md § Role → Screen Access](user.md#role--screen-access)) — this replaces the earlier
+    version of this question (whether any `manager` could act system-wide, back when `project.md`
+    had no concept of per-project responsibility). Confirmed as the intended scoping; the
+    concrete mechanics (the assignment relation itself, and how the Validation screen queries
+    against it) are left for this doc to specify when the Validation screen itself is designed —
+    see [project.md § Open Questions](project.md#open-questions) and
+    [user.md § Open Questions](user.md#open-questions) for the related, also-deferred
+    project↔user assignment mechanism.
   - **Does "locked" carry any approval/audit meaning, or is it purely a mechanical edit-freeze?**
     (new) The old `validated` state implied a manager had reviewed and signed off — a real
     business capability for billing/payroll/audit purposes. The new model is deliberately weaker
     ("frozen from edits") and doesn't by itself say whether that reviewed-and-approved meaning
     still exists somewhere, or whether it's been dropped along with the complexity. Worth
     deciding explicitly rather than losing it silently.
-  - How a manager finds/picks which consultant's timesheet to look at, and what read-only vs.
+  - How a `project_manager` finds/picks which consultant's timesheet to look at (presumably
+    scoped to the consultants on their assigned projects, not every consultant in the system —
+    another consequence of the scoping above worth confirming explicitly), and what read-only vs.
     editable states look like for whatever's shown, remain undefined too (carried over from the
     original placeholder).
 

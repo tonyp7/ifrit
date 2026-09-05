@@ -20,7 +20,7 @@ import { PasswordStrengthMeter } from "@/components/users/PasswordStrengthMeter"
 import { useAuth } from "@/hooks/useAuth";
 import { ROLE_LABELS, type Role, type User } from "@/types/user";
 
-const ALL_ROLES: Role[] = ["administrator", "manager", "consultant"];
+const ALL_ROLES: Role[] = ["administrator", "project_admin", "project_manager", "consultant"];
 
 const BLANK_VALUES = {
   full_name: "",
@@ -67,7 +67,7 @@ export function UserFormPage() {
           name_id: z.string().min(1, t("Login identity is required")),
           is_sso: z.boolean(),
           roles: z
-            .array(z.enum(["administrator", "manager", "consultant"]))
+            .array(z.enum(["administrator", "project_admin", "project_manager", "consultant"]))
             .min(1, t("At least one role is required")),
           password: z.string(),
         })

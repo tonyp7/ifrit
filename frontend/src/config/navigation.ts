@@ -29,13 +29,18 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/timesheet",
     label: "Timesheet",
     icon: CalendarClock,
-    requiredRoles: ["consultant", "manager", "administrator"],
+    // Every role gets at least the own-timesheet screen (see
+    // docs/requirements/user.md#role--screen-access) — `project_manager` additionally
+    // gets the Validation sub-destination there, not yet built (see
+    // docs/requirements/home.md#timesheet-menu), so it isn't reflected as a `children`
+    // dropdown here yet.
+    requiredRoles: ["consultant", "project_admin", "project_manager", "administrator"],
   },
   {
     to: "/projects",
     label: "Projects",
     icon: NotebookTabs,
-    requiredRoles: ["manager"],
+    requiredRoles: ["project_admin"],
   },
   {
     to: "/configuration",
