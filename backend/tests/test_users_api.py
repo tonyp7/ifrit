@@ -554,3 +554,55 @@ async def test_list_users_paginated_response_shape(client, db_session) -> None:
     assert set(body.keys()) == {"items", "total", "page", "page_size"}
     assert body["page"] == 1
     assert body["page_size"] == 50
+
+
+async def test_list_users_sort_composes_with_pagination(client, db_session) -> None:
+    # Sorting must happen server-side, before pagination splits rows into pages —
+    # a client-side-only sort only reorders whatever page is already in memory,
+    # which silently breaks once there's more than one page. See
+    # docs/requirements/user.md#users-list-screen.
+    await _login_admin(client, db_session)
+    for i in range(54):
+        await create_user(
+            db_session,
+            name_id=f"user{i:03d}@example.com",
+            password="pw",
+            role_name="consultant",
+            full_name=f"User {i:03d}",
+        )
+
+    page1 = await client.get(
+        "/api/users", params={"page": 1, "sort_by": "full_name", "sort_dir": "desc"}
+    )
+    page2 = await client.get(
+        "/api/users", params={"page": 2, "sort_by": "full_name", "sort_dir": "desc"}
+    )
+    assert page1.status_code == 200
+    page1_names = [item["full_name"] for item in page1.json()["items"]]
+    page2_names = [item["full_name"] for item in page2.json()["items"]]
+
+    # 54 consultants + the seeded admin = 55 rows total.
+    assert page1.json()["total"] == 55
+    assert page1_names[0] == "User 053"
+    assert page1_names == sorted(page1_names, reverse=True)
+    assert page2_names == sorted(page2_names, reverse=True)
+
+
+async def test_list_users_unknown_sort_by_falls_back_to_default(client, db_session) -> None:
+    await _login_admin(client, db_session)
+    await create_user(
+        db_session, name_id="zoe@example.com", password="pw", role_name="consultant",
+        full_name="Zoe",
+    )
+    await create_user(
+        db_session, name_id="amy@example.com", password="pw", role_name="consultant",
+        full_name="Amy",
+    )
+
+    response = await client.get("/api/users", params={"sort_by": "not_a_real_column"})
+    assert response.status_code == 200
+    names = [item["full_name"] for item in response.json()["items"]]
+    # Default order is full_name ascending — the seeded admin ("Jane Doe" via the
+    # create_user factory default, or whatever _login_admin's own account is named)
+    # sorts wherever it falls alphabetically; just check Amy comes before Zoe.
+    assert names.index("Amy") < names.index("Zoe")

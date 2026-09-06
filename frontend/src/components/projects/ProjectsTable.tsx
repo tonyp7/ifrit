@@ -1,8 +1,8 @@
 import {
-  flexRender,
   getCoreRowModel,
   useReactTable,
   type ColumnDef,
+  type SortingState,
   type VisibilityState,
 } from "@tanstack/react-table";
 import { Columns3, MoreHorizontal, Plus } from "lucide-react";
@@ -32,14 +32,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable } from "@/components/data-table/DataTable";
+import { DataTableColumnHeader } from "@/components/data-table/DataTableColumnHeader";
+import { DataTablePagination } from "@/components/data-table/DataTablePagination";
+import { toSortParams } from "@/components/data-table/sorting";
 import { ApiError } from "@/api/client";
 import { deactivateProject, duplicateProject, listProjects } from "@/api/projects";
 import { PROJECT_TYPE_LABELS, STATUS_LABELS, type ProjectListItem } from "@/types/project";
@@ -77,6 +73,12 @@ export function ProjectsTable() {
   const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
     vendor_company_name: false,
   });
+  // Sorting is server-side (see the `manualSorting: true` below and
+  // components/data-table/sorting.ts) — this table is also server-paginated, so a
+  // client-side-only sort would only ever reorder whatever page is already in
+  // memory, not the whole dataset (see docs/requirements/project.md
+  // #projects-list-screen).
+  const [sorting, setSorting] = useState<SortingState>([]);
 
   useEffect(() => {
     const handle = setTimeout(() => {
@@ -86,10 +88,16 @@ export function ProjectsTable() {
     return () => clearTimeout(handle);
   }, [searchInput]);
 
+  // A changed sort target/direction changes what "page 1" even means — same
+  // reasoning as the search-resets-page-to-1 effect above.
+  useEffect(() => {
+    setPage(1);
+  }, [sorting]);
+
   useEffect(() => {
     let cancelled = false;
     setError(null);
-    listProjects({ search: search || undefined, page })
+    listProjects({ search: search || undefined, page, ...toSortParams(sorting) })
       .then((response) => {
         if (cancelled) return;
         setItems(response.items);
@@ -103,7 +111,7 @@ export function ProjectsTable() {
     return () => {
       cancelled = true;
     };
-  }, [search, page, refreshToken, t]);
+  }, [search, page, sorting, refreshToken, t]);
 
   async function handleDuplicate(project: ProjectListItem) {
     try {
@@ -133,11 +141,13 @@ export function ProjectsTable() {
   const columns: ColumnDef<ProjectListItem>[] = [
     {
       accessorKey: "name",
-      header: t("Name"),
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Name")} />,
+      enableHiding: false,
     },
     {
       accessorKey: "status",
-      header: t("Status"),
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Status")} />,
+      enableHiding: false,
       cell: ({ row }) => (
         <Badge variant={STATUS_BADGE_VARIANT[row.original.status]}>
           {t(STATUS_LABELS[row.original.status])}
@@ -146,26 +156,35 @@ export function ProjectsTable() {
     },
     {
       accessorKey: "client_company_name",
-      header: t("Client"),
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Client")} />,
+      enableHiding: false,
     },
     {
       accessorKey: "vendor_company_name",
-      header: t("Vendor"),
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Vendor")} />,
       enableHiding: true,
     },
     {
       accessorKey: "project_type",
-      header: t("Project Type"),
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t("Project Type")} />
+      ),
+      enableHiding: false,
       cell: ({ row }) => t(PROJECT_TYPE_LABELS[row.original.project_type]),
     },
     {
       accessorKey: "created_at",
-      header: t("Creation Date"),
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t("Creation Date")} />
+      ),
+      enableHiding: false,
       cell: ({ row }) => new Date(row.original.created_at).toLocaleDateString(),
     },
     {
       id: "actions",
       header: "",
+      enableHiding: false,
+      enableSorting: false,
       cell: ({ row }) => (
         <div className="flex justify-end">
           <DropdownMenu>
@@ -202,9 +221,13 @@ export function ProjectsTable() {
     getCoreRowModel: getCoreRowModel(),
     manualFiltering: true,
     manualPagination: true,
+    // `data` already arrives sorted from the server (see the fetch effect above) —
+    // no getSortedRowModel(), it would only ever reorder this one page in memory.
+    manualSorting: true,
     pageCount: Math.max(1, Math.ceil(total / pageSize)),
-    state: { columnVisibility },
+    state: { columnVisibility, sorting },
     onColumnVisibilityChange: setColumnVisibility,
+    onSortingChange: setSorting,
   });
 
   return (
@@ -249,66 +272,19 @@ export function ProjectsTable() {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  {t("No projects found.")}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <DataTable
+        table={table}
+        columnCount={columns.length}
+        emptyMessage={t("No projects found.")}
+      />
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {t("projectCount", { count: total })}
-        </p>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1}
-          >
-            {t("Previous", { ns: "common" })}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => p + 1)}
-            disabled={page * pageSize >= total}
-          >
-            {t("Next", { ns: "common" })}
-          </Button>
-        </div>
-      </div>
+      <DataTablePagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={setPage}
+        countLabel={t("projectCount", { count: total })}
+      />
 
       <AlertDialog
         open={deleteTarget !== null}

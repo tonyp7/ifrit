@@ -61,9 +61,13 @@ async def _validate_references_or_422(db: AsyncSession, payload: ProjectWrite) -
 async def list_projects(
     search: str | None = None,
     page: int = Query(default=1, ge=1),
+    sort_by: str | None = None,
+    sort_dir: str | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> ProjectListResponse:
-    rows, total = await project_service.list_projects(db, search, page)
+    rows, total = await project_service.list_projects(
+        db, search, page, sort_by=sort_by, sort_dir=sort_dir
+    )
     return ProjectListResponse(
         items=[
             ProjectListItem(

@@ -154,6 +154,46 @@ async def test_list_companies_pagination(client, db_session) -> None:
     assert len(page2.json()["items"]) == 5
 
 
+async def test_list_companies_sort_composes_with_pagination(client, db_session) -> None:
+    # Sorting must be applied before pagination splits the rows into pages — see
+    # docs/requirements/company.md#companies-list-screen: a client-side-only sort
+    # (as originally implemented) only reorders whatever page is already in memory,
+    # which silently breaks once there's more than one page.
+    await _login_admin(client, db_session)
+    for i in range(55):
+        await create_company(db_session, legal_name=f"Company {i:03d}")
+
+    page1 = await client.get(
+        "/api/companies", params={"page": 1, "sort_by": "legal_name", "sort_dir": "desc"}
+    )
+    page2 = await client.get(
+        "/api/companies", params={"page": 2, "sort_by": "legal_name", "sort_dir": "desc"}
+    )
+    assert page1.status_code == 200
+    page1_names = [item["legal_name"] for item in page1.json()["items"]]
+    page2_names = [item["legal_name"] for item in page2.json()["items"]]
+
+    assert page1_names[0] == "Company 054"
+    assert page1_names[-1] == "Company 005"
+    assert page2_names == [f"Company {i:03d}" for i in range(4, -1, -1)]
+    # The two pages must be contiguous under the requested sort — no gap, no overlap.
+    assert page1_names == sorted(page1_names, reverse=True)
+    assert page2_names == sorted(page2_names, reverse=True)
+
+
+async def test_list_companies_unknown_sort_by_falls_back_to_default(
+    client, db_session
+) -> None:
+    await _login_admin(client, db_session)
+    await create_company(db_session, legal_name="Zeta Corp")
+    await create_company(db_session, legal_name="Acme Corp")
+
+    response = await client.get("/api/companies", params={"sort_by": "not_a_real_column"})
+    assert response.status_code == 200
+    names = [item["legal_name"] for item in response.json()["items"]]
+    assert names == ["Acme Corp", "Zeta Corp"]
+
+
 async def test_update_company(client, db_session) -> None:
     await _login_admin(client, db_session)
     company = await create_company(db_session, legal_name="Old Name")

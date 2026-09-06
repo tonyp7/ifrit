@@ -48,10 +48,18 @@ async def list_companies(
     page: int = Query(default=1, ge=1),
     is_vendor: bool | None = None,
     is_active: bool | None = None,
+    sort_by: str | None = None,
+    sort_dir: str | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> CompanyListResponse:
     companies, total = await company_service.list_companies(
-        db, search, page, is_vendor=is_vendor, is_active=is_active
+        db,
+        search,
+        page,
+        is_vendor=is_vendor,
+        is_active=is_active,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
     )
     return CompanyListResponse(
         items=[

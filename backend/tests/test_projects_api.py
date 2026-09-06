@@ -1,5 +1,6 @@
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 
+from app.models.project import Project
 from app.models.time_entry import TimeEntry
 from tests.factories import create_company, create_currency, create_user
 
@@ -98,6 +99,69 @@ async def test_create_and_list_project(client, db_session) -> None:
     assert payload["items"][0]["name"] == "Acme ERP Rollout"
     assert payload["items"][0]["vendor_company_name"] == "Acme Vendor"
     assert payload["items"][0]["client_company_name"] == "Beta Client"
+
+
+async def test_list_projects_sort_composes_with_pagination(client, db_session) -> None:
+    # Sorting must happen server-side, before pagination splits rows into pages —
+    # a client-side-only sort only reorders whatever page is already in memory,
+    # which silently breaks once there's more than one page, since the default
+    # order (created_at desc) has no relation to name order. See
+    # docs/requirements/project.md#projects-list-screen.
+    await _login_manager(client, db_session)
+    vendor, client_company, currency = await _setup_refs(db_session)
+    for i in range(55):
+        db_session.add(
+            Project(
+                name=f"Project {i:03d}",
+                vendor_company_id=vendor.id,
+                client_company_id=client_company.id,
+                invoicing_currency=currency.alpha_code,
+                project_type="time_and_material",
+                # Deliberately the reverse of name order, so a passing test proves
+                # sorting is real (not just coincidentally matching created_at).
+                created_at=datetime.now(UTC) - timedelta(seconds=i),
+            )
+        )
+    await db_session.commit()
+
+    page1 = await client.get(
+        "/api/projects", params={"page": 1, "sort_by": "name", "sort_dir": "asc"}
+    )
+    page2 = await client.get(
+        "/api/projects", params={"page": 2, "sort_by": "name", "sort_dir": "asc"}
+    )
+    assert page1.status_code == 200
+    page1_names = [item["name"] for item in page1.json()["items"]]
+    page2_names = [item["name"] for item in page2.json()["items"]]
+
+    assert page1_names[0] == "Project 000"
+    assert page1_names == sorted(page1_names)
+    assert page2_names == sorted(page2_names)
+    # Contiguous under the requested sort: page 2 must pick up exactly where
+    # page 1 left off, not restart or skip.
+    assert page2_names[0] > page1_names[-1]
+
+
+async def test_list_projects_unknown_sort_by_falls_back_to_default(
+    client, db_session
+) -> None:
+    await _login_manager(client, db_session)
+    vendor, client_company, currency = await _setup_refs(db_session)
+    older = await client.post(
+        "/api/projects", json=_project_payload(vendor, client_company, currency, name="Older")
+    )
+    assert older.status_code == 201
+    newer = await client.post(
+        "/api/projects", json=_project_payload(vendor, client_company, currency, name="Newer")
+    )
+    assert newer.status_code == 201
+
+    response = await client.get("/api/projects", params={"sort_by": "not_a_real_column"})
+    assert response.status_code == 200
+    # Falls back to the existing default (created_at desc) — the more recently
+    # created project comes first.
+    names = [item["name"] for item in response.json()["items"]]
+    assert names == ["Newer", "Older"]
 
 
 async def test_create_project_rejects_non_vendor_company(client, db_session) -> None:

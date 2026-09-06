@@ -13,8 +13,18 @@ from app.schemas.company import (
     PartyIdentifierOut,
     PartyIdentifierWrite,
 )
+from app.services.sorting import resolve_sort
 
 PAGE_SIZE = 50
+
+# Whitelist of client-sortable columns for the Companies List Screen (see
+# docs/requirements/company.md#companies-list-screen) — never resolve `sort_by`
+# against the model dynamically (see app/services/sorting.py).
+_SORTABLE_COLUMNS = {
+    "legal_name": Company.legal_name,
+    "country_of_registration": Company.country_of_registration,
+    "is_active": Company.is_active,
+}
 
 
 async def list_companies(
@@ -23,6 +33,8 @@ async def list_companies(
     page: int,
     is_vendor: bool | None = None,
     is_active: bool | None = None,
+    sort_by: str | None = None,
+    sort_dir: str | None = None,
 ) -> tuple[list[Company], int]:
     stmt = select(Company)
     count_stmt = select(func.count()).select_from(Company)
@@ -43,8 +55,12 @@ async def list_companies(
 
     total = (await db.execute(count_stmt)).scalar_one()
 
+    order = resolve_sort(_SORTABLE_COLUMNS, sort_by, sort_dir, default=Company.legal_name.asc())
     stmt = (
-        stmt.order_by(Company.legal_name)
+        # `Company.id` is a stable tie-breaker — without it, rows with an equal
+        # sort value could shift between pages across two paginated fetches (see
+        # app/services/sorting.py).
+        stmt.order_by(order, Company.id)
         .offset((page - 1) * PAGE_SIZE)
         .limit(PAGE_SIZE)
     )

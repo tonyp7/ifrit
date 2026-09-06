@@ -7,10 +7,17 @@ import type {
   ServiceLineInput,
 } from "@/types/project";
 
-export function listProjects(params: { search?: string; page?: number }) {
+export function listProjects(params: {
+  search?: string;
+  page?: number;
+  sort_by?: string;
+  sort_dir?: "asc" | "desc";
+}) {
   const query = new URLSearchParams();
   if (params.search) query.set("search", params.search);
   query.set("page", String(params.page ?? 1));
+  if (params.sort_by) query.set("sort_by", params.sort_by);
+  if (params.sort_dir) query.set("sort_dir", params.sort_dir);
   return apiClient.get<ProjectListResponse>(`/projects?${query.toString()}`);
 }
 

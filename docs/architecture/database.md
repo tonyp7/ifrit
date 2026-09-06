@@ -324,6 +324,20 @@ this satisfies BCNF trivially.
 - Migrations live in `backend/alembic/`; commands run from `backend/` — see
   [Backend Development Commands](backend.md#development-commands)
 
+**Pre-release exception (current phase):** this repo is private and pre-release — no tagged
+release exists yet and no production data has ever been migrated. Until the first tagged
+release, every schema change is folded into the single `0001_initial.py` migration in place,
+rather than adding `0002_...py`, `0003_...py`, etc. This is a deliberate, temporary departure
+from the "never edit a merged migration" rule above, not a mistake or an accidental drift from
+it — squashing avoids accumulating a long, noisy pre-release migration chain that nobody will
+ever need to step through incrementally, since nothing has been deployed against the earlier
+states yet. **The rule above is the real, permanent policy** and takes effect from the first
+tagged release onward: once this repo has shipped a release (and, in particular, once any real
+environment holds data migrated by `0001_initial.py`), editing it in place becomes unsafe in the
+usual way (existing deployments have already applied it; rewriting it out from under them breaks
+`alembic upgrade`'s checksum/history assumptions) and every subsequent schema change must be its
+own new migration file, no exceptions.
+
 ## Query Patterns
 
 - Use transactions (`async with session.begin():`) for any multi-statement write

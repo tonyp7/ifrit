@@ -119,6 +119,11 @@ bespoke layout:
   small `Badge` chip, not a raw array), login method (`Local` / `SSO`, derived from `is_sso` —
   shown as a label, never the raw boolean), status (`is_active`, an Active/Inactive indicator —
   same principle as Company's status column, not a raw boolean), then a trailing actions column.
+  `full_name`, `name_id`, login method, and status are sortable, server-side (see
+  [Projects List Screen § API contract: sorting](project.md#api-contract-sorting), which this
+  screen shares), via the same shared `DataTableColumnHeader` used by
+  [Projects](project.md#projects-list-screen) — `roles` isn't, since a list of role chips has no
+  meaningful single-column order.
 - **Row actions**: an **`…`** button opens a dropdown with, in order: `Edit`, `Duplicate`,
   `Reset Password`, a separator, then `Delete`.
   - `Reset Password` reuses the already-implemented `POST /users/{id}/reset-password` endpoint

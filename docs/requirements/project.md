@@ -55,9 +55,39 @@ The `projects` screen (see [home.md](home.md#navigation)). A Data Table:
   built-in column-visibility "Columns" button (shadcn/ui's standard Data Table feature) — the
   first place in the app using that particular feature; see [frontend.md](../architecture/frontend.md)
   when documenting the pattern for reuse elsewhere.
-- All columns are sortable, using the Data Table's out-of-the-box (TanStack) sorting — no custom
-  sort logic.
+- All columns are sortable — **resolved: server-side, not a client-side TanStack row-model**.
+  This screen (like [Companies](company.md#companies-list-screen) and
+  [Users](user.md#users-list-screen)) paginates server-side, 50/page — a client-side-only sort
+  (TanStack's `getSortedRowModel()`) only ever reorders whichever page is already loaded in
+  memory, which produces an incorrect result the moment there's more than one page (page 2 would
+  restart from the server's default order instead of continuing the requested sort). Each
+  sortable column's `DataTableColumnHeader` click still drives local `SortingState`, but that
+  state is translated into `sort_by`/`sort_dir` query params (see the API contract below) and
+  triggers a refetch, with `manualSorting: true` telling the table to trust the server's order
+  rather than re-sort client-side. Changing the sort target or direction resets to page 1, same
+  as changing the search text.
 - Default sort on landing: `created_at` descending.
+
+### API contract: sorting
+
+`GET /projects`, `GET /companies`, and `GET /users` (see [company.md](company.md
+#companies-list-screen), [user.md](user.md#users-list-screen)) all accept the same two optional
+query params:
+
+- `sort_by` — a column name from that endpoint's own whitelist (e.g. for Projects: `name`,
+  `status`, `client_company_name`, `vendor_company_name`, `project_type`, `created_at`). Never
+  resolved against the model dynamically — each endpoint maps it to a real column server-side
+  (`app/services/sorting.py`'s `resolve_sort`).
+- `sort_dir` — `"asc"` or anything else treated as ascending; only the literal `"desc"` sorts
+  descending.
+- **Resolved — unknown/invalid `sort_by` degrades gracefully.** A `sort_by` not in the
+  whitelist (a stale bookmark, a column since removed, a tampered param) silently falls back to
+  that endpoint's own pre-existing default order, rather than a `422` — this is a `GET`, and a
+  client displaying a list is a poor place to hard-fail on a cosmetic parameter.
+- **Resolved — a stable tie-breaker is mandatory.** Every sort appends the row's own `id` as a
+  final tie-breaker column. Without one, rows with an equal sort value have no guaranteed stable
+  order across two separate paginated fetches — a row could be skipped or repeated between page 1
+  and page 2 depending on whatever arbitrary order Postgres happens to return ties in per query.
 - **Row actions**: an **`…`** button opens a dropdown menu with `Edit`, `Duplicate`, then
   (presumed, matching the Companies list and [frontend.md](../architecture/frontend.md#destructive-actions))
   a separator, then `Delete`, styled destructive. `Delete` sets a dedicated soft-delete flag —
@@ -158,9 +188,8 @@ consultants are assigned to the same line. Concretely: each name is its own bloc
 `<div>` per consultant) inside the cell, not a single string joined with an embedded `\n` — a
 literal newline character doesn't render as a line break in HTML without extra `white-space`
 CSS, so joining on `", "` vs `"\n"` looks identical unless the elements are actually split.
-**Known divergence**: the current implementation (`ServiceLinesTable.tsx`) still does
-`line.users.map((u) => u.full_name).join(", ")` — genuinely comma-separated — which this section
-already called out as wrong before this note existed; not yet fixed.
+**Implemented as specified**: `ServiceLinesTable.tsx` renders `line.users.map((u) => <div
+key={u.id}>{u.full_name}</div>)` — one block element per consultant, not a comma-joined string.
 
 A not-yet-saved (`New`) project's Service Lines table needs the same "auto-save on first child
 row" handling as Company's Party Identifiers/Addresses: a `Service Line` can only attach to a
@@ -187,9 +216,20 @@ The modal has only one implementation and support all use cases. It only differs
 inside the modal.
 - Line 1: Name - Input Name
 - Line 2: 
-  - 1st Column Quantity / Input Quantity (only accepts numbers and decimal point input, silently strip any non valid input)
+  - 1st Column Quantity / Input Quantity — decimal only, validated on save (see below)
   - 2nd Column Unit / Combobox selector with UOMs as per the model (Days, Hours, EA)
-- Line 3: Unit Price / Input Unit price (only accepts numbers and decimal point input, silently strip any non valid input)
+- Line 3: Unit Price / Input Unit price — decimal only, validated on save (see below)
+
+**Resolved — validate-on-save with an inline error, not silent stripping.** An earlier draft of
+this spec said Quantity/Unit Price should "silently strip any non-valid input" as it's typed.
+That's deliberately not how these two fields work: both accept free text while typing, then run a
+decimal-shape + range check on `Save` (`quantity`/`unit_price` greater than zero — see §2 Entity:
+Service Line's Validation rules), showing a specific inline error next to the field
+("Quantity must be greater than zero", "Unit price must not be negative") and leaving the modal
+open when it fails. This is at least as safe as live character-stripping — no invalid value ever
+reaches the backend either way, since `ServiceLineWrite`'s `quantity`/`unit_price` fields are
+typed `Decimal` and reject a non-numeric payload outright — and arguably clearer to the user, who
+sees exactly what's wrong instead of silently losing characters they typed with no feedback.
 - Line 4: Consultants / searchable multi-select combobox, not a plain checkbox list — a plain
   list of checkboxes breaks down once a company has hundreds of consultants to pick from. A
   trigger button ("Select consultants…") opens a `Popover` containing a `Command` palette: a
@@ -205,9 +245,11 @@ inside the modal.
   consultant up front stops being viable at that size. Each keystroke (debounced) queries the
   existing users-list endpoint (`GET /users`, see `list_users_endpoint` in
   `backend/app/api/users.py`), extending its current `role` filter with a `search` param (name
-  substring match) — the endpoint's shape doesn't otherwise change. This is a divergence from
-  the currently-implemented picker, which calls `listUsers({ role: "consultant" })` once on open
-  and filters nothing itself.
+  substring match) — the endpoint's shape doesn't otherwise change. **Implemented as specified**:
+  `ServiceLineFormDialog.tsx`'s consultant picker (and `ProjectManagersPicker.tsx`, which mirrors
+  it — see §Project Managers above) both query `listUsers({ role, search, is_active: true })` in
+  a 300ms-debounced effect while the popover is open, firing immediately (no debounce) on open
+  with an empty query.
   The popover closes the same way any Radix `Popover` does — click-outside or `Escape` — no
   explicit "Done" button.
 Bottom of the form: A Save button
@@ -218,12 +260,11 @@ Bottom of the form: A Save button
 - **`active`**: existing lines can be edited, and new lines can be added. A line can be
   **deleted only if no time has been logged against it** — an orphan line (e.g. one added by
   mistake and never used) is safe to remove without compromising any already-logged time; a
-  line with logged time attached is not deletable, only editable.
-  **TODO — not yet implementable**: this check depends on time-entry data that doesn't exist
-  yet (no `timesheet.md`/time-entry concept — see [timesheet.md](timesheet.md#open-questions)).
-  Until timesheeting exists, deletion of a service line on an `active` project is allowed
-  unconditionally (i.e. behaves like `draft`); switch to the conditional check once time entries
-  exist to check against.
+  line with logged time attached is not deletable, only editable. **Implemented**:
+  `delete_service_line` (`backend/app/services/project_service.py`) checks for any `time_entries`
+  row referencing the line and rejects deletion with `409 Conflict`
+  (`ServiceLineHasLoggedTimeError`) when one exists and the project is `active`; editing remains
+  unaffected.
 - **`closed`**: fully read-only — no add, edit, or delete on service lines (or the project's
   header fields — see §Status enum below).
 
@@ -274,7 +315,7 @@ Project (N) ──< User (N)        [many-to-many: project managers assigned to 
 | Value    | Label   | Description                          |
 | ---------- | --------- | --------------------------------------- |
 | `draft`     | Draft     | Initial State. Service lines are freely editable/addable/removable. |
-| `active`     | Active    | Time can be logged (via the `timesheet` screen, see [home.md](home.md#navigation)) against the project's service lines. Existing service lines can be edited, and new ones added; a line can only be deleted if it has **no** time logged against it — see Service Lines above. Deletion is unconditional for now, pending timesheeting ([timesheet.md](timesheet.md#open-questions)). |
+| `active`     | Active    | Time can be logged (via the `timesheet` screen, see [home.md](home.md#navigation)) against the project's service lines. Existing service lines can be edited, and new ones added; a line can only be deleted if it has **no** time logged against it — see Service Lines above. |
 | `closed`      | Closed    | A genuine lifecycle state, independent of the `is_active` soft-delete flag (see §Project entity above) — not a delete/archive mechanism. **Read-only**: nothing on the project — header fields or service lines — can be edited, added, or deleted once `closed`. |
 
 **Transition rules**: unrestricted — a project can move from any status to any other status
@@ -332,11 +373,10 @@ not grant it). Because of this, `status` is deliberately the **one field exempte
   confirmation dialog (see [frontend.md](../architecture/frontend.md#destructive-actions)) — not
   restated per-action elsewhere in this doc, but applies here too.
 - On an `active` parent project, `Delete` is blocked once **any time has been logged** against
-  the line — editing remains allowed regardless. **Until timesheeting is implemented, this check
-  is a no-op and deletion is unconditionally allowed** — see the TODO under §Service Lines above
-  and [timesheet.md](timesheet.md#open-questions). On a `closed` parent project, the line is
-  fully read-only (no add/edit/delete, including no soft-delete). See the Edit/delete rules
-  under §Service Lines above.
+  the line — editing remains allowed regardless. See the Edit/delete rules under §Service Lines
+  above for the implementation. On a `closed` parent project, the line is fully read-only (no
+  add/edit/delete, including no soft-delete). See the Edit/delete rules under §Service Lines
+  above.
 - Otherwise not specified in the original draft beyond field presence. `quantity > 0` and
   `unit_price >= 0` are **resolved and implemented** — enforced by `ServiceLineWrite`'s
   `check_amounts` validator (`backend/app/schemas/project.py`), a 422 on violation. **Still

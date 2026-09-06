@@ -68,6 +68,28 @@ Authorized frontend dependencies (per the Dependency Policy in [AGENTS.md](../..
   conditional/function (e.g. drive the active state off the `aria-current` NavLink already
   sets, via Tailwind's `aria-[current=page]:` variant, rather than branching in JS) — it keeps
   every icon's styling mechanism structurally identical, not just visually similar.
+- **Data Table shell**: every paginated Data Table (Projects, Companies, Users) shares three
+  components under `frontend/src/components/data-table/` rather than each hand-rolling its own
+  `useReactTable` render/pagination JSX: `DataTable` (the header/body/empty-state table shell),
+  `DataTableColumnHeader` (a sortable-column header cell — a dropdown with Asc/Desc/Hide,
+  adapted from shadcn's own `components/data-table-column-header.tsx` template at
+  https://ui.shadcn.com/docs/components/aria/data-table), and `DataTablePagination` (the
+  Previous/Next footer). These live under `components/data-table/`, not `components/ui/`,
+  because they're template/example code per shadcn's own docs (no `npx shadcn add` entry exists
+  for them), not a swappable CLI-managed primitive. Each table still owns its own `useReactTable`
+  call (column defs, search debounce, row-action dropdowns) — only the repeated shell/pagination
+  markup and the sortable-header pattern are shared. **Sorting is server-side**, like search and
+  pagination — `manualSorting: true` on every table, `SortingState` translated into
+  `sort_by`/`sort_dir` query params by `components/data-table/sorting.ts`'s `toSortParams()`, and
+  a sort-target/direction change resets to page 1 (same as a search change). This was originally
+  implemented as a client-side `getSortedRowModel()` over just the current page — which looked
+  correct with one page of dev data, but silently produced the wrong order the moment a table had
+  more than one page, since sorting only ever reordered whatever 50 rows happened to already be
+  in memory. See [Projects List Screen § API contract: sorting](../requirements/project.md
+  #api-contract-sorting) for the backend side (the sortable-column whitelist and the mandatory
+  `id` tie-breaker) — search and pagination stay server-side/manual for the same underlying
+  reason: TanStack's native filter/pagination/sorting row-models all operate on already-loaded
+  rows and can't replace a paginated backend query.
 - **UI primitives**: shadcn/ui components (`frontend/src/components/ui/`) — customize via the
   shadcn CLI/copy-in pattern, don't fork behavior with ad-hoc wrapper hacks.
   **CRITICAL — always add new primitives via the real CLI** (`npx shadcn@latest add <component>`

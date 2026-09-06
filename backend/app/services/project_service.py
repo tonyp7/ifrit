@@ -18,6 +18,7 @@ from app.schemas.project import (
     ServiceLineOut,
     ServiceLineWrite,
 )
+from app.services.sorting import resolve_sort
 
 PAGE_SIZE = 50
 
@@ -64,13 +65,29 @@ def project_total_value(project: Project) -> Decimal:
 
 
 async def list_projects(
-    db: AsyncSession, search: str | None, page: int
+    db: AsyncSession,
+    search: str | None,
+    page: int,
+    sort_by: str | None = None,
+    sort_dir: str | None = None,
 ) -> tuple[list[tuple[Project, str, str]], int]:
     """Returns (project, vendor_company_name, client_company_name) tuples — the list
     screen shows company names, not raw ids (see
     docs/requirements/project.md#projects-list-screen)."""
     vendor = aliased(Company)
     client = aliased(Company)
+
+    # Built here (not at module scope) since client_company_name/vendor_company_name
+    # sort by the aliased join columns above, not a plain Project attribute — see
+    # docs/requirements/project.md#projects-list-screen.
+    sortable_columns = {
+        "name": Project.name,
+        "status": Project.status,
+        "client_company_name": client.legal_name,
+        "vendor_company_name": vendor.legal_name,
+        "project_type": Project.project_type,
+        "created_at": Project.created_at,
+    }
 
     base = select(Project).where(Project.is_active.is_(True))
     if search:
@@ -88,8 +105,10 @@ async def list_projects(
     )
     if search:
         stmt = stmt.where(Project.name.ilike(f"%{search}%"))
+    order = resolve_sort(sortable_columns, sort_by, sort_dir, default=Project.created_at.desc())
     stmt = (
-        stmt.order_by(Project.created_at.desc())
+        # `Project.id` is a stable tie-breaker — see app/services/sorting.py.
+        stmt.order_by(order, Project.id)
         .offset((page - 1) * PAGE_SIZE)
         .limit(PAGE_SIZE)
     )

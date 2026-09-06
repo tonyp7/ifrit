@@ -1,8 +1,8 @@
 import {
-  flexRender,
   getCoreRowModel,
   useReactTable,
   type ColumnDef,
+  type SortingState,
 } from "@tanstack/react-table";
 import { MoreHorizontal, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -30,14 +30,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable } from "@/components/data-table/DataTable";
+import { DataTableColumnHeader } from "@/components/data-table/DataTableColumnHeader";
+import { DataTablePagination } from "@/components/data-table/DataTablePagination";
+import { toSortParams } from "@/components/data-table/sorting";
 import { ApiError } from "@/api/client";
 import { deactivateCompany, duplicateCompany, listCompanies } from "@/api/companies";
 import type { CompanyListItem } from "@/types/company";
@@ -58,6 +54,12 @@ export function CompaniesTable() {
   const [deleteTarget, setDeleteTarget] = useState<CompanyListItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
+  // Sorting is server-side (see the `manualSorting: true` below and
+  // components/data-table/sorting.ts) — this table is also server-paginated, so a
+  // client-side-only sort would only ever reorder whatever page is already in
+  // memory, not the whole dataset (see docs/requirements/company.md
+  // #companies-list-screen).
+  const [sorting, setSorting] = useState<SortingState>([]);
 
   // Debounce the search input before it drives the actual (server-side) filter —
   // shadcn/ui's native Data Table filter component, kept manual/server-driven rather
@@ -71,10 +73,16 @@ export function CompaniesTable() {
     return () => clearTimeout(handle);
   }, [searchInput]);
 
+  // A changed sort target/direction changes what "page 1" even means — same
+  // reasoning as the search-resets-page-to-1 effect above.
+  useEffect(() => {
+    setPage(1);
+  }, [sorting]);
+
   useEffect(() => {
     let cancelled = false;
     setError(null);
-    listCompanies({ search: search || undefined, page })
+    listCompanies({ search: search || undefined, page, ...toSortParams(sorting) })
       .then((response) => {
         if (cancelled) return;
         setItems(response.items);
@@ -88,7 +96,7 @@ export function CompaniesTable() {
     return () => {
       cancelled = true;
     };
-  }, [search, page, refreshToken, t]);
+  }, [search, page, sorting, refreshToken, t]);
 
   async function handleDuplicate(company: CompanyListItem) {
     try {
@@ -118,15 +126,18 @@ export function CompaniesTable() {
   const columns: ColumnDef<CompanyListItem>[] = [
     {
       accessorKey: "legal_name",
-      header: t("Legal name"),
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Legal name")} />,
+      enableHiding: false,
     },
     {
       accessorKey: "country_of_registration",
-      header: t("Country"),
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Country")} />,
+      enableHiding: false,
     },
     {
       accessorKey: "is_active",
-      header: t("Status"),
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Status")} />,
+      enableHiding: false,
       cell: ({ row }) => (
         <Badge variant={row.original.is_active ? "default" : "secondary"}>
           {row.original.is_active ? t("Active", { ns: "common" }) : t("Inactive", { ns: "common" })}
@@ -136,6 +147,8 @@ export function CompaniesTable() {
     {
       id: "actions",
       header: "",
+      enableHiding: false,
+      enableSorting: false,
       cell: ({ row }) => (
         <div className="flex justify-end">
           <DropdownMenu>
@@ -176,7 +189,12 @@ export function CompaniesTable() {
     getCoreRowModel: getCoreRowModel(),
     manualFiltering: true,
     manualPagination: true,
+    // `data` already arrives sorted from the server (see the fetch effect above) —
+    // no getSortedRowModel(), it would only ever reorder this one page in memory.
+    manualSorting: true,
     pageCount: Math.max(1, Math.ceil(total / pageSize)),
+    state: { sorting },
+    onSortingChange: setSorting,
   });
 
   return (
@@ -196,66 +214,19 @@ export function CompaniesTable() {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  {t("No companies found.")}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <DataTable
+        table={table}
+        columnCount={columns.length}
+        emptyMessage={t("No companies found.")}
+      />
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
-          {t("companyCount", { count: total })}
-        </p>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1}
-          >
-            {t("Previous", { ns: "common" })}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => p + 1)}
-            disabled={page * pageSize >= total}
-          >
-            {t("Next", { ns: "common" })}
-          </Button>
-        </div>
-      </div>
+      <DataTablePagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={setPage}
+        countLabel={t("companyCount", { count: total })}
+      />
 
       <AlertDialog
         open={deleteTarget !== null}

@@ -14,12 +14,16 @@ export function listCompanies(params: {
   page?: number;
   is_vendor?: boolean;
   is_active?: boolean;
+  sort_by?: string;
+  sort_dir?: "asc" | "desc";
 }) {
   const query = new URLSearchParams();
   if (params.search) query.set("search", params.search);
   query.set("page", String(params.page ?? 1));
   if (params.is_vendor !== undefined) query.set("is_vendor", String(params.is_vendor));
   if (params.is_active !== undefined) query.set("is_active", String(params.is_active));
+  if (params.sort_by) query.set("sort_by", params.sort_by);
+  if (params.sort_dir) query.set("sort_dir", params.sort_dir);
   return apiClient.get<CompanyListResponse>(`/companies?${query.toString()}`);
 }
 

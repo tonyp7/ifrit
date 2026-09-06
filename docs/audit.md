@@ -75,6 +75,8 @@ Be exhaustive rather than concise — this audit is meant to be a thorough refer
 
 **Suggested next step:** Add the "any time logged" check to `delete_service_line` (a simple `EXISTS` query against `time_entries` for that `service_line_id`) before allowing deletion on an `active` project, matching the spec.
 
+**Status: Fixed (2026-09-06).** `delete_service_line` now raises `ServiceLineHasLoggedTimeError` (mapped to `409`) when the target service line has any `time_entries` row and the project is `active`; editing remains unaffected. Covered by two new tests in `test_projects_api.py`. `project.md`'s three stale references to this being unimplemented have also been updated.
+
 ---
 
 ### 2. Party Identifier `scheme_id`/VAT format validation not implemented — Moderate
@@ -107,6 +109,8 @@ Be exhaustive rather than concise — this audit is meant to be a thorough refer
 
 **Suggested next step:** Add a global (not per-company) uniqueness check for `VAT`/`LEGAL_REGISTRATION`/`PEPPOL_PARTICIPANT` at write time, as the spec's Open Question already anticipates.
 
+**Status: Not a bug — intentional, by design (2026-09-06).** Confirmed with the author: the Peppol/UBL-shaped schema exists so this data is in the right *shape* for future e-invoicing, not so the app polices real-world global uniqueness of these identifiers across every company record. Cross-company uniqueness stays deliberately unenforced — adding it would be real engineering complexity (locking/race handling across unrelated rows, a global index instead of a scoped one) for a case that isn't actually harmful to this app's own behavior. `company.md`'s Open Question has been rewritten to reflect this as resolved rather than open.
+
 ---
 
 ### 4. Service Line modal's Quantity/Unit Price don't "silently strip" invalid input as specified — Moderate
@@ -123,6 +127,8 @@ Be exhaustive rather than concise — this audit is meant to be a thorough refer
 
 **Suggested next step:** Add an `onChange` filter (digits + at most one `.`) matching the same pattern already discussed for the timesheet hours cells, rather than relying solely on submit-time validation.
 
+**Status: Not a bug — verified safe, severity was overstated (2026-09-06).** Re-checked live: typing `12ab.5x`/`hello` into Quantity/Unit Price does display the raw text while typing, but `Save` shows a specific inline error ("Quantity must be greater than zero", "Unit price must not be negative") and the modal stays open — no invalid value ever reaches the backend, which independently rejects a non-numeric payload via `ServiceLineWrite`'s typed `Decimal` fields regardless of what the frontend does. Unlike the timesheet hours cells this finding was compared to (Firefox silently displaying — and, absent the since-reverted fix, persisting — a stuck invalid value with no error surfaced at all), there was never a data-integrity gap here, only a wording mismatch against an earlier spec draft. `project.md` has been updated to describe the actual, safe validate-on-save behavior instead of "silently strip."
+
 ---
 
 ### 5. Projects List Screen columns are not sortable — Moderate
@@ -138,6 +144,10 @@ Be exhaustive rather than concise — this audit is meant to be a thorough refer
 **Severity:** Moderate.
 
 **Suggested next step:** Wire up `getSortedRowModel()` + a `sorting` state + clickable `TableHead`s (the standard shadcn Data Table sortable-header pattern).
+
+**Status: Fixed (2026-09-06).** `ProjectsTable.tsx` now wires `getSortedRowModel()`/`SortingState`/`onSortingChange` into `useReactTable`, and every real data column (`name`, `status`, `client_company_name`, `vendor_company_name`, `project_type`, `created_at`) renders a clickable ghost-button header with the `ArrowUpDown` icon, toggling ascending/descending via `column.toggleSorting(column.getIsSorted() === "asc")` — the shadcn/ui Data Table convention. Sorting is client-side over the current page only (`manualSorting` left unset), matching the spec's "out-of-the-box... no custom sort logic" wording; the backend's `created_at desc` default is unchanged. Verified live: clicking "Name" correctly re-sorts ascending, then descending, on a page with 3 rows.
+
+**Addendum (2026-09-06, same day): the client-side mechanism above was itself a bug, since fixed.** With only 3 rows (one page) the fix above looked correct, but a client-side `getSortedRowModel()` only ever reorders whichever page is already in memory — with a server-paginated table, that's incorrect the moment there's more than one page: sorting ascending by name on page 1 could omit the true first row entirely (stuck on page 2), and page 2 would show a completely different, discontinuous order. Reproduced live with 51 test projects (deleted afterward) confirming exactly this. Fixed properly by moving sorting server-side: `app/services/sorting.py`'s `resolve_sort()` (a whitelisted column map + mandatory `id` tie-breaker, silently falling back to each endpoint's existing default on an unrecognized `sort_by`) wired into `list_projects`/`list_companies`/`list_users` and their endpoints via new `sort_by`/`sort_dir` query params; the frontend now sets `manualSorting: true` and refetches (via `components/data-table/sorting.ts`'s `toSortParams()`) instead of calling `getSortedRowModel()`. Re-verified live with the same 51-row repro: page 1 now correctly starts at the true first row and page 2 continues exactly where it left off. `project.md`, `company.md`, `user.md`, and `frontend.md` all updated to describe the corrected (server-side) mechanism.
 
 ---
 
@@ -171,6 +181,8 @@ Be exhaustive rather than concise — this audit is meant to be a thorough refer
 
 **Suggested next step:** Decide which convention is actually intended going forward (single-squashed-migration is a defensible pre-launch choice) and update `database.md` to state it explicitly, rather than leaving the stated policy and the practiced one at odds.
 
+**Status: Fixed (2026-09-06).** Confirmed with the author: the "never edit a merged migration" rule is the correct permanent policy, not a mistake — it just doesn't apply yet. `database.md` §Migrations now states a "Pre-release exception (current phase)" explaining that everything is folded into `0001_initial.py` in place only because this repo is private, pre-release, and no environment has ever migrated real data against it; the stated rule takes over unconditionally from the first tagged release onward. No code changed.
+
 ---
 
 ### 8. `auth.md`'s session-refresh design is marked "not yet implemented" but is fully built — Moderate
@@ -184,6 +196,8 @@ Be exhaustive rather than concise — this audit is meant to be a thorough refer
 **Severity:** Moderate (documentation-currency issue, not a functional bug — the code itself is correct).
 
 **Suggested next step:** Update the section's status line to reflect that it's implemented, and fold the "design" framing into a description of current behavior.
+
+**Status: Fixed (2026-09-06).** Header changed to "Session Expiry & Token Refresh", the status line now says "implemented" and points at the three actual files, and the two present-tense "today it isn't"/"nothing calls it today" sentences describing the pre-fix state were moved into past tense under a renamed "The problem this replaced" heading. The five-point rationale is otherwise unchanged, since it still accurately explains why the code is shaped the way it is.
 
 ---
 
@@ -201,6 +215,8 @@ Be exhaustive rather than concise — this audit is meant to be a thorough refer
 **Severity:** Minor.
 
 **Suggested next step:** Remove both notes now that the underlying code matches spec.
+
+**Status: Fixed (2026-09-06).** Both notes rewritten as "Implemented as specified," describing the actual code rather than a gap. A third, related stale note was found and fixed in the same pass: the Service Lines status-based edit/delete rules (§Service Lines' bulleted list, the Status enum table, and §2 Entity: Service Line's own Validation rules) all still described the active-project-with-logged-time delete block as "not yet implementable, pending timesheeting" — stale for the same reason (see Finding #1, now also fixed) — and have been updated to describe the implemented check instead.
 
 ---
 
@@ -332,8 +348,8 @@ No Critical findings — the codebase's security-critical defaults (JWT secret, 
 
 ### Top 5 things to address first
 
-1. **Enforce the "no delete with logged time" rule on active-project service lines** (Finding #1) — the one finding with real data-integrity/billing impact, and the spec's own blocking dependency (time entries) has existed for a while now.
-2. **Fix `duplicate_company`'s identifier uniqueness gap** (Finding #3) — a reachable, one-click path to a real Peppol-compliance violation (two companies sharing a VAT number).
-3. **Update `auth.md`'s refresh-mechanism status and `project.md`'s two stale "known divergence" notes** (Findings #8, #9) — cheap to fix, and left alone they undermine confidence in every other "not yet implemented" note in the doc set.
-4. **Reconcile `database.md`'s migration policy with actual practice** (Finding #7) — pick one, document it, so the next schema change doesn't have to guess.
-5. **Add test coverage for service-line deletion** (Finding #13) — currently the single least-tested piece of business logic with a known-missing rule sitting inside it.
+1. ~~**Enforce the "no delete with logged time" rule on active-project service lines**~~ (Finding #1) — **Fixed 2026-09-06**, see the finding for details.
+2. ~~**Fix `duplicate_company`'s identifier uniqueness gap**~~ (Finding #3) — **Closed, not a bug (2026-09-06)**: cross-company uniqueness is deliberately unenforced; see the finding for the reasoning.
+3. ~~**Update `auth.md`'s refresh-mechanism status and `project.md`'s two stale "known divergence" notes**~~ (Findings #8, #9) — **Fixed 2026-09-06**, see the findings for details.
+4. ~~**Reconcile `database.md`'s migration policy with actual practice**~~ (Finding #7) — **Fixed 2026-09-06**: documented as a deliberate, temporary pre-release exception; the stated policy remains correct from release onward.
+5. ~~**Add test coverage for service-line deletion**~~ (Finding #13) — **Fixed 2026-09-06** as part of Finding #1's fix (two new tests added to `test_projects_api.py`).

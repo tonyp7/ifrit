@@ -54,7 +54,12 @@ The `companies` screen under `configuration` (see [home.md](home.md#navigation))
   implementation) filtering by `legal_name` as the administrator types, and a **`+`** button
   that opens the create-company flow.
 - **Columns**: `legal_name`, `country_of_registration`, status (`is_active`, shown as an
-  Active/Inactive indicator, not a raw boolean), and a trailing actions column.
+  Active/Inactive indicator, not a raw boolean), and a trailing actions column (not sortable).
+  Every other column is sortable, server-side (see
+  [Projects List Screen § API contract: sorting](project.md#api-contract-sorting), which this
+  screen shares), via the same shared `DataTableColumnHeader` used by
+  [Projects](project.md#projects-list-screen) — see
+  [frontend.md](../architecture/frontend.md#component-patterns).
 - **Row actions**: an **`…`** button opens a dropdown menu with, in order: `Edit`,
   `Duplicate`, a separator, then `Delete` — `Delete` is styled in red/destructive to signal
   it's a different class of action from `Edit`/`Duplicate`, even though it's a deactivation
@@ -379,12 +384,18 @@ above (§1–§3) are this doc's description of the model, and database.md owns 
   hard delete (see Company Form above), `valid_from`/`valid_to` is purely a historical/audit
   concern on rows that still exist — not a lifecycle/soft-delete mechanism — which narrows but
   doesn't answer this question.
-- Field validation needs a dedicated pass beyond what's specified per-field in §1–§3 —
-  triggered in particular by `Duplicate` (see Company Form above) copying a company's
-  identifiers verbatim: saving without changing them should be caught and rejected, which
-  needs cross-company uniqueness for at least `VAT`/`LEGAL_REGISTRATION`/`PEPPOL_PARTICIPANT`.
-  §2's current uniqueness rule doesn't cover this, since it's scoped per-`company_id`, not
-  global.
+- **Resolved — no cross-company identifier uniqueness, by design.** `Duplicate` copying a
+  company's identifiers verbatim (see Company Form above), and later being saved unchanged, is
+  **not** an error to catch. §2's uniqueness rule is deliberately scoped per-`company_id`, not
+  global, and stays that way: the Peppol/UBL-shaped schema here exists so this data is in the
+  *right shape* for future e-invoicing, not so this app polices real-world global uniqueness of
+  VAT/registration/Peppol-participant numbers across every company record it happens to hold.
+  Two companies legitimately sharing an identifier (e.g. a duplicated draft record, a
+  data-entry error, a genuinely shared registration in some jurisdictions) is a data-quality
+  concern for whoever operates on that data later, not a constraint this app needs to enforce —
+  adding cross-company uniqueness would be real engineering complexity (locking/race handling
+  across unrelated rows, a global index instead of a scoped one) in exchange for catching a
+  case that isn't actually harmful to this app's own behavior.
 - Do the add/edit modals for Party Identifiers and Addresses expose exactly their respective
   schema fields (§2/§3), matching the "stay close to the data model" principle stated for the
   parent form? Assumed yes, not explicitly confirmed.

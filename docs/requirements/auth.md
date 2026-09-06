@@ -30,30 +30,31 @@ for the technical implementation (JWT access/refresh tokens).
   SSO users have no local password and are not affected — their access is managed entirely by
   the external IdP.
 
-## Session Expiry & Token Refresh — Design (Not Yet Implemented)
+## Session Expiry & Token Refresh
 
-**Status: not yet implemented.** This section is a design writeup, not a description of current
-behavior — captured ahead of implementation so the mechanism and its trade-offs can be verified
-against, rather than re-derived at implementation time or drifting from what was actually
-decided. See §Notes below for the token lifetimes (15 min access / 7 day refresh) this design
-works against, and
+**Status: implemented.** This section describes the mechanism as actually built —
+`frontend/src/api/client.ts` (the interceptor itself), `frontend/src/api/sessionEvents.ts` (the
+event bridge), and `frontend/src/providers/AuthProvider.tsx` (the subscriber) — rather than a
+forward-looking design. It's kept in this narrative form (problem, then the five things a correct
+implementation has to handle) because that reasoning is still the best reference for *why* the
+code is shaped the way it is, not just *what* it does. See §Notes below for the token lifetimes
+(15 min access / 7 day refresh) this mechanism works against, and
 [Backend — Authentication & Session Standards](../architecture/backend.md#authentication--session-standards)
-for the existing server-side pieces it builds on (`POST /auth/refresh` already exists and works;
-nothing in the client calls it today).
+for the server-side half (`POST /auth/refresh`) it calls.
 
-### The problem this replaces
+### The problem this replaced
 
-Today, `frontend/src/api/client.ts`'s `request()` — the one function every API call in the app
-goes through — treats a `401` identically to any other error status (`403`, `404`, `422`, `500`).
-Fourteen separate screens/components each independently catch `ApiError` and render
-`err.message` as if it were a normal, page-specific error (inline text, or in a couple of places
-a toast). None of them recognize `401` as meaning "the whole session is dead," so a session
-timeout currently produces however many independent, redundant error surfaces happen to have a
-request in flight at that moment — e.g. a project sheet showing a stale inline "Not
+Before this was built, `frontend/src/api/client.ts`'s `request()` — the one function every API
+call in the app goes through — treated a `401` identically to any other error status (`403`,
+`404`, `422`, `500`). Fourteen separate screens/components each independently caught `ApiError`
+and rendered `err.message` as if it were a normal, page-specific error (inline text, or in a
+couple of places a toast). None of them recognized `401` as meaning "the whole session is dead,"
+so a session timeout produced however many independent, redundant error surfaces happened to have
+a request in flight at that moment — e.g. a project sheet showing a stale inline "Not
 authenticated" message, the timesheet screen popping multiple toasts (it fires two independent
-fetches on mount). Separately, because nothing calls `POST /auth/refresh`, this doesn't just
-happen after genuine idle timeout — it happens to every session, active or not, roughly 15
-minutes after the last login/page load.
+fetches on mount). Separately, because nothing called `POST /auth/refresh`, this didn't just
+happen after genuine idle timeout — it happened to every session, active or not, roughly 15
+minutes after the last login/page load. The interceptor described below replaces all of this.
 
 ### Design overview
 
@@ -70,12 +71,12 @@ passes through), replaces all fourteen screens' independent handling:
    - **Fails** (refresh token itself expired/invalid) → the session is genuinely dead. Notify
      the rest of the app (see point 4) and let the original `401` propagate.
 
-This single mechanism is what makes the *existing* (already-written, not new) user story "I want
-my session to remain active across page reloads (via refresh token) without re-entering my
-credentials every time" actually true — today it isn't, since nothing ever calls `/auth/refresh`.
+This single mechanism is what makes the user story "I want my session to remain active across
+page reloads (via refresh token) without re-entering my credentials every time" actually true —
+before it existed, that story wasn't, since nothing ever called `/auth/refresh`.
 
 The naive version of "attempt refresh, then redirect" has real gaps if implemented literally as
-that one-line description. Five things a correct implementation has to handle explicitly:
+that one-line description. Five things the implementation has to handle explicitly:
 
 ### 1. Concurrent-request de-duplication
 

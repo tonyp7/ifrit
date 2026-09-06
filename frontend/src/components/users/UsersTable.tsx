@@ -1,8 +1,8 @@
 import {
-  flexRender,
   getCoreRowModel,
   useReactTable,
   type ColumnDef,
+  type SortingState,
 } from "@tanstack/react-table";
 import { MoreHorizontal, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -32,14 +32,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { DataTable } from "@/components/data-table/DataTable";
+import { DataTableColumnHeader } from "@/components/data-table/DataTableColumnHeader";
+import { DataTablePagination } from "@/components/data-table/DataTablePagination";
+import { toSortParams } from "@/components/data-table/sorting";
 import { useAuth } from "@/hooks/useAuth";
 import { ROLE_LABELS, type User } from "@/types/user";
 import { ResetPasswordDialog } from "@/components/users/ResetPasswordDialog";
@@ -62,6 +58,11 @@ export function UsersTable() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [resetTarget, setResetTarget] = useState<User | null>(null);
   const [refreshToken, setRefreshToken] = useState(0);
+  // Sorting is server-side (see the `manualSorting: true` below and
+  // components/data-table/sorting.ts) — this table is also server-paginated, so a
+  // client-side-only sort would only ever reorder whatever page is already in
+  // memory, not the whole dataset (see docs/requirements/user.md#users-list-screen).
+  const [sorting, setSorting] = useState<SortingState>([]);
 
   // Same debounce pattern as CompaniesTable — see
   // docs/requirements/company.md#companies-list-screen.
@@ -73,10 +74,16 @@ export function UsersTable() {
     return () => clearTimeout(handle);
   }, [searchInput]);
 
+  // A changed sort target/direction changes what "page 1" even means — same
+  // reasoning as the search-resets-page-to-1 effect above.
+  useEffect(() => {
+    setPage(1);
+  }, [sorting]);
+
   useEffect(() => {
     let cancelled = false;
     setError(null);
-    listUsers({ search: search || undefined, page })
+    listUsers({ search: search || undefined, page, ...toSortParams(sorting) })
       .then((response) => {
         if (cancelled) return;
         setItems(response.items);
@@ -90,7 +97,7 @@ export function UsersTable() {
     return () => {
       cancelled = true;
     };
-  }, [search, page, refreshToken, t]);
+  }, [search, page, sorting, refreshToken, t]);
 
   function handleDuplicate(user: User) {
     // Client-side only, unlike Company's server-side /duplicate — name_id is
@@ -126,15 +133,25 @@ export function UsersTable() {
   const columns: ColumnDef<User>[] = [
     {
       accessorKey: "full_name",
-      header: t("Name", { ns: "common" }),
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t("Name", { ns: "common" })} />
+      ),
+      enableHiding: false,
     },
     {
       accessorKey: "name_id",
-      header: t("Login identity"),
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t("Login identity")} />
+      ),
+      enableHiding: false,
     },
     {
       accessorKey: "roles",
       header: t("Roles"),
+      // Not sortable — a role list can't be meaningfully ordered the way a plain
+      // scalar column can.
+      enableSorting: false,
+      enableHiding: false,
       cell: ({ row }) => (
         <div className="flex flex-wrap gap-1">
           {row.original.roles.map((role) => (
@@ -147,12 +164,16 @@ export function UsersTable() {
     },
     {
       accessorKey: "is_sso",
-      header: t("Login method"),
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t("Login method")} />
+      ),
+      enableHiding: false,
       cell: ({ row }) => (row.original.is_sso ? t("SSO") : t("Local")),
     },
     {
       accessorKey: "is_active",
-      header: t("Status"),
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Status")} />,
+      enableHiding: false,
       cell: ({ row }) => (
         <Badge variant={row.original.is_active ? "default" : "secondary"}>
           {row.original.is_active ? t("Active", { ns: "common" }) : t("Inactive", { ns: "common" })}
@@ -162,6 +183,8 @@ export function UsersTable() {
     {
       id: "actions",
       header: "",
+      enableHiding: false,
+      enableSorting: false,
       cell: ({ row }) => {
         const isSelf = row.original.id === currentUser?.id;
         return (
@@ -210,7 +233,12 @@ export function UsersTable() {
     getCoreRowModel: getCoreRowModel(),
     manualFiltering: true,
     manualPagination: true,
+    // `data` already arrives sorted from the server (see the fetch effect above) —
+    // no getSortedRowModel(), it would only ever reorder this one page in memory.
+    manualSorting: true,
     pageCount: Math.max(1, Math.ceil(total / pageSize)),
+    state: { sorting },
+    onSortingChange: setSorting,
   });
 
   return (
@@ -230,64 +258,15 @@ export function UsersTable() {
 
       {error && <p className="text-sm text-destructive">{error}</p>}
 
-      <div className="rounded-md border">
-        <Table>
-          <TableHeader>
-            {table.getHeaderGroups().map((headerGroup) => (
-              <TableRow key={headerGroup.id}>
-                {headerGroup.headers.map((header) => (
-                  <TableHead key={header.id}>
-                    {header.isPlaceholder
-                      ? null
-                      : flexRender(header.column.columnDef.header, header.getContext())}
-                  </TableHead>
-                ))}
-              </TableRow>
-            ))}
-          </TableHeader>
-          <TableBody>
-            {table.getRowModel().rows.length ? (
-              table.getRowModel().rows.map((row) => (
-                <TableRow key={row.id}>
-                  {row.getVisibleCells().map((cell) => (
-                    <TableCell key={cell.id}>
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                    </TableCell>
-                  ))}
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell colSpan={columns.length} className="h-24 text-center">
-                  {t("No users found.")}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
+      <DataTable table={table} columnCount={columns.length} emptyMessage={t("No users found.")} />
 
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">{t("userCount", { count: total })}</p>
-        <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => Math.max(1, p - 1))}
-            disabled={page <= 1}
-          >
-            {t("Previous", { ns: "common" })}
-          </Button>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setPage((p) => p + 1)}
-            disabled={page * pageSize >= total}
-          >
-            {t("Next", { ns: "common" })}
-          </Button>
-        </div>
-      </div>
+      <DataTablePagination
+        page={page}
+        pageSize={pageSize}
+        total={total}
+        onPageChange={setPage}
+        countLabel={t("userCount", { count: total })}
+      />
 
       <AlertDialog
         open={deleteTarget !== null}
