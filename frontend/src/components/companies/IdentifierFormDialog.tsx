@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import { ID_TYPE_LABELS, type IdentifierType } from "@/types/company";
 
 const ID_TYPES = Object.entries(ID_TYPE_LABELS) as [IdentifierType, string][];
@@ -183,7 +184,8 @@ export function IdentifierFormDialog({
 
           <DialogFooter>
             <Button type="submit" disabled={isSubmitting}>
-              {t("Save", { ns: "common" })}
+              {isSubmitting && <Spinner />}
+              {isSubmitting ? t("Saving…", { ns: "common" }) : t("Save", { ns: "common" })}
             </Button>
           </DialogFooter>
         </form>

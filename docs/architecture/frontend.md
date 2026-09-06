@@ -181,6 +181,15 @@ Authorized frontend dependencies (per the Dependency Policy in [AGENTS.md](../..
     live DOM diff that no class or DOM node actually changes across the collapse, and that
     setting `container-type: normal` is what fixes it (`flex-shrink: 0` does not) — so treat any
     future nested `FieldGroup` the same way unless it actually needs the responsive variant.
+- **Async action buttons** (form submit, destructive-action confirm) always pair
+  `disabled={isPending}` with a visible `Spinner` (`components/ui/spinner.tsx`, a thin wrapper
+  around `lucide-react`'s `Loader2Icon` with `animate-spin` — see
+  [fileupload.md](./fileupload.md#7-frontend-requirements-react--shadcnui) for the other
+  consumer of this same component) **and** a present-participle label swap (`t("Saving…")`,
+  `t("Deleting…")`, both in `common.json`) — never ship `disabled` alone with no visual change,
+  and never hand-roll a different spinner. `Button`/`AlertDialogAction` both already have `gap-2`
+  in their shared `buttonVariants`, so `<Spinner />` placed as a sibling before the label needs no
+  extra spacing/sizing classes.
 - **Styling**: TailwindCSS with the `cn()` utility for conditional class merging
 - **State management**: React hooks (`useState`, `useEffect`, `useCallback`, `useMemo`); reach
   for a dedicated state library only when prop-drilling/hook composition actually breaks down

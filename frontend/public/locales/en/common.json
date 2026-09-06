@@ -24,6 +24,7 @@
   "Edit": "Edit",
   "Duplicate": "Duplicate",
   "Delete": "Delete",
+  "Deleting…": "Deleting…",
   "Remove": "Remove",
   "New": "New",
   "Columns": "Columns",
@@ -32,6 +33,7 @@
   "Cancel": "Cancel",
   "Add": "Add",
   "Save": "Save",
+  "Saving…": "Saving…",
   "Close": "Close",
   "Yes": "Yes",
   "No": "No"

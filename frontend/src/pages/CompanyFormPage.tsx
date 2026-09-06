@@ -16,6 +16,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
 import type { CompanyDetail } from "@/types/company";
 
 const BLANK_VALUES = {
@@ -243,7 +244,8 @@ export function CompanyFormPage() {
                   {t("Close", { ns: "common" })}
                 </Button>
                 <Button type="submit" disabled={isSubmitting}>
-                  {t("Save", { ns: "common" })}
+                  {isSubmitting && <Spinner />}
+                  {isSubmitting ? t("Saving…", { ns: "common" }) : t("Save", { ns: "common" })}
                 </Button>
               </div>
             </FieldGroup>

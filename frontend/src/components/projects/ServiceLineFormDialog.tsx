@@ -35,6 +35,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import { formatMoney, formatQuantity, stripGrouping } from "@/lib/format";
 import { type ServiceLineConsultant, UOM_LABELS, type Uom } from "@/types/project";
 import type { User } from "@/types/user";
@@ -331,7 +332,8 @@ export function ServiceLineFormDialog({
 
           <DialogFooter>
             <Button type="submit" disabled={isSubmitting}>
-              {t("Save", { ns: "common" })}
+              {isSubmitting && <Spinner />}
+              {isSubmitting ? t("Saving…", { ns: "common" }) : t("Save", { ns: "common" })}
             </Button>
           </DialogFooter>
         </form>

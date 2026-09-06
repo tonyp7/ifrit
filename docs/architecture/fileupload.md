@@ -97,7 +97,10 @@ Upload progress and post-upload processing status are **two distinct mechanisms*
 - Upload logic and status-stream logic are encapsulated in a single reusable hook (e.g. `useFileUpload`) exposing `{ status, progress, fileId, error, upload, reset }`. Components must not implement raw `XMLHttpRequest`/`EventSource` logic inline.
 - UI must reflect every state distinctly:
   - `uploading` → `Progress` bar driven by client-side percentage.
-  - `scanning` / `processing` → spinner (`lucide-react` `Loader2`) with descriptive label.
+  - `scanning` / `processing` → the shared `Spinner` component (`components/ui/spinner.tsx`,
+    wraps `lucide-react`'s `Loader2Icon`) with a descriptive label — see
+    [frontend.md's Component Patterns](./frontend.md#component-patterns) for this app's one
+    spinner convention; don't import `Loader2`/`Loader2Icon` directly here.
   - `ready` → success indicator + toast (`sonner`).
   - `rejected` → `Alert variant="destructive"` with the rejection reason; error toast.
   - `error` (network/unexpected) → distinct from `rejected`, with retry affordance.

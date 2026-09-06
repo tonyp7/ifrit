@@ -15,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Spinner } from "@/components/ui/spinner";
 import { PasswordStrengthMeter } from "@/components/users/PasswordStrengthMeter";
 
 interface ResetPasswordDialogProps {
@@ -96,7 +97,8 @@ export function ResetPasswordDialog({
 
           <DialogFooter>
             <Button type="submit" disabled={isSubmitting}>
-              {t("Save", { ns: "common" })}
+              {isSubmitting && <Spinner />}
+              {isSubmitting ? t("Saving…", { ns: "common" }) : t("Save", { ns: "common" })}
             </Button>
           </DialogFooter>
         </form>

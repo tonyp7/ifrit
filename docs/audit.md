@@ -430,6 +430,12 @@ Every `.tsx` file under `frontend/src` was reviewed: all 19 files in `components
 
 **Suggested next step:** Add `components/ui/spinner.tsx` (`npx shadcn@latest add spinner`) and standardize all 4 submit buttons on the `<Spinner data-icon="inline-start" />` + loading-label pattern.
 
+**Status: Fixed (2026-09-06).** Added `components/ui/spinner.tsx` (fetched verbatim via `npx shadcn@latest add spinner --view spinner.tsx` — a thin `Loader2Icon` + `animate-spin` wrapper, no new dependency; placed manually per Finding #20's CLI-alias-detection addendum rather than via a live `add`). `data-icon` was dropped from the suggested pattern above: this project's `button.tsx` doesn't wire up that attribute at all (Finding #20/#24), but `buttonVariants`' own `gap-2` already spaces a `<Spinner />` sibling correctly with no extra classes needed, so the simpler `{isPending && <Spinner />}{isPending ? "Saving…" : "Save"}` composition was used instead.
+
+Scope ended up wider than this finding's own "Where": while fixing the 4 audited buttons, the identical "disabled-only, no spinner" gap was found on 7 more — the 4 dialog submit buttons (`AddressFormDialog`, `IdentifierFormDialog`, `ResetPasswordDialog`, `ServiceLineFormDialog`) and the 3 delete-confirmation `AlertDialogAction`s (`CompaniesTable`, `ProjectsTable`, `UsersTable`). All 11 were fixed together, since leaving 7 known instances of the same gap in place would have defeated the point. New `common.json` keys: `"Saving…"`, `"Deleting…"` (both reused across every fixed site; `LoginPage` keeps its own pre-existing `"Signing in…"` in `auth.json`).
+
+**Spec fix, so this doesn't reoccur a 4th way:** the reason this pattern had already been implemented 3 different ways (text-swap-no-spinner, disabled-only, and now spinner+swap) is that `frontend.md` never documented a convention at all. Added one under Component Patterns: async action buttons always pair `disabled` with a visible `Spinner` and a present-participle label swap. Also reconciled `fileupload.md`, which specced a loading spinner for its (unimplemented) upload feature using raw `lucide-react Loader2` — updated it to reference the same shared `Spinner` component instead, so that feature doesn't introduce a second, differently-sourced spinner convention when it's eventually built.
+
 ---
 
 ### 24. Icons inside buttons use manual `mr-2 h-4 w-4` instead of `data-icon` — Minor (blocked by Finding #20)

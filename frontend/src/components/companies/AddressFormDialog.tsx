@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { Spinner } from "@/components/ui/spinner";
 import { ADDRESS_TYPE_LABELS, type AddressType } from "@/types/company";
 
 const ADDRESS_TYPES = Object.entries(ADDRESS_TYPE_LABELS) as [AddressType, string][];
@@ -222,7 +223,8 @@ export function AddressFormDialog({
 
           <DialogFooter>
             <Button type="submit" disabled={isSubmitting}>
-              {t("Save", { ns: "common" })}
+              {isSubmitting && <Spinner />}
+              {isSubmitting ? t("Saving…", { ns: "common" }) : t("Save", { ns: "common" })}
             </Button>
           </DialogFooter>
         </form>

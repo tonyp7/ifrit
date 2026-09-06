@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/card";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/hooks/useAuth";
 
 export function LoginPage() {
@@ -89,6 +90,7 @@ export function LoginPage() {
               </Field>
               {formError && <p className="text-sm text-destructive">{formError}</p>}
               <Button type="submit" disabled={isSubmitting} className="mt-2">
+                {isSubmitting && <Spinner />}
                 {isSubmitting ? t("Signing in…") : t("Sign in")}
               </Button>
             </FieldGroup>

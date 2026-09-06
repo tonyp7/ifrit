@@ -31,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Spinner } from "@/components/ui/spinner";
 import { DataTable } from "@/components/data-table/DataTable";
 import { DataTableColumnHeader } from "@/components/data-table/DataTableColumnHeader";
 import { DataTablePagination } from "@/components/data-table/DataTablePagination";
@@ -310,7 +311,8 @@ export function ProjectsTable() {
               {t("Cancel", { ns: "common" })}
             </AlertDialogCancel>
             <AlertDialogAction disabled={isDeleting} onClick={() => void handleConfirmDelete()}>
-              {t("Delete", { ns: "common" })}
+              {isDeleting && <Spinner />}
+              {isDeleting ? t("Deleting…", { ns: "common" }) : t("Delete", { ns: "common" })}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

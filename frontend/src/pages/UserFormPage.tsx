@@ -24,6 +24,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
 import { Switch } from "@/components/ui/switch";
 import { PasswordStrengthMeter } from "@/components/users/PasswordStrengthMeter";
 import { useAuth } from "@/hooks/useAuth";
@@ -288,7 +289,8 @@ export function UserFormPage() {
                   {t("Close", { ns: "common" })}
                 </Button>
                 <Button type="submit" disabled={isSubmitting}>
-                  {t("Save", { ns: "common" })}
+                  {isSubmitting && <Spinner />}
+                  {isSubmitting ? t("Saving…", { ns: "common" }) : t("Save", { ns: "common" })}
                 </Button>
               </div>
             </FieldGroup>

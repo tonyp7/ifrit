@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
 import { formatMoney } from "@/lib/format";
 import type { CompanyListItem } from "@/types/company";
 import type { Currency } from "@/types/currency";
@@ -379,7 +380,8 @@ export function ProjectFormPage() {
                   {t("Close", { ns: "common" })}
                 </Button>
                 <Button type="submit" disabled={isSubmitting}>
-                  {t("Save", { ns: "common" })}
+                  {isSubmitting && <Spinner />}
+                  {isSubmitting ? t("Saving…", { ns: "common" }) : t("Save", { ns: "common" })}
                 </Button>
               </div>
             </FieldGroup>
