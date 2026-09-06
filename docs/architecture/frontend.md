@@ -71,9 +71,13 @@ Authorized frontend dependencies (per the Dependency Policy in [AGENTS.md](../..
 - **Data Table shell**: every paginated Data Table (Projects, Companies, Users) shares three
   components under `frontend/src/components/data-table/` rather than each hand-rolling its own
   `useReactTable` render/pagination JSX: `DataTable` (the header/body/empty-state table shell),
-  `DataTableColumnHeader` (a sortable-column header cell — a dropdown with Asc/Desc/Hide,
-  adapted from shadcn's own `components/data-table-column-header.tsx` template at
-  https://ui.shadcn.com/docs/components/aria/data-table), and `DataTablePagination` (the
+  `DataTableColumnHeader` (a sortable-column header cell — clicking it directly toggles
+  ascending/descending, showing the current direction via an `ArrowUp`/`ArrowDown` icon or
+  `ChevronsUpDown` when unsorted; no intermediate menu, matching the convention most data tables
+  use, not the Asc/Desc/Hide dropdown shadcn's own `components/data-table-column-header.tsx`
+  template at https://ui.shadcn.com/docs/components/aria/data-table shows — column-hiding, where
+  a table has any, stays reachable via that table's own toolbar "Columns" button instead), and
+  `DataTablePagination` (the
   Previous/Next footer). These live under `components/data-table/`, not `components/ui/`,
   because they're template/example code per shadcn's own docs (no `npx shadcn add` entry exists
   for them), not a swappable CLI-managed primitive. Each table still owns its own `useReactTable`
