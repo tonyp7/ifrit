@@ -14,8 +14,8 @@ import { ProjectManagersPicker } from "@/components/projects/ProjectManagersPick
 import { ServiceLinesTable } from "@/components/projects/ServiceLinesTable";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -213,25 +213,28 @@ export function ProjectFormPage() {
           <CardTitle>{isNew ? t("New Project") : t("Edit Project")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6">
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="name">{t("Name")}</Label>
-                <Input id="name" disabled={isReadOnly} {...register("name")} />
-                {errors.name && (
-                  <p className="text-sm text-destructive">{errors.name.message}</p>
-                )}
-              </div>
+          <form onSubmit={handleSubmit(onSubmit)}>
+            <FieldGroup>
+              <Field data-invalid={!!errors.name}>
+                <FieldLabel htmlFor="name">{t("Name")}</FieldLabel>
+                <Input
+                  id="name"
+                  disabled={isReadOnly}
+                  aria-invalid={!!errors.name}
+                  {...register("name")}
+                />
+                <FieldError errors={errors.name && [errors.name]} />
+              </Field>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="vendor_company_id">{t("Vendor")}</Label>
+                <Field data-invalid={!!errors.vendor_company_id}>
+                  <FieldLabel htmlFor="vendor_company_id">{t("Vendor")}</FieldLabel>
                   <Select
                     disabled={isReadOnly}
                     value={vendorId}
                     onValueChange={(value) => setValue("vendor_company_id", value)}
                   >
-                    <SelectTrigger id="vendor_company_id">
+                    <SelectTrigger id="vendor_company_id" aria-invalid={!!errors.vendor_company_id}>
                       <SelectValue placeholder={t("Select a vendor…")} />
                     </SelectTrigger>
                     <SelectContent>
@@ -242,20 +245,16 @@ export function ProjectFormPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  {errors.vendor_company_id && (
-                    <p className="text-sm text-destructive">
-                      {errors.vendor_company_id.message}
-                    </p>
-                  )}
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="client_company_id">{t("Client")}</Label>
+                  <FieldError errors={errors.vendor_company_id && [errors.vendor_company_id]} />
+                </Field>
+                <Field data-invalid={!!errors.client_company_id}>
+                  <FieldLabel htmlFor="client_company_id">{t("Client")}</FieldLabel>
                   <Select
                     disabled={isReadOnly}
                     value={clientId}
                     onValueChange={(value) => setValue("client_company_id", value)}
                   >
-                    <SelectTrigger id="client_company_id">
+                    <SelectTrigger id="client_company_id" aria-invalid={!!errors.client_company_id}>
                       <SelectValue placeholder={t("Select a client…")} />
                     </SelectTrigger>
                     <SelectContent>
@@ -266,23 +265,22 @@ export function ProjectFormPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  {errors.client_company_id && (
-                    <p className="text-sm text-destructive">
-                      {errors.client_company_id.message}
-                    </p>
-                  )}
-                </div>
+                  <FieldError errors={errors.client_company_id && [errors.client_company_id]} />
+                </Field>
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="invoicing_currency">{t("Invoicing currency")}</Label>
+                <Field data-invalid={!!errors.invoicing_currency}>
+                  <FieldLabel htmlFor="invoicing_currency">{t("Invoicing currency")}</FieldLabel>
                   <Select
                     disabled={isReadOnly}
                     value={currencyCode}
                     onValueChange={(value) => setValue("invoicing_currency", value)}
                   >
-                    <SelectTrigger id="invoicing_currency">
+                    <SelectTrigger
+                      id="invoicing_currency"
+                      aria-invalid={!!errors.invoicing_currency}
+                    >
                       <SelectValue placeholder={t("Select a currency…")} />
                     </SelectTrigger>
                     <SelectContent>
@@ -293,14 +291,12 @@ export function ProjectFormPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  {errors.invoicing_currency && (
-                    <p className="text-sm text-destructive">
-                      {errors.invoicing_currency.message}
-                    </p>
-                  )}
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="project_type">{t("Project type")}</Label>
+                  <FieldError
+                    errors={errors.invoicing_currency && [errors.invoicing_currency]}
+                  />
+                </Field>
+                <Field>
+                  <FieldLabel htmlFor="project_type">{t("Project type")}</FieldLabel>
                   <Select
                     disabled={isReadOnly}
                     value={projectType}
@@ -317,15 +313,15 @@ export function ProjectFormPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
+                </Field>
               </div>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <div className="flex flex-col gap-2">
+                <Field>
                   {/* status stays editable even when the rest of the form is read-only
                       (see docs/requirements/project.md#status-enum) — otherwise a closed
                       project could never be reopened. */}
-                  <Label htmlFor="status">{t("Status")}</Label>
+                  <FieldLabel htmlFor="status">{t("Status")}</FieldLabel>
                   <Select
                     value={status}
                     onValueChange={(value) => setValue("status", value as ProjectStatus)}
@@ -341,52 +337,52 @@ export function ProjectFormPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label>{t("Total value")}</Label>
+                </Field>
+                <Field>
+                  <FieldLabel>{t("Total value")}</FieldLabel>
                   <p className="flex h-10 items-center text-sm">
                     {project
                       ? `${formatMoney(project.total_value, selectedCurrency?.minor_unit)} ${project.invoicing_currency}`
                       : "—"}
                   </p>
-                </div>
+                </Field>
               </div>
-            </div>
 
-            <Separator />
+              <Separator />
 
-            <div className="flex flex-col gap-2">
-              <Label>{t("Project Managers")}</Label>
-              <ProjectManagersPicker
-                selected={selectedManagers}
-                onChange={handleManagersChange}
-                disabled={isReadOnly}
+              <Field>
+                <FieldLabel>{t("Project Managers")}</FieldLabel>
+                <ProjectManagersPicker
+                  selected={selectedManagers}
+                  onChange={handleManagersChange}
+                  disabled={isReadOnly}
+                />
+              </Field>
+
+              <Separator />
+
+              <ServiceLinesTable
+                projectId={project?.id ?? null}
+                serviceLines={project?.service_lines ?? []}
+                onChanged={refreshProject}
+                ensureSaved={ensureSaved}
+                readOnly={isReadOnly}
+                minorUnit={selectedCurrency?.minor_unit}
               />
-            </div>
 
-            <Separator />
+              {formError && <p className="text-sm text-destructive">{formError}</p>}
 
-            <ServiceLinesTable
-              projectId={project?.id ?? null}
-              serviceLines={project?.service_lines ?? []}
-              onChanged={refreshProject}
-              ensureSaved={ensureSaved}
-              readOnly={isReadOnly}
-              minorUnit={selectedCurrency?.minor_unit}
-            />
+              <Separator />
 
-            {formError && <p className="text-sm text-destructive">{formError}</p>}
-
-            <Separator />
-
-            <div className="flex justify-between">
-              <Button type="button" variant="outline" onClick={() => navigate("/projects")}>
-                {t("Close", { ns: "common" })}
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {t("Save", { ns: "common" })}
-              </Button>
-            </div>
+              <div className="flex justify-between">
+                <Button type="button" variant="outline" onClick={() => navigate("/projects")}>
+                  {t("Close", { ns: "common" })}
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {t("Save", { ns: "common" })}
+                </Button>
+              </div>
+            </FieldGroup>
           </form>
         </CardContent>
       </Card>

@@ -150,6 +150,37 @@ Authorized frontend dependencies (per the Dependency Policy in [AGENTS.md](../..
   `select.tsx`/`dropdown-menu.tsx`/`popover.tsx`/`command.tsx`. Using the undefined tokens as-is
   doesn't error; the utility class just generates no CSS, so the surface silently renders
   transparent — easy to miss without actually opening the component in a browser.
+- **Form layout**: every form (`LoginPage`, `UserFormPage`, `CompanyFormPage`, `ProjectFormPage`)
+  uses shadcn's `Field`/`FieldGroup`/`FieldSet` primitives
+  (`frontend/src/components/ui/field.tsx`) instead of hand-rolled `div`+`Label`+`Input` markup:
+  - A single field is `<Field data-invalid={!!errors.x}><FieldLabel htmlFor="x">...</FieldLabel>
+    <Input id="x" aria-invalid={!!errors.x} {...register("x")} /><FieldError
+    errors={errors.x && [errors.x]} /></Field>` — `data-invalid` on `Field` drives its built-in
+    red label/description styling, `aria-invalid` on the control is the actual accessibility
+    signal (this project's older-generation `input.tsx`/`select.tsx` don't add their own visual
+    `aria-invalid:` border styling — see the "UI primitives" bullet below on the CLI/preset gap —
+    so the red `FieldLabel` text is the only visual invalid-state cue today, which is why both
+    attributes matter and neither alone is enough).
+  - A checkbox/switch row is `<Field orientation="horizontal">` wrapping the control and its
+    `FieldLabel`. A related group of checkboxes (e.g. `UserFormPage`'s Roles) is a `FieldSet` +
+    `FieldLegend` wrapping an inner `FieldGroup` of horizontal `Field`s, not a `div` with a
+    heading.
+  - Side-by-side field pairs keep a plain `grid grid-cols-1 sm:grid-cols-2 gap-4` wrapper around
+    two `Field`s — that's a responsive-columns layout concern, not something `FieldGroup`'s own
+    vertical-stack semantics replace. Separators between a form's fields and an unrelated section
+    (e.g. `CompanyFormPage`'s Party Identifiers/Addresses tables) stay plain `<Separator />`, not
+    `FieldSeparator` (that component is for dividing items *within* one `FieldGroup`).
+  - **Known gotcha — a `FieldGroup` nested inside another `FieldGroup`/`FieldSet` must disable
+    its own container query** (`className="... [container-type:normal]"`, as done for the Roles
+    `FieldGroup` in `UserFormPage`). `FieldGroup`'s default class always includes `@container/
+    field-group` (`container-type: inline-size`) — needed only for the `Field` "responsive"
+    orientation variant, which nothing in this app currently uses. Left enabled on a *nested*
+    FieldGroup, it triggers a real Chromium layout bug: the element renders at its correct height
+    on first paint, then collapses to `0px` (and becomes unclickable) on the very next re-render
+    of that subtree — reproduced live by simply unchecking a Roles checkbox. Confirmed via a
+    live DOM diff that no class or DOM node actually changes across the collapse, and that
+    setting `container-type: normal` is what fixes it (`flex-shrink: 0` does not) — so treat any
+    future nested `FieldGroup` the same way unless it actually needs the responsive variant.
 - **Styling**: TailwindCSS with the `cn()` utility for conditional class merging
 - **State management**: React hooks (`useState`, `useEffect`, `useCallback`, `useMemo`); reach
   for a dedicated state library only when prop-drilling/hook composition actually breaks down

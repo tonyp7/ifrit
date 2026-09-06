@@ -14,8 +14,8 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { useAuth } from "@/hooks/useAuth";
 
 export function LoginPage() {
@@ -63,30 +63,35 @@ export function LoginPage() {
           <CardDescription>{t("Enter your email and password to continue.")}</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4" noValidate>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="email">{t("Email")}</Label>
-              <Input id="email" type="email" autoComplete="email" {...register("email")} />
-              {errors.email && (
-                <p className="text-sm text-destructive">{errors.email.message}</p>
-              )}
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="password">{t("Password")}</Label>
-              <Input
-                id="password"
-                type="password"
-                autoComplete="current-password"
-                {...register("password")}
-              />
-              {errors.password && (
-                <p className="text-sm text-destructive">{errors.password.message}</p>
-              )}
-            </div>
-            {formError && <p className="text-sm text-destructive">{formError}</p>}
-            <Button type="submit" disabled={isSubmitting} className="mt-2">
-              {isSubmitting ? t("Signing in…") : t("Sign in")}
-            </Button>
+          <form onSubmit={handleSubmit(onSubmit)} noValidate>
+            <FieldGroup>
+              <Field data-invalid={!!errors.email}>
+                <FieldLabel htmlFor="email">{t("Email")}</FieldLabel>
+                <Input
+                  id="email"
+                  type="email"
+                  autoComplete="email"
+                  aria-invalid={!!errors.email}
+                  {...register("email")}
+                />
+                <FieldError errors={errors.email && [errors.email]} />
+              </Field>
+              <Field data-invalid={!!errors.password}>
+                <FieldLabel htmlFor="password">{t("Password")}</FieldLabel>
+                <Input
+                  id="password"
+                  type="password"
+                  autoComplete="current-password"
+                  aria-invalid={!!errors.password}
+                  {...register("password")}
+                />
+                <FieldError errors={errors.password && [errors.password]} />
+              </Field>
+              {formError && <p className="text-sm text-destructive">{formError}</p>}
+              <Button type="submit" disabled={isSubmitting} className="mt-2">
+                {isSubmitting ? t("Signing in…") : t("Sign in")}
+              </Button>
+            </FieldGroup>
           </form>
         </CardContent>
       </Card>

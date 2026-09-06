@@ -13,8 +13,16 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Field,
+  FieldDescription,
+  FieldError,
+  FieldGroup,
+  FieldLabel,
+  FieldLegend,
+  FieldSet,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Switch } from "@/components/ui/switch";
 import { PasswordStrengthMeter } from "@/components/users/PasswordStrengthMeter";
@@ -184,32 +192,32 @@ export function UserFormPage() {
           <CardTitle>{isNew ? t("New User") : t("Edit User")}</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6">
-            <div className="flex flex-col gap-4">
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="full_name">{t("Full name")}</Label>
-                <Input id="full_name" {...register("full_name")} />
-                {errors.full_name && (
-                  <p className="text-sm text-destructive">{errors.full_name.message}</p>
-                )}
-              </div>
+          <form onSubmit={handleSubmit(onSubmit)}>
+            <FieldGroup>
+              <Field data-invalid={!!errors.full_name}>
+                <FieldLabel htmlFor="full_name">{t("Full name")}</FieldLabel>
+                <Input
+                  id="full_name"
+                  aria-invalid={!!errors.full_name}
+                  {...register("full_name")}
+                />
+                <FieldError errors={errors.full_name && [errors.full_name]} />
+              </Field>
 
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="name_id">{t("Login identity")}</Label>
-                <Input id="name_id" {...register("name_id")} />
-                {errors.name_id && (
-                  <p className="text-sm text-destructive">{errors.name_id.message}</p>
-                )}
-              </div>
+              <Field data-invalid={!!errors.name_id}>
+                <FieldLabel htmlFor="name_id">{t("Login identity")}</FieldLabel>
+                <Input id="name_id" aria-invalid={!!errors.name_id} {...register("name_id")} />
+                <FieldError errors={errors.name_id && [errors.name_id]} />
+              </Field>
 
-              <div className="flex items-center gap-2">
+              <Field orientation="horizontal">
                 <Switch
                   id="is_sso"
                   checked={watchedIsSso}
                   onCheckedChange={(checked) => setValue("is_sso", checked)}
                 />
-                <Label htmlFor="is_sso">{t("SSO User")}</Label>
-              </div>
+                <FieldLabel htmlFor="is_sso">{t("SSO User")}</FieldLabel>
+              </Field>
 
               {showSsoWarning && (
                 <Alert variant="destructive">
@@ -224,60 +232,66 @@ export function UserFormPage() {
               )}
 
               {showPasswordField && (
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="password">{t("Initial password")}</Label>
-                  <Input id="password" type="password" {...register("password")} />
-                  {errors.password && (
-                    <p className="text-sm text-destructive">{errors.password.message}</p>
-                  )}
+                <Field data-invalid={!!errors.password}>
+                  <FieldLabel htmlFor="password">{t("Initial password")}</FieldLabel>
+                  <Input
+                    id="password"
+                    type="password"
+                    aria-invalid={!!errors.password}
+                    {...register("password")}
+                  />
+                  <FieldError errors={errors.password && [errors.password]} />
                   <PasswordStrengthMeter password={watchedPassword} />
-                </div>
+                </Field>
               )}
 
-              <div className="flex flex-col gap-2">
-                <Label>{t("Roles")}</Label>
-                <div className="flex flex-col gap-2">
+              <FieldSet data-invalid={!!errors.roles}>
+                <FieldLegend variant="label">{t("Roles")}</FieldLegend>
+                {/* [container-type:normal] disables FieldGroup's default `@container` query
+                    containment: we never use the "responsive" Field orientation that needs it,
+                    and leaving it on triggers a real Chromium bug where this nested FieldGroup
+                    (a container-query element inside another one) collapses to 0 height on the
+                    next re-render — reproduced live by unchecking a role checkbox. */}
+                <FieldGroup className="gap-3 [container-type:normal]">
                   {ALL_ROLES.map((role) => (
-                    <div key={role} className="flex items-center gap-2">
+                    <Field orientation="horizontal" key={role}>
                       <Checkbox
                         id={`role-${role}`}
                         checked={watchedRoles.includes(role)}
                         disabled={role === "administrator" && isEditingSelf}
                         onCheckedChange={(checked) => toggleRole(role, checked === true)}
                       />
-                      <Label htmlFor={`role-${role}`} className="font-normal">
+                      <FieldLabel htmlFor={`role-${role}`} className="font-normal">
                         {t(ROLE_LABELS[role])}
-                      </Label>
-                    </div>
+                      </FieldLabel>
+                    </Field>
                   ))}
-                </div>
+                </FieldGroup>
                 {isEditingSelf && (
-                  <p className="text-sm text-muted-foreground">
+                  <FieldDescription>
                     {t("You can't remove your own administrator access.")}
-                  </p>
+                  </FieldDescription>
                 )}
-                {errors.roles && (
-                  <p className="text-sm text-destructive">{errors.roles.message}</p>
-                )}
+                <FieldError errors={errors.roles && [errors.roles]} />
+              </FieldSet>
+
+              {formError && <p className="text-sm text-destructive">{formError}</p>}
+
+              <Separator />
+
+              <div className="flex justify-between">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigate("/configuration/users")}
+                >
+                  {t("Close", { ns: "common" })}
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {t("Save", { ns: "common" })}
+                </Button>
               </div>
-            </div>
-
-            {formError && <p className="text-sm text-destructive">{formError}</p>}
-
-            <Separator />
-
-            <div className="flex justify-between">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate("/configuration/users")}
-              >
-                {t("Close", { ns: "common" })}
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {t("Save", { ns: "common" })}
-              </Button>
-            </div>
+            </FieldGroup>
           </form>
         </CardContent>
       </Card>

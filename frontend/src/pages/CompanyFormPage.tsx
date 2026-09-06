@@ -13,8 +13,8 @@ import { PartyIdentifiersTable } from "@/components/companies/PartyIdentifiersTa
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import type { CompanyDetail } from "@/types/company";
 
@@ -161,91 +161,92 @@ export function CompanyFormPage() {
               (their own dialogs render via a Portal, so nesting them here is safe — no
               actual nested <form> in the DOM), then the Save/Close footer at the very
               bottom, in the conventional position — not sandwiched above the tables. */}
-          <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6">
-            <div className="flex flex-col gap-4">
-              <div className="flex items-center gap-2">
+          <form onSubmit={handleSubmit(onSubmit)}>
+            <FieldGroup>
+              <Field orientation="horizontal">
                 <Checkbox
                   id="is_vendor"
                   checked={watch("is_vendor")}
                   onCheckedChange={(checked) => setValue("is_vendor", checked === true)}
                 />
-                <Label htmlFor="is_vendor">{t("Vendor")}</Label>
-              </div>
+                <FieldLabel htmlFor="is_vendor">{t("Vendor")}</FieldLabel>
+              </Field>
 
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="legal_name">{t("Legal name")}</Label>
-                <Input id="legal_name" {...register("legal_name")} />
-                {errors.legal_name && (
-                  <p className="text-sm text-destructive">{errors.legal_name.message}</p>
-                )}
-              </div>
+              <Field data-invalid={!!errors.legal_name}>
+                <FieldLabel htmlFor="legal_name">{t("Legal name")}</FieldLabel>
+                <Input
+                  id="legal_name"
+                  aria-invalid={!!errors.legal_name}
+                  {...register("legal_name")}
+                />
+                <FieldError errors={errors.legal_name && [errors.legal_name]} />
+              </Field>
 
-              <div className="flex flex-col gap-2">
-                <Label htmlFor="trading_name">{t("Trading name")}</Label>
+              <Field>
+                <FieldLabel htmlFor="trading_name">{t("Trading name")}</FieldLabel>
                 <Input id="trading_name" {...register("trading_name")} />
-              </div>
+              </Field>
 
               <div className="grid grid-cols-2 gap-4">
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="legal_form">{t("Legal form")}</Label>
+                <Field>
+                  <FieldLabel htmlFor="legal_form">{t("Legal form")}</FieldLabel>
                   <Input
                     id="legal_form"
                     placeholder={t("Ltd, GmbH, SA…")}
                     {...register("legal_form")}
                   />
-                </div>
-                <div className="flex flex-col gap-2">
-                  <Label htmlFor="country_of_registration">
+                </Field>
+                <Field data-invalid={!!errors.country_of_registration}>
+                  <FieldLabel htmlFor="country_of_registration">
                     {t("Country of registration")}
-                  </Label>
+                  </FieldLabel>
                   <Input
                     id="country_of_registration"
                     maxLength={2}
+                    aria-invalid={!!errors.country_of_registration}
                     {...register("country_of_registration")}
                   />
-                  {errors.country_of_registration && (
-                    <p className="text-sm text-destructive">
-                      {errors.country_of_registration.message}
-                    </p>
-                  )}
-                </div>
+                  <FieldError
+                    errors={errors.country_of_registration && [errors.country_of_registration]}
+                  />
+                </Field>
               </div>
-            </div>
 
-            <Separator />
+              <Separator />
 
-            <PartyIdentifiersTable
-              companyId={company?.id ?? null}
-              identifiers={company?.identifiers ?? []}
-              onChanged={refreshCompany}
-              ensureSaved={ensureSaved}
-            />
+              <PartyIdentifiersTable
+                companyId={company?.id ?? null}
+                identifiers={company?.identifiers ?? []}
+                onChanged={refreshCompany}
+                ensureSaved={ensureSaved}
+              />
 
-            <Separator />
+              <Separator />
 
-            <AddressesTable
-              companyId={company?.id ?? null}
-              addresses={company?.addresses ?? []}
-              onChanged={refreshCompany}
-              ensureSaved={ensureSaved}
-            />
+              <AddressesTable
+                companyId={company?.id ?? null}
+                addresses={company?.addresses ?? []}
+                onChanged={refreshCompany}
+                ensureSaved={ensureSaved}
+              />
 
-            {formError && <p className="text-sm text-destructive">{formError}</p>}
+              {formError && <p className="text-sm text-destructive">{formError}</p>}
 
-            <Separator />
+              <Separator />
 
-            <div className="flex justify-between">
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => navigate("/configuration/companies")}
-              >
-                {t("Close", { ns: "common" })}
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {t("Save", { ns: "common" })}
-              </Button>
-            </div>
+              <div className="flex justify-between">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigate("/configuration/companies")}
+                >
+                  {t("Close", { ns: "common" })}
+                </Button>
+                <Button type="submit" disabled={isSubmitting}>
+                  {t("Save", { ns: "common" })}
+                </Button>
+              </div>
+            </FieldGroup>
           </form>
         </CardContent>
       </Card>
