@@ -1,3 +1,6 @@
+from datetime import date, timedelta
+
+from app.models.time_entry import TimeEntry
 from tests.factories import create_company, create_currency, create_user
 
 
@@ -437,3 +440,99 @@ async def test_closed_project_blocks_edits_except_status(client, db_session) -> 
     )
     assert reopen.status_code == 200
     assert reopen.json()["status"] == "active"
+
+
+async def test_active_project_blocks_service_line_delete_with_logged_time(
+    client, db_session
+) -> None:
+    await _login_manager(client, db_session)
+    vendor, client_company, currency = await _setup_refs(db_session)
+    consultant = await create_user(
+        db_session,
+        name_id="consultant-logged@example.com",
+        password="pw",
+        role_name="consultant",
+    )
+
+    create = await client.post(
+        "/api/projects", json=_project_payload(vendor, client_company, currency)
+    )
+    project_id = create.json()["id"]
+    add_line = await client.post(
+        f"/api/projects/{project_id}/service-lines",
+        json={
+            "quantity": "10",
+            "uom": "hours",
+            "unit_price": "100.00",
+            "user_ids": [str(consultant.id)],
+        },
+    )
+    line_id = add_line.json()["id"]
+
+    activate = await client.patch(
+        f"/api/projects/{project_id}",
+        json=_project_payload(vendor, client_company, currency, status="active"),
+    )
+    assert activate.status_code == 200
+
+    db_session.add(
+        TimeEntry(
+            user_id=consultant.id,
+            service_line_id=line_id,
+            date=date(2026, 1, 5),
+            time_entry=timedelta(hours=8),
+        )
+    )
+    await db_session.commit()
+
+    delete_line = await client.delete(
+        f"/api/projects/{project_id}/service-lines/{line_id}"
+    )
+    assert delete_line.status_code == 409
+
+    # Editing remains allowed — only deletion is blocked (see
+    # docs/requirements/project.md#validation-rules-1).
+    update_line = await client.patch(
+        f"/api/projects/{project_id}/service-lines/{line_id}",
+        json={
+            "quantity": "5",
+            "uom": "hours",
+            "unit_price": "100.00",
+            "user_ids": [str(consultant.id)],
+        },
+    )
+    assert update_line.status_code == 200
+
+    detail = await client.get(f"/api/projects/{project_id}")
+    assert len(detail.json()["service_lines"]) == 1
+
+
+async def test_active_project_allows_service_line_delete_without_logged_time(
+    client, db_session
+) -> None:
+    await _login_manager(client, db_session)
+    vendor, client_company, currency = await _setup_refs(db_session)
+
+    create = await client.post(
+        "/api/projects", json=_project_payload(vendor, client_company, currency)
+    )
+    project_id = create.json()["id"]
+    add_line = await client.post(
+        f"/api/projects/{project_id}/service-lines",
+        json={"quantity": "10", "uom": "hours", "unit_price": "100.00", "user_ids": []},
+    )
+    line_id = add_line.json()["id"]
+
+    activate = await client.patch(
+        f"/api/projects/{project_id}",
+        json=_project_payload(vendor, client_company, currency, status="active"),
+    )
+    assert activate.status_code == 200
+
+    delete_line = await client.delete(
+        f"/api/projects/{project_id}/service-lines/{line_id}"
+    )
+    assert delete_line.status_code == 204
+
+    detail = await client.get(f"/api/projects/{project_id}")
+    assert detail.json()["service_lines"] == []

@@ -8,6 +8,7 @@ from sqlalchemy.orm import aliased, selectinload
 from app.models.company import Company
 from app.models.currency import Currency
 from app.models.project import Project, ServiceLine
+from app.models.time_entry import TimeEntry
 from app.models.user import User
 from app.schemas.project import (
     ProjectDetail,
@@ -31,6 +32,13 @@ class InvalidReferenceError(Exception):
     """Raised when a write references a vendor/client/currency/consultant that
     doesn't satisfy the app-level rule for that reference (see
     docs/requirements/project.md#1-entity-project)."""
+
+
+class ServiceLineHasLoggedTimeError(Exception):
+    """Raised when deleting a service line on an `active` project is attempted
+    while time has already been logged against it (see
+    docs/requirements/project.md#validation-rules-1) — editing remains allowed,
+    only deletion is blocked."""
 
 
 # Quantized to unit_price's column scale (NUMERIC(14, 4) — see app/models/project.py) so
@@ -306,16 +314,25 @@ async def update_service_line(
     return line
 
 
+async def _has_logged_time(db: AsyncSession, service_line_id: uuid.UUID) -> bool:
+    result = await db.execute(
+        select(TimeEntry.id).where(TimeEntry.service_line_id == service_line_id).limit(1)
+    )
+    return result.scalar_one_or_none() is not None
+
+
 async def delete_service_line(
     db: AsyncSession, project: Project, line: ServiceLine
 ) -> None:
-    # Deletion should additionally be blocked on an `active` project once any time has
-    # been logged against the line — not yet enforceable, no time-entry concept exists
-    # yet (see docs/requirements/timesheet.md and
-    # docs/requirements/project.md#validation-rules-1). Only the `closed`-project block
-    # is implemented for now.
     if project.status == "closed":
         raise ProjectReadOnlyError("Cannot delete a service line on a closed project")
+    # On an `active` project, a line with any logged time is edit-only, not
+    # deletable — see docs/requirements/project.md#validation-rules-1. `draft`
+    # has no such restriction (see docs/requirements/project.md#service-lines).
+    if project.status == "active" and await _has_logged_time(db, line.id):
+        raise ServiceLineHasLoggedTimeError(
+            "Cannot delete a service line with logged time on an active project"
+        )
     line.is_active = False
     await db.commit()
 

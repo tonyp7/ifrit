@@ -15,7 +15,11 @@ from app.schemas.project import (
     ServiceLineWrite,
 )
 from app.services import project_service
-from app.services.project_service import InvalidReferenceError, ProjectReadOnlyError
+from app.services.project_service import (
+    InvalidReferenceError,
+    ProjectReadOnlyError,
+    ServiceLineHasLoggedTimeError,
+)
 
 router = APIRouter(
     prefix="/projects",
@@ -193,7 +197,7 @@ async def delete_service_line(
     line = await _get_service_line_or_404(db, project_id, line_id)
     try:
         await project_service.delete_service_line(db, project, line)
-    except ProjectReadOnlyError as err:
+    except (ProjectReadOnlyError, ServiceLineHasLoggedTimeError) as err:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=str(err)
         ) from err
