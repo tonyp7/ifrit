@@ -1,9 +1,8 @@
 import {
-  getCoreRowModel,
-  useReactTable,
+  useTable,
   type ColumnDef,
   type SortingState,
-  type VisibilityState,
+  type ColumnVisibilityState,
 } from "@tanstack/react-table";
 import { Columns3, MoreHorizontal, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -35,6 +34,7 @@ import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/data-table/DataTable";
 import { DataTableColumnHeader } from "@/components/data-table/DataTableColumnHeader";
 import { DataTablePagination } from "@/components/data-table/DataTablePagination";
+import { features } from "@/components/data-table/features";
 import { toSortParams } from "@/components/data-table/sorting";
 import { ApiError } from "@/api/client";
 import { deactivateProject, duplicateProject, listProjects } from "@/api/projects";
@@ -70,7 +70,7 @@ export function ProjectsTable() {
   const [refreshToken, setRefreshToken] = useState(0);
   // vendor_company_name is opt-in via the "Columns" button (see
   // docs/requirements/project.md#projects-list-screen) — hidden by default.
-  const [columnVisibility, setColumnVisibility] = useState<VisibilityState>({
+  const [columnVisibility, setColumnVisibility] = useState<ColumnVisibilityState>({
     vendor_company_name: false,
   });
   // Sorting is server-side (see the `manualSorting: true` below and
@@ -138,7 +138,7 @@ export function ProjectsTable() {
     }
   }
 
-  const columns: ColumnDef<ProjectListItem>[] = [
+  const columns: ColumnDef<typeof features, ProjectListItem>[] = [
     {
       accessorKey: "name",
       header: ({ column }) => <DataTableColumnHeader column={column} title={t("Name")} />,
@@ -215,14 +215,18 @@ export function ProjectsTable() {
     },
   ];
 
-  const table = useReactTable({
+  const table = useTable({
+    features,
     data: items,
     columns,
-    getCoreRowModel: getCoreRowModel(),
-    manualFiltering: true,
+    // No columnFilteringFeature registered — search is entirely custom (a debounced
+    // server-side query, not TanStack's own filter row-model), so there's no
+    // `manualFiltering` flag to set: that option only exists as part of
+    // columnFilteringFeature, which this app never uses.
     manualPagination: true,
     // `data` already arrives sorted from the server (see the fetch effect above) —
-    // no getSortedRowModel(), it would only ever reorder this one page in memory.
+    // no sortedRowModel slot on `features`, it would only ever reorder this one
+    // page in memory.
     manualSorting: true,
     pageCount: Math.max(1, Math.ceil(total / pageSize)),
     state: { columnVisibility, sorting },

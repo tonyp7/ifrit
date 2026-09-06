@@ -353,3 +353,124 @@ No Critical findings — the codebase's security-critical defaults (JWT secret, 
 3. ~~**Update `auth.md`'s refresh-mechanism status and `project.md`'s two stale "known divergence" notes**~~ (Findings #8, #9) — **Fixed 2026-09-06**, see the findings for details.
 4. ~~**Reconcile `database.md`'s migration policy with actual practice**~~ (Finding #7) — **Fixed 2026-09-06**: documented as a deliberate, temporary pre-release exception; the stated policy remains correct from release onward.
 5. ~~**Add test coverage for service-line deletion**~~ (Finding #13) — **Fixed 2026-09-06** as part of Finding #1's fix (two new tests added to `test_projects_api.py`).
+
+---
+
+## shadcn/ui Usage Audit (2026-09-06)
+
+A separate, narrower pass, requested specifically to check this codebase's actual shadcn/ui usage against the framework's own best-practice guidance — the `shadcn` skill installed via `pnpm dlx skills add shadcn/ui` (`.agents/skills/shadcn/`, cloned from `github.com/shadcn/ui.git`). Findings continue the numbering above. "Guidance reference" below points at the skill's rule files rather than a `docs/requirements/*.md` spec, since this pass checks framework conventions, not this app's own functional spec.
+
+Every `.tsx` file under `frontend/src` was reviewed: all 19 files in `components/ui/`, every consumer across `components/{companies,projects,timesheet,users,data-table}/` and `pages/`, plus `components.json` and `index.css`.
+
+### 20. `components.json` and the installed primitives are on a legacy shadcn generation, predating most of the rules this audit checks against — Moderate
+
+**What:** `components.json` has `"style": "default"` with no `base`, `iconLibrary`, or `registries` fields at all — fields the current CLI (and the skill's own `info --json` output) always populates. Consistent with that: `components/ui/button.tsx` has no `data-icon` CSS hook (icon sizing/spacing has nothing to attach to), its `outline`/`ghost` variants hover to `bg-secondary` rather than `bg-accent`, and `index.css` never defines `--accent`/`--accent-foreground` at all — a color pair every current shadcn component assumes exists. None of the newer registry items referenced by the skill (`Field`/`FieldGroup`, `InputGroup`, `ToggleGroup`, `Empty`, `Skeleton`, `Avatar`, `Spinner`) have ever been added.
+
+**Where:** `frontend/components.json`, `frontend/src/index.css`, `frontend/src/components/ui/button.tsx`.
+
+**Guidance reference:** `.agents/skills/shadcn/SKILL.md` §Key Fields (`base`, `iconLibrary` expected), `rules/icons.md` (`data-icon` convention), `customization.md` (accent token expected by all components).
+
+**Why it matters:** This is the root cause behind several of the findings below — e.g. `data-icon` (#24) can't be adopted by editing call sites alone, because the installed `button.tsx` doesn't wire it to anything yet. It also means a plain `npx shadcn@latest add button --diff` would show a large, unrequested diff (variant colors, new props) rather than a clean no-op, so any future "just update this one component" request needs to go through the CLI's smart-merge flow (`--dry-run`/`--diff`), not a blind overwrite.
+
+**Severity:** Moderate — no functional bug, but it's the reason several best-practice checks below can't be fixed by a local edit alone.
+
+**Suggested next step:** Not urgent pre-launch. When there's appetite to modernize, use `npx shadcn@latest add <component> --diff` per-component (per the skill's "Updating Components" workflow) rather than re-`init`-ing, since every primitive here has been hand-customized (dark-mode Tailwind v4 tokens, i18n, etc.) and a preset `apply` would overwrite that.
+
+---
+
+### 21. `SelectItem`/`DropdownMenuItem` are never wrapped in their `Group` component — Minor
+
+**What:** The skill's Critical Rule "Items always inside their Group" (`SelectItem` → `SelectGroup`, `DropdownMenuItem` → `DropdownMenuGroup`) is violated in every `Select` and almost every action `DropdownMenu` in the app. `SelectContent` renders `SelectItem`s directly with no `SelectGroup` wrapper in all 5 places `Select` is used (`pages/ProjectFormPage.tsx`, `components/timesheet/AddServiceLineSelect.tsx`, `components/companies/AddressFormDialog.tsx`, `components/companies/IdentifierFormDialog.tsx`, `components/projects/ServiceLineFormDialog.tsx`). Same pattern for the row-actions `DropdownMenu` in `ServiceLinesTable.tsx`, `PartyIdentifiersTable.tsx`, `CompaniesTable.tsx`, `AddressesTable.tsx`, `UsersTable.tsx`, and `ProjectsTable.tsx` (two menus). The one exception is `NavBar.tsx`'s user-avatar menu, which does correctly wrap its settings items in a `DropdownMenuGroup` — showing the convention is known, just not applied consistently.
+
+**Where:** Listed above; the installed `components/ui/select.tsx` and `dropdown-menu.tsx` both fully support `SelectGroup`/`DropdownMenuGroup` already, so this isn't blocked by Finding #20.
+
+**Guidance reference:** `.agents/skills/shadcn/rules/composition.md` §Items always inside their Group component.
+
+**Why it matters:** Functionally inert today (Radix's un-grouped rendering works fine visually and behaviorally for a single flat list) — this is purely a convention/accessibility-semantics gap: `SelectGroup`/`DropdownMenuGroup` exist to carry `role="group"` and (with a `SelectLabel`/`DropdownMenuLabel`) an accessible group name for screen readers. None of these menus currently need a label since they're single flat lists, which is likely why it was never added — but it's worth fixing for consistency before any of these menus grows a second logical section (e.g. adding a "Danger zone" separator group to the row-actions menus, which already visually separate "Delete" with `DropdownMenuSeparator`).
+
+**Severity:** Minor.
+
+**Suggested next step:** Wrap each flat item list in a single `SelectGroup`/`DropdownMenuGroup` — a mechanical, low-risk change with no visual effect. Not urgent.
+
+---
+
+### 22. Forms use raw `div` + `Label` + `Input` instead of `FieldGroup`/`Field`/`FieldSet` — Moderate
+
+**What:** All 4 form pages (`LoginPage.tsx`, `UserFormPage.tsx`, `CompanyFormPage.tsx`, `ProjectFormPage.tsx`) build every field as `<div className="flex flex-col gap-2"><Label>...</Label><Input .../>{error && <p>...}</div>`, and group related fields with plain `<div className="flex flex-col gap-4">`. The `Field`/`FieldGroup`/`FieldLabel`/`FieldDescription`/`FieldSet`/`FieldLegend` components the skill treats as the required form-layout primitives are not installed anywhere in `components/ui/`. The clearest missed fit is `UserFormPage.tsx`'s Roles checkbox list (`ALL_ROLES.map(...)` rendering a `Checkbox` + `Label` per role under a plain `<Label>{t("Roles")}</Label>`) — exactly the "related checkboxes under a heading" case the skill says should be a `FieldSet` + `FieldLegend`, not a `div` with a heading.
+
+**Where:** `frontend/src/pages/LoginPage.tsx`, `UserFormPage.tsx`, `CompanyFormPage.tsx`, `ProjectFormPage.tsx`.
+
+**Guidance reference:** `.agents/skills/shadcn/rules/forms.md` §Forms use FieldGroup + Field, §FieldSet + FieldLegend for grouping related fields.
+
+**Why it matters:** The current hand-rolled markup already achieves the same visual result and reads reasonably clearly, so this isn't a user-facing bug. The main practical cost is validation-state styling: the skill's `data-invalid`/`aria-invalid` pattern (`data-invalid` on `Field`, `aria-invalid` on the control) gives a field's label and description a consistent invalid-state look for free; today each form hand-writes its own `{errors.x && <p className="text-sm text-destructive">...}` per field with no `data-invalid`/`aria-invalid` wired onto the `Input`/`Label` at all, so screen readers get no `aria-invalid` signal on any of these forms' inputs today.
+
+**Severity:** Moderate — the missing `aria-invalid` is a real (if minor) accessibility gap across every form in the app, not just a style-guide nit.
+
+**Suggested next step:** Two independent, separable pieces: (1) a cheap, high-value fix regardless of the rest — add `aria-invalid={!!errors.x}` to each `Input` (react-hook-form makes this a one-line addition per field); (2) the larger `FieldGroup`/`Field`/`FieldSet` migration, which is a genuine (if mechanical) refactor across all 4 forms — worth doing opportunistically the next time one of these forms is touched, not as a standalone task.
+
+---
+
+### 23. Submit buttons swap text on `isSubmitting` with no `Spinner` — Minor
+
+**What:** `LoginPage.tsx`'s submit button renders `{isSubmitting ? t("Signing in…") : t("Sign in")}`; `CompanyFormPage.tsx`, `ProjectFormPage.tsx`, and `UserFormPage.tsx` only `disabled={isSubmitting}` the button with no text or visual change at all. None compose a `Spinner`, which isn't installed in `components/ui/`.
+
+**Where:** `frontend/src/pages/LoginPage.tsx:88`, `CompanyFormPage.tsx:245`, `ProjectFormPage.tsx:386`, `UserFormPage.tsx:277`.
+
+**Guidance reference:** `.agents/skills/shadcn/rules/composition.md` §Button has no isPending or isLoading prop (the `Spinner` + `data-icon` + `disabled` composition it recommends instead).
+
+**Why it matters:** `disabled` alone (Company/Project/User forms) is a real UX gap, not just a style nit — on a slow network a user gets zero visual feedback that the click registered at all beyond the button graying out, which reads as unresponsive rather than "saving." `LoginPage`'s text-swap is a reasonable stopgap but is inconsistent with the other three forms.
+
+**Severity:** Minor.
+
+**Suggested next step:** Add `components/ui/spinner.tsx` (`npx shadcn@latest add spinner`) and standardize all 4 submit buttons on the `<Spinner data-icon="inline-start" />` + loading-label pattern.
+
+---
+
+### 24. Icons inside buttons use manual `mr-2 h-4 w-4` instead of `data-icon` — Minor (blocked by Finding #20)
+
+**What:** All 14 icon-in-button/menu-item call sites (`Plus`, `Columns3`, `SunMoon`, `LanguagesIcon`, `LogOut`, etc. across `NavBar.tsx`, `ProjectsTable.tsx`, `CompaniesTable.tsx`, `UsersTable.tsx`, `ServiceLinesTable.tsx`, `PartyIdentifiersTable.tsx`, `AddressesTable.tsx`) hand-size and hand-space icons with `className="mr-2 h-4 w-4"` rather than `data-icon="inline-start"`.
+
+**Where:** See file list above; sample at `frontend/src/components/projects/ProjectsTable.tsx:250,271`.
+
+**Guidance reference:** `.agents/skills/shadcn/rules/icons.md` §Icons in Button use data-icon attribute.
+
+**Why it matters:** Purely cosmetic/consistency today — the manual classes render correctly. Flagged mainly because it's a direct consequence of Finding #20: the installed `button.tsx` has no `data-icon` CSS selector wired up, so switching these call sites to `data-icon` alone would silently do nothing (no error, but no effect) until `button.tsx` itself is updated from upstream.
+
+**Severity:** Minor.
+
+**Suggested next step:** Bundle with Finding #20's eventual `button.tsx` update — not worth doing in isolation.
+
+---
+
+### 25. Timesheet lock/weekend cell colors use raw Tailwind reds and manual `dark:` overrides instead of a semantic token — Moderate
+
+**What:** `TimesheetDesktopGrid.tsx` (`bg-red-200 dark:bg-red-900/50` / `bg-red-100 dark:bg-red-950/40`) and `TimesheetMobileView.tsx` (`bg-red-100 dark:bg-red-950/40`) hand-pick raw Tailwind red shades with a manual `dark:` variant for the locked/weekend cell backgrounds, rather than a semantic CSS variable.
+
+**Where:** `frontend/src/components/timesheet/TimesheetDesktopGrid.tsx:187-188`, `components/timesheet/TimesheetMobileView.tsx:133`.
+
+**Guidance reference:** `.agents/skills/shadcn/rules/styling.md` §No raw color values for status/state indicators, §No manual dark: color overrides.
+
+**Why it matters:** This is the same code this conversation already fixed once for a different bug (the `cn()` background-class collision that made locked weekday/weekend cells indistinguishable) — so it's a natural next stop, but on its own it's a style-consistency issue, not a correctness one: the two `dark:` shades were deliberately hand-picked for contrast/legibility against the app's dark background, and today's fix already verified they render distinctly. `Badge`/`bg-destructive` don't fit a full-cell calendar background the way they fit a small status pill, so the "correct" fix per `customization.md` is a purpose-built pair of CSS variables (e.g. `--calendar-locked`/`--calendar-locked-dark`) rather than forcing this into the generic `--destructive` token, which is semantically about form/action errors, not calendar-cell state.
+
+**Severity:** Moderate (real rule violation, but not a functional bug — the current colors are correct and already verified).
+
+**Suggested next step:** If the timesheet's visual language grows more states (e.g. a third color for "pending approval"), define dedicated `--calendar-*` variables in `index.css` at that point rather than continuing to hand-pick raw Tailwind shades per state. Not urgent in isolation.
+
+---
+
+### Note: several skill-recommended components have no current use case in this app
+
+`ToggleGroup`, `InputGroup`, `Empty`, `Skeleton`, `Avatar`, and `FieldSet`/`Field` (see Finding #22) are not installed. Checked specifically for each: no 2-7-option exclusive toggle exists anywhere that's currently faked with a manual `Button` loop (none found); no `Input` has a button or icon manually absolute-positioned inside it (the one `absolute`-positioned element found, `TimesheetMobileView.tsx:92`, is an unrelated small status-dot badge, not an input decoration); the Data Table's empty state (`DataTable.tsx`'s single centered `<TableCell>{emptyMessage}</TableCell>` row) is a reasonable fit for a table body — the full `Empty` component's icon/title/description/action layout doesn't fit inside a single table row; no loading-skeleton screens exist anywhere in the app today (pages either render immediately from already-fetched data or show nothing during the brief fetch); and no user avatars are rendered anywhere (`NavBar.tsx`'s user menu trigger is icon-only). None of this is a violation — these are "not needed yet," not "needed and done wrong." Worth a second look if/when a matching UI need actually arises (e.g. a settings page with a genuine 2-3-way toggle, or a slower-loading dashboard that would benefit from `Skeleton`).
+
+### shadcn/ui audit summary
+
+| Finding | Severity | Category |
+|---|---|---|
+| #20 Legacy shadcn generation (`components.json`, missing accent token, no `data-icon` hook) | Moderate | Foundational |
+| #21 `SelectItem`/`DropdownMenuItem` not wrapped in `Group` | Minor | Composition |
+| #22 Forms bypass `FieldGroup`/`Field`/`FieldSet` (+ missing `aria-invalid`) | Moderate | Forms/Accessibility |
+| #23 Submit buttons lack a `Spinner` composition | Minor | Composition |
+| #24 Manual icon sizing instead of `data-icon` | Minor | Icons (blocked by #20) |
+| #25 Timesheet colors use raw Tailwind + manual `dark:` | Moderate | Styling |
+
+No Critical or Major findings. Positives confirmed during this pass, worth noting since they're easy to get wrong: `cn()` is used consistently everywhere for conditional classes (no manual ternary string interpolation found anywhere); no manual `z-index` overrides on any overlay component; every `Dialog`/`AlertDialog` has a proper `Title` (grep-verified across all 13 consumer files); `TabsTrigger` is correctly nested inside `TabsList` in the one place `Tabs` is used (`TimesheetHeader.tsx`); no `space-x-*`/`space-y-*` usage anywhere (the app already uses `flex` + `gap-*` throughout); and `Separator` (not raw `<hr>`/`border-t` divs) is used consistently since the earlier normalization pass in this same conversation.

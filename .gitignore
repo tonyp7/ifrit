@@ -35,3 +35,6 @@ yarn-error.log*
 
 # Helpers for developments
 .debug/
+.agents/
+.claude/
+skills-lock.json

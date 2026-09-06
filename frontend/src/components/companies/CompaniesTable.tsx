@@ -1,6 +1,5 @@
 import {
-  getCoreRowModel,
-  useReactTable,
+  useTable,
   type ColumnDef,
   type SortingState,
 } from "@tanstack/react-table";
@@ -33,6 +32,7 @@ import { Input } from "@/components/ui/input";
 import { DataTable } from "@/components/data-table/DataTable";
 import { DataTableColumnHeader } from "@/components/data-table/DataTableColumnHeader";
 import { DataTablePagination } from "@/components/data-table/DataTablePagination";
+import { features } from "@/components/data-table/features";
 import { toSortParams } from "@/components/data-table/sorting";
 import { ApiError } from "@/api/client";
 import { deactivateCompany, duplicateCompany, listCompanies } from "@/api/companies";
@@ -123,7 +123,7 @@ export function CompaniesTable() {
     }
   }
 
-  const columns: ColumnDef<CompanyListItem>[] = [
+  const columns: ColumnDef<typeof features, CompanyListItem>[] = [
     {
       accessorKey: "legal_name",
       header: ({ column }) => <DataTableColumnHeader column={column} title={t("Legal name")} />,
@@ -183,14 +183,18 @@ export function CompaniesTable() {
     },
   ];
 
-  const table = useReactTable({
+  const table = useTable({
+    features,
     data: items,
     columns,
-    getCoreRowModel: getCoreRowModel(),
-    manualFiltering: true,
+    // No columnFilteringFeature registered — search is entirely custom (a debounced
+    // server-side query, not TanStack's own filter row-model), so there's no
+    // `manualFiltering` flag to set: that option only exists as part of
+    // columnFilteringFeature, which this app never uses.
     manualPagination: true,
     // `data` already arrives sorted from the server (see the fetch effect above) —
-    // no getSortedRowModel(), it would only ever reorder this one page in memory.
+    // no sortedRowModel slot on `features`, it would only ever reorder this one
+    // page in memory.
     manualSorting: true,
     pageCount: Math.max(1, Math.ceil(total / pageSize)),
     state: { sorting },

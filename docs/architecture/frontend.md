@@ -15,9 +15,15 @@ Authorized frontend dependencies (per the Dependency Policy in [AGENTS.md](../..
   `clsx`, `tailwind-merge`, `lucide-react`, `@radix-ui/*` (as pulled in per component)
 - `react-router-dom` — client-side routing
 - `react-hook-form`, `zod`, `@hookform/resolvers` — form state and validation
-- `@tanstack/react-table` — powers shadcn/ui's Data Table pattern (sorting, filtering,
-  pagination); use its native column filter for search rather than a custom implementation
-  (see [company.md](../requirements/company.md#companies-list-screen))
+- `@tanstack/react-table` (v9 — `useTable`/`tableFeatures()`, not the v8 `useReactTable` API;
+  see [Component Patterns](#component-patterns) below) — powers shadcn/ui's Data Table pattern.
+  **Resolved, correcting an earlier version of this line**: search is *not* TanStack's native
+  column filter — it's a debounced call to the backend's own `search` query param (see
+  [company.md](../requirements/company.md#companies-list-screen)), since every list here is
+  server-paginated and a client-side text filter can only ever see the current page's rows. This
+  app registers exactly three features (`rowSortingFeature`, `rowPaginationFeature`,
+  `columnVisibilityFeature` — see `components/data-table/features.ts`) and no
+  `columnFilteringFeature` at all.
 - `react-i18next`, `i18next`, `i18next-http-backend` — internationalization; the backend
   loads namespace JSON files from `public/locales` at runtime (not bundled) — see
   [Internationalization (i18n)](#internationalization-i18n) below
@@ -68,32 +74,56 @@ Authorized frontend dependencies (per the Dependency Policy in [AGENTS.md](../..
   conditional/function (e.g. drive the active state off the `aria-current` NavLink already
   sets, via Tailwind's `aria-[current=page]:` variant, rather than branching in JS) — it keeps
   every icon's styling mechanism structurally identical, not just visually similar.
-- **Data Table shell**: every paginated Data Table (Projects, Companies, Users) shares three
-  components under `frontend/src/components/data-table/` rather than each hand-rolling its own
-  `useReactTable` render/pagination JSX: `DataTable` (the header/body/empty-state table shell),
-  `DataTableColumnHeader` (a sortable-column header cell — clicking it directly toggles
-  ascending/descending, showing the current direction via an `ArrowUp`/`ArrowDown` icon or
-  `ChevronsUpDown` when unsorted; no intermediate menu, matching the convention most data tables
-  use, not the Asc/Desc/Hide dropdown shadcn's own `components/data-table-column-header.tsx`
-  template at https://ui.shadcn.com/docs/components/aria/data-table shows — column-hiding, where
-  a table has any, stays reachable via that table's own toolbar "Columns" button instead), and
-  `DataTablePagination` (the
-  Previous/Next footer). These live under `components/data-table/`, not `components/ui/`,
-  because they're template/example code per shadcn's own docs (no `npx shadcn add` entry exists
-  for them), not a swappable CLI-managed primitive. Each table still owns its own `useReactTable`
-  call (column defs, search debounce, row-action dropdowns) — only the repeated shell/pagination
-  markup and the sortable-header pattern are shared. **Sorting is server-side**, like search and
-  pagination — `manualSorting: true` on every table, `SortingState` translated into
-  `sort_by`/`sort_dir` query params by `components/data-table/sorting.ts`'s `toSortParams()`, and
-  a sort-target/direction change resets to page 1 (same as a search change). This was originally
-  implemented as a client-side `getSortedRowModel()` over just the current page — which looked
-  correct with one page of dev data, but silently produced the wrong order the moment a table had
-  more than one page, since sorting only ever reordered whatever 50 rows happened to already be
-  in memory. See [Projects List Screen § API contract: sorting](../requirements/project.md
-  #api-contract-sorting) for the backend side (the sortable-column whitelist and the mandatory
-  `id` tie-breaker) — search and pagination stay server-side/manual for the same underlying
-  reason: TanStack's native filter/pagination/sorting row-models all operate on already-loaded
-  rows and can't replace a paginated backend query.
+- **Data Table shell**: every paginated Data Table (Projects, Companies, Users) shares four
+  files under `frontend/src/components/data-table/` rather than each hand-rolling its own
+  `useTable` render/pagination JSX:
+  - `features.ts` — the one `tableFeatures({ rowSortingFeature, rowPaginationFeature,
+    columnVisibilityFeature })` object every table passes to `useTable`. No
+    `columnFilteringFeature` (search is custom, not TanStack's), and deliberately no
+    `sortedRowModel`/`paginatedRowModel` slots for the two features that do get registered —
+    every table sets `manualSorting`/`manualPagination`, so the server has already sorted and
+    paginated `data` before it reaches the table; the feature is registered purely for its
+    column/table APIs and state, matching TanStack's own "server owns processing" pattern for
+    manual features (confirmed against the v9 package's own bundled
+    `skills/client-vs-server/SKILL.md`, not assumed).
+  - `DataTable` — the header/body/empty-state table shell.
+  - `DataTableColumnHeader` — a sortable-column header cell. Clicking it directly toggles
+    ascending/descending, showing the current direction via an `ArrowUp`/`ArrowDown` icon or
+    `ChevronsUpDown` when unsorted — no intermediate menu, matching the convention most data
+    tables use, not the Asc/Desc/Hide dropdown shadcn's own
+    `components/data-table-column-header.tsx` template at
+    https://ui.shadcn.com/docs/components/aria/data-table shows. Column-hiding, where a table
+    has any, stays reachable via that table's own toolbar "Columns" button instead.
+  - `DataTablePagination` — the Previous/Next footer.
+  - `sorting.ts`'s `toSortParams()` — translates `SortingState` into `sort_by`/`sort_dir` query
+    params (see [Projects List Screen § API contract: sorting](../requirements/project.md
+    #api-contract-sorting) for the backend side: the sortable-column whitelist and the mandatory
+    `id` tie-breaker).
+
+  These live under `components/data-table/`, not `components/ui/`, because (aside from
+  `features.ts`) they're template/example code per shadcn's own docs (no `npx shadcn add` entry
+  exists for them), not a swappable CLI-managed primitive. Each table still owns its own
+  `useTable` call (column defs, search debounce, row-action dropdowns) — only the repeated
+  shell/pagination markup, the sortable-header pattern, and the feature registration are shared.
+
+  **Sorting and pagination are both server-side**, same as search (a debounced call to the
+  backend's own `search` param, never TanStack's column filter — that's why
+  `columnFilteringFeature` isn't registered at all): a sort-target/direction change resets to
+  page 1, same as a search change. Sorting was originally implemented as a client-side
+  `getSortedRowModel()` over just the current page — which looked correct with one page of dev
+  data, but silently produced the wrong order the moment a table had more than one page, since
+  it only ever reordered whatever 50 rows happened to already be in memory. TanStack's native
+  filter/pagination/sorting row-models all operate on already-loaded rows and can't replace a
+  paginated backend query, which is why none of the three get a row-model slot here.
+
+  **On the v9 migration itself** (this was originally built against TanStack Table v8's
+  `useReactTable`): the migration was done against v9's real `useTable`/`tableFeatures()` API,
+  not the official `useLegacyTable` v8-compatibility shim (`@tanstack/react-table/legacy`) —
+  that shim is deprecated and explicitly documented, in the package's own bundled migration
+  guide, as "must not become the target architecture." Landing on it would have swapped one
+  form of tech debt (an old major version) for another (a deprecated shim inside the new one)
+  without actually adopting v9's model. Verified via the real installed package's type
+  declarations and its bundled `skills/migrate-v8-to-v9/SKILL.md`, not a secondhand summary.
 - **UI primitives**: shadcn/ui components (`frontend/src/components/ui/`) — customize via the
   shadcn CLI/copy-in pattern, don't fork behavior with ad-hoc wrapper hacks.
   **CRITICAL — always add new primitives via the real CLI** (`npx shadcn@latest add <component>`

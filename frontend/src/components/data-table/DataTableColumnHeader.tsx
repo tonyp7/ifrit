@@ -1,11 +1,14 @@
-import type { Column } from "@tanstack/react-table";
+import type { Column, RowData } from "@tanstack/react-table";
 import { ArrowDown, ArrowUp, ChevronsUpDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import type { features } from "@/components/data-table/features";
 
-interface DataTableColumnHeaderProps<TData, TValue> {
-  column: Column<TData, TValue>;
+// Fixed to this app's one shared `features` registration — see DataTable.tsx's own
+// comment for why a second TFeatures generic isn't worth carrying here.
+interface DataTableColumnHeaderProps<TData extends RowData, TValue> {
+  column: Column<typeof features, TData, TValue>;
   title: string;
   className?: string;
 }
@@ -21,7 +24,7 @@ interface DataTableColumnHeaderProps<TData, TValue> {
 // is template/example code per shadcn's own docs (there's no `npx shadcn add` entry
 // for it), so it lives under components/data-table/ rather than components/ui/ —
 // see docs/architecture/frontend.md#component-patterns.
-export function DataTableColumnHeader<TData, TValue>({
+export function DataTableColumnHeader<TData extends RowData, TValue>({
   column,
   title,
   className,
