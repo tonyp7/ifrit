@@ -1,3 +1,18 @@
+# Deny-by-default
+/*
+
+# --- Synced ---
+!/backend/
+!/docker/
+!/frontend/
+!/README.md
+!/docker-compose.yml
+!/.env.example
+!/.dockerignore
+!/.gitignore
+
+# --- Ignored build/temp/cache files  ---
+
 # Backend (Python / uv)
 backend/.venv/
 backend/__pycache__/
@@ -9,7 +24,6 @@ backend/.ruff_cache/
 backend/htmlcov/
 backend/.coverage
 backend/.coverage.*
-.env
 backend/.env
 
 # Frontend (Node / Vite)
@@ -32,9 +46,3 @@ yarn-error.log*
 .DS_Store
 .vscode/
 .idea/
-
-# Helpers for developments
-.debug/
-.agents/
-.claude/
-skills-lock.json
