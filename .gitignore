@@ -10,6 +10,7 @@
 !/.env.example
 !/.dockerignore
 !/.gitignore
+!/LICENSE
 
 # --- Ignored build/temp/cache files  ---
 
