@@ -1,5 +1,5 @@
 // Fixed rotating palette for service-line rows (see
-// docs/requirements/timesheet.md#interactions--input-rules — "Add service line...
+// specs/requirements/timesheet.md#interactions--input-rules — "Add service line...
 // assigns the next color from a fixed rotating palette"). Assignment is purely
 // positional (a row's color = its index in the current `serviceLines` array), so no
 // separate assignment state needs to be tracked or persisted.

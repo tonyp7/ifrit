@@ -59,7 +59,7 @@ interface ServiceLinesTableProps {
   /** true when the parent Project is `closed` — fully read-only, no add/edit/delete. */
   readOnly: boolean;
   /** The project's invoicing currency's decimal precision, for display formatting
-   * (e.g. 2 for USD, 0 for JPY) — see docs/architecture/database.md#currencies. */
+   * (e.g. 2 for USD, 0 for JPY) — see specs/architecture/database.md#currencies. */
   minorUnit: number | null | undefined;
 }
 

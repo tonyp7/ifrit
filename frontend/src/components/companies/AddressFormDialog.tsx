@@ -32,7 +32,7 @@ const ADDRESS_TYPE_VALUES = Object.keys(ADDRESS_TYPE_LABELS) as [AddressType, ..
 
 // Shape-only, used purely for type inference — the validated instance (with
 // translated messages) is built inside the component via useMemo below, since
-// message strings need t() (see docs/architecture/frontend.md#internationalization-i18n).
+// message strings need t() (see specs/architecture/frontend.md#internationalization-i18n).
 const _shapeSchema = z.object({
   address_type: z.enum(ADDRESS_TYPE_VALUES),
   line1: z.string(),

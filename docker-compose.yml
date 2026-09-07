@@ -1,6 +1,6 @@
 # Production-shaped stack: the combined app image (nginx + static frontend +
 # FastAPI, see docker/Dockerfile) + a stock, unmodified PostgreSQL 18 — see
-# docs/architecture/infra.md § Deployment.
+# specs/architecture/infra.md § Deployment.
 #
 # NOT the dev stack — see docker-compose.dev.yml for a disposable Postgres-only
 # container used when running the backend natively.
@@ -10,7 +10,7 @@
 #   docker compose down
 #
 # AI agents should never run these commands directly unless instructed (see
-# docs/architecture/infra.md).
+# specs/architecture/infra.md).
 
 services:
   app:

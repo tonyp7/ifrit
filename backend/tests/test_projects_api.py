@@ -63,7 +63,7 @@ async def test_list_projects_rejects_administrator_without_manager_role(
     client, db_session
 ) -> None:
     # `projects` is granted by the literal `project_admin` role only — not inferred from
-    # `administrator` (see docs/requirements/user.md#role--screen-access).
+    # `administrator` (see specs/requirements/user.md#role--screen-access).
     await create_user(
         db_session,
         name_id="admin-only@example.com",
@@ -106,7 +106,7 @@ async def test_list_projects_sort_composes_with_pagination(client, db_session) -
     # a client-side-only sort only reorders whatever page is already in memory,
     # which silently breaks once there's more than one page, since the default
     # order (created_at desc) has no relation to name order. See
-    # docs/requirements/project.md#projects-list-screen.
+    # specs/requirements/project.md#projects-list-screen.
     await _login_manager(client, db_session)
     vendor, client_company, currency = await _setup_refs(db_session)
     for i in range(55):
@@ -555,7 +555,7 @@ async def test_active_project_blocks_service_line_delete_with_logged_time(
     assert delete_line.status_code == 409
 
     # Editing remains allowed — only deletion is blocked (see
-    # docs/requirements/project.md#validation-rules-1).
+    # specs/requirements/project.md#validation-rules-1).
     update_line = await client.patch(
         f"/api/projects/{project_id}/service-lines/{line_id}",
         json={

@@ -28,7 +28,7 @@ interface ProjectManagersPickerProps {
 }
 
 // Same design language as the Service Line Consultants picker (see
-// docs/requirements/project.md#project-managers) — a Popover+Command palette with
+// specs/requirements/project.md#project-managers) — a Popover+Command palette with
 // server-side search and removable chips — but persisted differently: this is a
 // field on the Project itself, submitted with the rest of the Project Form's fields
 // on its own Save, not through a child-entity modal with its own immediate save.

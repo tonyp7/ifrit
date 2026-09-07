@@ -9,7 +9,7 @@ export type IdentifierType =
 export type AddressType = "registered" | "bill_to" | "ship_to" | "postal";
 
 // Single source of truth for value -> display label, per
-// docs/requirements/company.md §2.1/§3.1 — raw enum values are never shown to the
+// specs/requirements/company.md §2.1/§3.1 — raw enum values are never shown to the
 // user; every table/select that renders one of these must go through this map.
 export const ID_TYPE_LABELS: Record<IdentifierType, string> = {
   legal_registration: "Legal Registration",

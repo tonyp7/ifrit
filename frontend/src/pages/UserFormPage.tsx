@@ -118,7 +118,7 @@ export function UserFormPage() {
   // New + local: always needs a password. Edit + switching an SSO user back to
   // local: also needs one (their old password is long gone). Otherwise hidden —
   // an already-local user's password changes via the Reset Password row action,
-  // not this form. See docs/requirements/user.md#user-form-create--edit--duplicate.
+  // not this form. See specs/requirements/user.md#user-form-create--edit--duplicate.
   const showPasswordField = isNew ? !watchedIsSso : originalIsSso && !watchedIsSso;
   // Only local -> SSO (not the reverse) needs the destructive warning.
   const showSsoWarning = !isNew && !originalIsSso && watchedIsSso;

@@ -27,7 +27,7 @@ depends_on: str | Sequence[str] | None = None
 
 # (alpha_code, numeric_code, name, minor_unit, symbol). Covers ISO 4217's active national
 # currencies plus the precious-metal codes (XAU/XAG/XPD/XPT, minor_unit NULL — see
-# docs/architecture/database.md#currencies). Symbol is only populated for widely-recognized
+# specs/architecture/database.md#currencies). Symbol is only populated for widely-recognized
 # currencies; NULL elsewhere is fine (see the model/table's `symbol` column). Truly obscure
 # bond-market/testing codes (XDR, XTS, XXX, XBA-XBD, XSU, XUA) are intentionally not seeded.
 _CURRENCIES: list[tuple[str, str, str, int | None, str | None]] = [
@@ -191,7 +191,7 @@ _CURRENCIES: list[tuple[str, str, str, int | None, str | None]] = [
     ("ZWL", "932", "Zimbabwe Dollar", 2, None),
 ]
 
-# See docs/requirements/project.md#currency / docs/architecture/database.md#currencies.
+# See specs/requirements/project.md#currency / specs/architecture/database.md#currencies.
 _ENABLED = {"USD", "EUR", "JPY", "GBP", "CNY", "AUD", "CAD", "CHF", "HKD", "SGD"}
 
 
@@ -214,7 +214,7 @@ def upgrade() -> None:
         sa.Column("is_sso", sa.Boolean(), nullable=False, server_default=sa.false()),
         sa.Column("full_name", sa.String(length=255), nullable=False),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
-        # Light/dark/system — see docs/requirements/home.md#appearance.
+        # Light/dark/system — see specs/requirements/home.md#appearance.
         sa.Column(
             "theme_preference",
             sa.String(length=10),
@@ -258,7 +258,7 @@ def upgrade() -> None:
         ),
         [
             {"id": "00000000-0000-0000-0000-000000000001", "name": "administrator"},
-            # Renamed from "manager" — see docs/requirements/user.md#entity — specifically
+            # Renamed from "manager" — see specs/requirements/user.md#entity — specifically
             # to avoid confusion with "project_manager" below, a distinct role added at the
             # same time (`Validation`/timesheet-locking authority, scoped per-project) that
             # is easily conflated with this one (`projects`-screen access) by name alone.
@@ -352,7 +352,7 @@ def upgrade() -> None:
     )
     op.create_index("ix_addresses_company_id", "addresses", ["company_id"])
     # At most one primary address per (company_id, address_type) — see
-    # docs/requirements/company.md §3 Validation rules.
+    # specs/requirements/company.md §3 Validation rules.
     op.create_index(
         "uq_addresses_primary_per_type",
         "addresses",
@@ -449,7 +449,7 @@ def upgrade() -> None:
     op.create_index("ix_projects_client_company_id", "projects", ["client_company_id"])
 
     # Users (holding the project_manager role) assigned to review/lock a project's
-    # timesheets — see docs/requirements/project.md#1-entity-project. Same shape as
+    # timesheets — see specs/requirements/project.md#1-entity-project. Same shape as
     # service_line_consultants below: a plain composite-PK join table, no extra
     # columns — this only ever reflects *current* assignment, not history.
     op.create_table(
@@ -479,8 +479,8 @@ def upgrade() -> None:
         ),
         # Free text, no uniqueness constraint, may be empty — lets a consultant assigned
         # to more than one line on the same project tell them apart when logging time
-        # (see docs/requirements/project.md#2-entity-service-line,
-        # docs/requirements/timesheet.md).
+        # (see specs/requirements/project.md#2-entity-service-line,
+        # specs/requirements/timesheet.md).
         sa.Column("name", sa.String(length=255), nullable=True),
         sa.Column("quantity", sa.Numeric(precision=12, scale=5), nullable=False),
         sa.Column("uom", sa.String(length=10), nullable=False),
@@ -491,7 +491,7 @@ def upgrade() -> None:
         ),
     )
     # Partial index: every query listing a project's service lines filters to
-    # is_active = true (see docs/requirements/project.md#validation-rules-1).
+    # is_active = true (see specs/requirements/project.md#validation-rules-1).
     op.create_index(
         "ix_service_lines_project_id_active",
         "service_lines",
@@ -536,7 +536,7 @@ def upgrade() -> None:
         # exclusively via datetime.time (hour capped at 23) and can neither write nor
         # read back 24:00:00 — confirmed against a live connection. The CHECK constraint
         # below does that job explicitly instead (see
-        # docs/requirements/timesheet.md#data-model).
+        # specs/requirements/timesheet.md#data-model).
         sa.Column("time_entry", postgresql.INTERVAL(), nullable=False),
         # Unused in the current UI — deliberate scope-fencing for a later iteration.
         sa.Column("comment", sa.Text(), nullable=True),

@@ -12,7 +12,7 @@ export class ApiError extends Error {
 }
 
 // Endpoints exempt from the 401 -> refresh-and-retry interceptor below (see
-// docs/requirements/auth.md's design doc, point 3):
+// specs/requirements/auth.md's design doc, point 3):
 // - /auth/refresh's own 401 is the "give up" signal the interceptor produces —
 //   routing it back through the same logic would recurse forever.
 // - /auth/login's 401 (wrong credentials) is a normal, expected outcome of that
@@ -78,7 +78,7 @@ async function request<T>(path: string, init?: RequestInit, isRetry = false): Pr
   });
 
   if (!response.ok) {
-    // Central 401 handling (see docs/requirements/auth.md's design doc) — a 401
+    // Central 401 handling (see specs/requirements/auth.md's design doc) — a 401
     // means "you are not logged in," never a normal page-specific error, so this
     // is handled once here instead of by each of the app's screens independently.
     if (response.status === 401 && !isRetry && !AUTH_EXEMPT_PATHS.includes(path)) {

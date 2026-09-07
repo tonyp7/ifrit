@@ -10,7 +10,7 @@ class TimeEntryUpsert(BaseModel):
     date: date_
     hours: Decimal
     # None (the default, and the only value My Timesheet's own calls ever send) means
-    # "the caller's own entry" — see docs/requirements/timesheet.md's Validation
+    # "the caller's own entry" — see specs/requirements/timesheet.md's Validation
     # § Scope "Editing (override)": a project_manager overriding a consultant's entry
     # sets this to that consultant's id. Never resolved from anywhere but this field —
     # see time_entry_service._upsert_one's authorization check.
@@ -42,7 +42,7 @@ class TimeEntryListResponse(BaseModel):
 
 class TimeEntryUpsertResult(BaseModel):
     """One request item's outcome from the bulk `PUT /time-entries` (see
-    docs/requirements/timesheet.md's "API contract" — every item in the request
+    specs/requirements/timesheet.md's "API contract" — every item in the request
     array is processed and reported independently, never all-or-nothing).
     `entry`/`error` are mutually exclusive: `entry` is set (or left `None` for a
     successful delete) when `ok` is `True`; `error` is set — `"locked"`,
@@ -70,7 +70,7 @@ class EligibleServiceLineListResponse(BaseModel):
 
 class ManagedConsultantOut(BaseModel):
     """One consultant's block on the Validation screen — see
-    docs/requirements/timesheet.md's "GET /time-entries/managed" API contract."""
+    specs/requirements/timesheet.md's "GET /time-entries/managed" API contract."""
 
     user_id: uuid.UUID
     full_name: str
@@ -88,7 +88,7 @@ class ManagedTimeEntriesResponse(BaseModel):
 
 
 class TimeEntryLockRequest(BaseModel):
-    """PUT /time-entries/lock — see docs/requirements/timesheet.md's Validation §
+    """PUT /time-entries/lock — see specs/requirements/timesheet.md's Validation §
     Lock / Unlock. One (consultant, service line, period) action per call, not a
     bulk array — there's no equivalent "many independent items" shape here."""
 

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Builds the combined ifrit app image standalone (i.e. outside `docker compose
 # up --build`) — useful for tagging a specific version or pushing to a registry.
-# See docs/architecture/infra.md § Containerisation.
+# See specs/architecture/infra.md § Containerisation.
 #
 # Usage:
 #   docker/build.sh                          # -> ifrit-app:latest

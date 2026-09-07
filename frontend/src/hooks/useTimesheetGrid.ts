@@ -16,7 +16,7 @@ import type {
 } from "@/types/timesheet";
 
 // Per-item error codes the bulk PUT /time-entries can report — see
-// docs/requirements/timesheet.md's "API contract" and TimeEntryUpsertResult.
+// specs/requirements/timesheet.md's "API contract" and TimeEntryUpsertResult.
 function errorMessage(error: TimeEntryUpsertResult["error"], t: (key: string) => string): string {
   if (error === "locked") return t("This entry has been locked and can't be changed.");
   if (error === "not_eligible") return t("You're not assigned to this service line.");
@@ -37,13 +37,13 @@ export interface UseTimesheetGridOptions {
   eligibleLines: EligibleServiceLine[];
   // undefined = the caller's own entries (My Timesheet). Set to a consultant's id
   // on the Validation screen, so cell edits are sent as a project_manager
-  // override — see docs/requirements/timesheet.md's Validation § Scope
+  // override — see specs/requirements/timesheet.md's Validation § Scope
   // "Editing (override)".
   ownerUserId?: string;
 }
 
 // Shared state/logic behind both My Timesheet and each consultant block on the
-// Validation screen (see docs/requirements/timesheet.md's Validation
+// Validation screen (see specs/requirements/timesheet.md's Validation
 // "Implementation note: one shared mechanism, not two") — entries, the
 // per-period "added service lines" set, the visible service-line list, and every
 // cell/add/remove handler. The two screens differ only in what they pass in
@@ -56,7 +56,7 @@ export function useTimesheetGrid({ days, initialEntries, eligibleLines, ownerUse
   const [historicalServiceLines, setHistoricalServiceLines] = useState<ServiceLineRow[]>([]);
   // Lines added via "Add service line" while *this* period is the one being
   // viewed — deliberately reset whenever `initialEntries` is re-seeded (a period
-  // change), not session-wide. See docs/requirements/timesheet.md#state.
+  // change), not session-wide. See specs/requirements/timesheet.md#state.
   const [addedServiceLines, setAddedServiceLines] = useState<ServiceLineRow[]>([]);
 
   useEffect(() => {
@@ -103,7 +103,7 @@ export function useTimesheetGrid({ days, initialEntries, eligibleLines, ownerUse
   // Every day in the period is locked for this line — the icon/action semantics
   // this drives (Lock shown unless *every* day is locked) live in
   // LockServiceLineControl; this is just the underlying fact. See
-  // docs/requirements/timesheet.md's Validation § Lock / Unlock.
+  // specs/requirements/timesheet.md's Validation § Lock / Unlock.
   const isFullyLockedInPeriod = useCallback(
     (serviceLineId: string) =>
       days.every((day) => entries[cellKey(serviceLineId, toDayKey(day))]?.is_locked === true),
@@ -111,7 +111,7 @@ export function useTimesheetGrid({ days, initialEntries, eligibleLines, ownerUse
   );
 
   // The entry's owner is no longer currently assigned to this service line — see
-  // docs/requirements/timesheet.md#persistence: read-only regardless of
+  // specs/requirements/timesheet.md#persistence: read-only regardless of
   // `is_locked`, on both My Timesheet (viewing one's own historical data) and
   // Validation (a consultant's since-unassigned line) alike.
   const isUnassignedInPeriod = useCallback(
@@ -130,13 +130,13 @@ export function useTimesheetGrid({ days, initialEntries, eligibleLines, ownerUse
     // that's the whole point of adding it) or has any entry this period
     // (hasEntriesInPeriod, checked against live `entries` rather than
     // historicalServiceLines directly — see its own comment above). No separate
-    // suppression/removed state needed — see docs/requirements/timesheet.md#state.
+    // suppression/removed state needed — see specs/requirements/timesheet.md#state.
     const visible = merged.filter(
       (line) => addedIds.has(line.service_line_id) || hasEntriesInPeriod(line.service_line_id),
     );
     // Ascending by project name, then service line name — a stable order
     // independent of add/discovery order or which period's date window was last
-    // fetched (see docs/requirements/timesheet.md#state).
+    // fetched (see specs/requirements/timesheet.md#state).
     return sortServiceLines(visible);
   }, [addedServiceLines, historicalServiceLines, hasEntriesInPeriod]);
 
@@ -175,7 +175,7 @@ export function useTimesheetGrid({ days, initialEntries, eligibleLines, ownerUse
     );
   }
 
-  // No-data branch (see docs/requirements/timesheet.md's "Removing a service
+  // No-data branch (see specs/requirements/timesheet.md's "Removing a service
   // line", branch 1) — a line can only be visible with nothing logged this period
   // because it's in this period's `addedServiceLines`, so removing it here is
   // just undoing that add. No separate "removed" state to track.
@@ -183,7 +183,7 @@ export function useTimesheetGrid({ days, initialEntries, eligibleLines, ownerUse
     setAddedServiceLines((prev) => prev.filter((l) => l.service_line_id !== serviceLineId));
   }
 
-  // Confirmed-destructive branch (see docs/requirements/timesheet.md's "Removing a
+  // Confirmed-destructive branch (see specs/requirements/timesheet.md's "Removing a
   // service line" — this is only ever invoked once RemoveServiceLineControl has
   // already confirmed via its dialog, for a line with logged, unlocked time this
   // period). Clears every day in the current period that has an entry for this
@@ -290,7 +290,7 @@ export function useTimesheetGrid({ days, initialEntries, eligibleLines, ownerUse
 
     try {
       // Always an array — a single cell blur sends a one-element request/response,
-      // never a bare object (see docs/requirements/timesheet.md's "API contract").
+      // never a bare object (see specs/requirements/timesheet.md's "API contract").
       const [result] = await upsertTimeEntries([
         {
           service_line_id: serviceLineId,
@@ -323,7 +323,7 @@ export function useTimesheetGrid({ days, initialEntries, eligibleLines, ownerUse
   }
 
   // Merges a PUT /time-entries/lock response (the whole period's rows for one
-  // service line) into local state — see docs/requirements/timesheet.md's
+  // service line) into local state — see specs/requirements/timesheet.md's
   // Validation § Lock / Unlock. Locking can materialize new gap-day rows and
   // unlocking can delete gap-day rows entirely, so this both upserts and deletes
   // rather than only patching `is_locked` in place.

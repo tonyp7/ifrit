@@ -3,7 +3,7 @@ export type ProjectStatus = "draft" | "active" | "closed";
 export type Uom = "hours" | "days" | "ea";
 
 // Single source of truth for value -> display label, per
-// docs/requirements/project.md — raw enum values are never shown to the user; every
+// specs/requirements/project.md — raw enum values are never shown to the user; every
 // table/select that renders one of these must go through this map (then t()).
 export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {
   time_and_material: "Time & Material",
@@ -30,7 +30,7 @@ export interface ServiceLineConsultant {
 
 // Same shape as ServiceLineConsultant — kept as a distinct name since it's a
 // conceptually separate assignment (project-level authority, not a service line's
-// billable-time consultant) — see docs/requirements/project.md#project-managers.
+// billable-time consultant) — see specs/requirements/project.md#project-managers.
 export type ProjectManager = ServiceLineConsultant;
 
 export interface ServiceLine {

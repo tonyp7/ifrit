@@ -21,7 +21,7 @@ One thing worth flagging: scripts/seed_admin.py is dev-only and documented as su
 
 ## Production-shaped stack (Docker)
 
-See [docs/architecture/infra.md](docs/architecture/infra.md) for the full picture. Short version:
+See [specs/architecture/infra.md](specs/architecture/infra.md) for the full picture. Short version:
 
     cp .env.example .env   # fill in real secrets, never commit .env
     docker compose up --build

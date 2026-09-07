@@ -180,7 +180,7 @@ signature and `exp`, with no `jti`/denylist check against the database. If a ref
 cookie was captured before logout (leaked via a proxy/log, a shared/stolen device, a
 browser-extension, etc.), it remains fully valid — able to mint fresh 15-minute access tokens
 via `POST /api/auth/refresh` — for up to its full 7-day (`refresh_token_expire_minutes =
-10080`) lifetime, regardless of the legitimate user having logged out. `docs/requirements/auth.md`
+10080`) lifetime, regardless of the legitimate user having logged out. `specs/requirements/auth.md`
 explicitly lists "log out ... to end my session on a shared device" as a user story this
 does not fully satisfy for the refresh token.
 
@@ -301,7 +301,7 @@ async def authenticate_local_user(db, name_id, password) -> User | None:
     return user
 ```
 
-**Why it's exploitable:** `docs/requirements/auth.md` explicitly requires "a generic error
+**Why it's exploitable:** `specs/requirements/auth.md` explicitly requires "a generic error
 message on failed login, so the system doesn't reveal whether an email is registered." The
 error message is indeed generic (`auth.py:62-64`), but the code path is not
 constant-time: when `name_id` doesn't match any active local user, the function returns
@@ -348,7 +348,7 @@ app.include_router(api_router)
 **Why it's exploitable:** The only middleware registered is CORS. There is no
 `Content-Security-Policy`, `X-Frame-Options`/`frame-ancestors`, `X-Content-Type-Options`,
 `Referrer-Policy`, or `Strict-Transport-Security` set anywhere (no such headers in `main.py`,
-and per `docs/architecture/infra.md` the production nginx config doesn't exist yet either).
+and per `specs/architecture/infra.md` the production nginx config doesn't exist yet either).
 Impact today is limited — the React app doesn't use `dangerouslySetInnerHTML`, `eval`, or
 inline event handlers (none found in `frontend/src`), so there's no current first-order XSS
 sink this would be compensating for — but the app is served with no clickjacking protection
@@ -357,7 +357,7 @@ in depth if an XSS/injection bug is introduced later (e.g. via a future rich-tex
 third-party widget).
 
 **Remediation:** Add a small headers middleware (or set them in the eventual nginx config
-alongside the FastAPI app, per `docs/architecture/infra.md`):
+alongside the FastAPI app, per `specs/architecture/infra.md`):
 
 ```python
 @app.middleware("http")
@@ -445,15 +445,15 @@ found to pair it with today.
 - **Dynamic testing (DAST)** — this is a static review only; findings around timing
   side-channels (Finding 6) and cookie/header behavior (Findings 5, 7) would benefit from
   confirmation against a running instance.
-- **SAML/SSO implementation** — `docs/requirements/auth.md` describes a planned Azure Entra
+- **SAML/SSO implementation** — `specs/requirements/auth.md` describes a planned Azure Entra
   ID SAML integration (`python-saml`), but no SSO code exists yet in this tree (only the
   `User.is_sso` flag/branching logic). Nothing to review; flag for a follow-up SAST pass once
   implemented (SAML has its own well-known pitfall class — XML signature wrapping, assertion
   replay, NameID confusion — none of which apply yet).
-- **Production Dockerfile / nginx config** — per `docs/architecture/infra.md` these don't
+- **Production Dockerfile / nginx config** — per `specs/architecture/infra.md` these don't
   exist yet in the repo (aspirational/planned only). Finding 7's remediation should be
   revisited once that config exists.
-- **CI/CD pipeline** — `docs/architecture/infra.md` marks this as a TODO; no pipeline
+- **CI/CD pipeline** — `specs/architecture/infra.md` marks this as a TODO; no pipeline
   definitions exist in the repo to review.
 - **Generated/build artifacts** — `frontend/tsconfig.*.tsbuildinfo`,
   `backend/.mypy_cache/`, `.ruff_cache/`, `.pytest_cache/` excluded as tool caches, not source.
@@ -461,7 +461,7 @@ found to pair it with today.
 
 ```prompt
 Perform a static application security test (SAST) of this codebase and write 
-the findings to /docs/sast.md.
+the findings to /specs/sast.md.
 
 Scope:
 - Walk the full source tree (exclude node_modules, vendor, build, dist, .git, 
@@ -492,7 +492,7 @@ Prioritize real, exploitable issues over stylistic nitpicks. Focus areas:
 - Missing input validation on trust boundaries (API endpoints, file uploads, 
   webhooks)
 
-Structure /docs/sast.md as:
+Structure /specs/sast.md as:
 - Executive summary (counts by severity, top 3 risks)
 - Findings table (severity, title, file, CWE) for quick scanning
 - Detailed findings (one section per issue, ordered by severity)

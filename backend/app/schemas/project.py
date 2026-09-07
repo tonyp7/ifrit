@@ -15,7 +15,7 @@ class ProjectWrite(BaseModel):
     project_type: ProjectType
     status: ProjectStatus = "draft"
     # Held/saved as part of the Project itself, not a separate child-entity flow —
-    # see docs/requirements/project.md#project-managers.
+    # see specs/requirements/project.md#project-managers.
     project_manager_ids: list[uuid.UUID] = []
 
     @model_validator(mode="after")

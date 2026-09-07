@@ -27,7 +27,7 @@ Implemented so far (source of truth: `backend/app/models/user.py`, migration
 | Column | Type        | Constraints       | Notes                                                                 |
 | ------ | ----------- | ------------------ | ---------------------------------------------------------------------- |
 | id     | UUID        | PK                 |                                                                          |
-| name   | VARCHAR(32) | UNIQUE, NOT NULL   | `administrator`, `project_admin`, `consultant`, `project_manager` — seeded by migration `0001` (`project_admin` was named `manager` prior to the `project_admin`/`project_manager` split — see [docs/requirements/user.md § Entity](../requirements/user.md#entity))  |
+| name   | VARCHAR(32) | UNIQUE, NOT NULL   | `administrator`, `project_admin`, `consultant`, `project_manager` — seeded by migration `0001` (`project_admin` was named `manager` prior to the `project_admin`/`project_manager` split — see [specs/requirements/user.md § Entity](../requirements/user.md#entity))  |
 
 ### `users`
 

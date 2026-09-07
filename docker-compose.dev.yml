@@ -1,6 +1,6 @@
 # Dev-only stack: a disposable PostgreSQL 18 container for local backend development.
 # The production stack (single combined app container + db) is defined separately
-# per docs/architecture/infra.md — this file is NOT used for deployment.
+# per specs/architecture/infra.md — this file is NOT used for deployment.
 services:
   db:
     image: postgres:18

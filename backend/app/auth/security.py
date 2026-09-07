@@ -10,7 +10,7 @@ from app.core.config import settings
 
 # Argon2id, not bcrypt: bcrypt only uses the first 72 *bytes* of input, which the
 # password policy's 255-character/full-Unicode allowance can easily exceed (see
-# docs/requirements/user.md#password-policy) — Argon2 has no such practical limit.
+# specs/requirements/user.md#password-policy) — Argon2 has no such practical limit.
 _password_hasher = PasswordHasher()
 
 

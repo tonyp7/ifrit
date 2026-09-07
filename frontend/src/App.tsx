@@ -32,7 +32,7 @@ export default function App() {
           </Route>
           <Route element={<RequireRoles roles={["administrator"]} />}>
             {/* Bare /configuration has no page of its own — the Configuration nav
-                icon opens a dropdown instead (see docs/requirements/home.md
+                icon opens a dropdown instead (see specs/requirements/home.md
                 #configuration-menu), so there's no single "right" destination to
                 redirect to. Deliberately no route for it here: it falls through to
                 the catch-all below, same as any other unrecognized URL. */}

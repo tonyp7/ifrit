@@ -9,7 +9,7 @@ export interface NavSubItem {
   requiredRoles?: Role[];
 }
 
-// Mirrors the Role -> Screen Access matrix in docs/requirements/user.md — keep in sync.
+// Mirrors the Role -> Screen Access matrix in specs/requirements/user.md — keep in sync.
 export interface NavItem {
   to: string;
   label: string;
@@ -18,7 +18,7 @@ export interface NavItem {
   requiredRoles?: Role[];
   /**
    * When present, the icon opens a dropdown of these destinations instead of
-   * navigating to `to` directly — see docs/requirements/home.md#configuration-menu.
+   * navigating to `to` directly — see specs/requirements/home.md#configuration-menu.
    * `to` is still used to derive the icon's active/highlighted state (any current
    * pathname under it counts as active).
    */
@@ -32,8 +32,8 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Timesheet",
     icon: CalendarClock,
     // Every role gets at least the own-timesheet screen (see
-    // docs/requirements/user.md#role--screen-access). `project_manager` additionally
-    // gets the Validation sub-destination — see docs/requirements/home.md
+    // specs/requirements/user.md#role--screen-access). `project_manager` additionally
+    // gets the Validation sub-destination — see specs/requirements/home.md
     // #timesheet-menu. Only a `child.requiredRoles`-visible count > 1 turns this into
     // an actual dropdown (see canAccessNavItem/NavBar) — everyone else falls through
     // to a plain direct link to `to`, same as before this child existed.

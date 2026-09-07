@@ -70,14 +70,14 @@ export function ProjectsTable() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
   // vendor_company_name is opt-in via the "Columns" button (see
-  // docs/requirements/project.md#projects-list-screen) — hidden by default.
+  // specs/requirements/project.md#projects-list-screen) — hidden by default.
   const [columnVisibility, setColumnVisibility] = useState<ColumnVisibilityState>({
     vendor_company_name: false,
   });
   // Sorting is server-side (see the `manualSorting: true` below and
   // components/data-table/sorting.ts) — this table is also server-paginated, so a
   // client-side-only sort would only ever reorder whatever page is already in
-  // memory, not the whole dataset (see docs/requirements/project.md
+  // memory, not the whole dataset (see specs/requirements/project.md
   // #projects-list-screen).
   const [sorting, setSorting] = useState<SortingState>([]);
 

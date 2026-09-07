@@ -31,14 +31,14 @@ export interface TimeEntryUpsertInput {
   date: string;
   hours: string;
   // Omitted (or undefined) means "the caller's own entry" — see
-  // docs/requirements/timesheet.md's Validation § Scope "Editing (override)". Only
+  // specs/requirements/timesheet.md's Validation § Scope "Editing (override)". Only
   // ever set by the Validation screen, when a project_manager overrides a
   // consultant's entry, to that consultant's id.
   user_id?: string;
 }
 
 // One request item's outcome from the bulk `PUT /time-entries` (see
-// docs/requirements/timesheet.md's "API contract" — the request/response are always
+// specs/requirements/timesheet.md's "API contract" — the request/response are always
 // arrays, even for a single cell edit). `entry`/`error` are mutually exclusive:
 // `entry` is set (or `null` for a successful delete) when `ok` is `true`; `error` —
 // `"locked"`, `"not_eligible"`, or `"not_authorized"` (a rejected project_manager
@@ -52,7 +52,7 @@ export interface TimeEntryUpsertResult {
 }
 
 // Client-side row shown in `serviceLines` state (see
-// docs/requirements/timesheet.md#state) — a subset of the fields TimeEntry/
+// specs/requirements/timesheet.md#state) — a subset of the fields TimeEntry/
 // EligibleServiceLine both already carry, common to whichever one a row came from.
 export interface ServiceLineRow {
   service_line_id: string;
@@ -62,7 +62,7 @@ export interface ServiceLineRow {
 }
 
 // A single cell's local, editable state (see
-// docs/requirements/timesheet.md#persistence) — `hours` is the live-typed or
+// specs/requirements/timesheet.md#persistence) — `hours` is the live-typed or
 // last-saved value, never re-parsed until blur.
 export interface EntryCell {
   hours: string;
@@ -70,7 +70,7 @@ export interface EntryCell {
 }
 
 // One consultant's block on the Validation screen — see
-// docs/requirements/timesheet.md's "GET /time-entries/managed" API contract.
+// specs/requirements/timesheet.md's "GET /time-entries/managed" API contract.
 export interface ManagedConsultant {
   user_id: string;
   full_name: string;
@@ -85,7 +85,7 @@ export interface ManagedTimeEntriesResponse {
   consultants: ManagedConsultant[];
 }
 
-// PUT /time-entries/lock — see docs/requirements/timesheet.md's Validation §
+// PUT /time-entries/lock — see specs/requirements/timesheet.md's Validation §
 // Lock / Unlock. One (consultant, service line, period) action per call, not a
 // bulk array.
 export interface ServiceLineLockRequest {

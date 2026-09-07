@@ -22,7 +22,7 @@ import {
 import { sumHours } from "@/lib/timesheetHours";
 import type { ManagedConsultant, PeriodType } from "@/types/timesheet";
 
-// Validation screen (see docs/requirements/timesheet.md's Validation section) — a
+// Validation screen (see specs/requirements/timesheet.md's Validation section) — a
 // project_manager's review/edit/lock surface over consultants' timesheets. One
 // shared header governs every consultant block below it at once (§Screen layout);
 // each block is the exact same shared grid mechanism My Timesheet uses, via
@@ -43,7 +43,7 @@ export function ValidationPage() {
     const end = toDayKey(days[days.length - 1]);
     getManagedTimeEntries(start, end)
       .then((res) => {
-        // Ascending by full_name — proposed order per docs/requirements/timesheet.md's
+        // Ascending by full_name — proposed order per specs/requirements/timesheet.md's
         // Validation § Screen layout.
         setConsultants([...res.consultants].sort((a, b) => a.full_name.localeCompare(b.full_name)));
       })

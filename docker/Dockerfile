@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 #
 # Single multi-stage build producing one combined image (nginx + static frontend +
-# FastAPI/uvicorn) — see docs/architecture/infra.md § Containerisation. There is no
+# FastAPI/uvicorn) — see specs/architecture/infra.md § Containerisation. There is no
 # separate "web" image; this is intentionally the only Dockerfile for the app.
 #
 # Build from the REPO ROOT so both backend/ and frontend/ are in context:
@@ -42,7 +42,7 @@ RUN pnpm build
 
 # ---------------------------------------------------------------------------
 # Stage 2: backend build — installs the FastAPI app via uv, on Debian Trixie Slim
-# (docs/architecture/infra.md: do not switch base OS/arch without updating that
+# (specs/architecture/infra.md: do not switch base OS/arch without updating that
 # file first)
 # ---------------------------------------------------------------------------
 FROM python:3.12-slim-trixie AS backend-build
@@ -64,7 +64,7 @@ RUN uv sync --frozen --no-dev
 # Stage 3: final — nginx (serves the static SPA, reverse-proxies /api/* to
 # uvicorn) + the backend venv, both running in this one container. Supervised by
 # a plain entrypoint script (docker/entrypoint.sh) rather than a separate process
-# manager package — see docs/architecture/infra.md § Containerisation.
+# manager package — see specs/architecture/infra.md § Containerisation.
 # ---------------------------------------------------------------------------
 FROM python:3.12-slim-trixie AS final
 
@@ -88,7 +88,7 @@ RUN chmod +x /entrypoint.sh
 EXPOSE 80
 
 # /api/health is unauthenticated and already implemented (backend/app/main.py) —
-# see docs/architecture/infra.md. No curl/wget in this image; a stdlib check
+# see specs/architecture/infra.md. No curl/wget in this image; a stdlib check
 # avoids adding either just for this.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD python3 -c "import urllib.request as u; u.urlopen('http://127.0.0.1/api/health', timeout=3)" || exit 1

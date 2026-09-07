@@ -1,7 +1,7 @@
 ```prompt
-You are performing a comprehensive codebase audit for this web application. The app currently works and passes its test suite, and the implementation is believed to track the specs in the /docs/*. Your job is to verify that belief rigorously and surface everything that doesn't hold up.
+You are performing a comprehensive codebase audit for this web application. The app currently works and passes its test suite, and the implementation is believed to track the specs in the /specs/*. Your job is to verify that belief rigorously and surface everything that doesn't hold up.
 
-Appending your findings to docs/audit.md. Do not fix anything — this is a read-only audit. Flag issues, don't patch them.
+Appending your findings to specs/audit.md. Do not fix anything — this is a read-only audit. Flag issues, don't patch them.
 
 ## Process
 
@@ -35,7 +35,7 @@ Appending your findings to docs/audit.md. Do not fix anything — this is a read
 - Places where spec intent is ambiguous and the implementation made a judgment call — flag the assumption made.
 - Anything where you genuinely can't tell if it's a bug or intended behavior.
 
-## Output format for docs/audit.md
+## Output format for specs/audit.md
 
 Organize by category (Spec Deviations / Consistency Issues / Best Practice Concerns / Open Questions), not by file. Within each category, order by severity (Critical / Moderate / Minor).
 
@@ -57,17 +57,17 @@ Be exhaustive rather than concise — this audit is meant to be a thorough refer
 # Audit Findings
 
 **Date:** 2026-09-06
-**Method:** Full read of every doc under `docs/requirements/` and `docs/architecture/` plus `docs/sast.md`, followed by a systematic read of the entire `backend/app` tree, `backend/tests`, and the frontend (`api/`, `components/`, `pages/`, `hooks/`, `providers/`, `types/`, `lib/`), cross-referenced line by line against the specs. Migration history and test coverage were checked directly against `git log` and `grep`, not assumed. No code was modified.
+**Method:** Full read of every doc under `specs/requirements/` and `specs/architecture/` plus `specs/sast.md`, followed by a systematic read of the entire `backend/app` tree, `backend/tests`, and the frontend (`api/`, `components/`, `pages/`, `hooks/`, `providers/`, `types/`, `lib/`), cross-referenced line by line against the specs. Migration history and test coverage were checked directly against `git log` and `grep`, not assumed. No code was modified.
 
 ## Spec Deviations
 
 ### 1. Service line deletion doesn't block on logged time for an `active` project, even though time entries now exist — Major
 
-**What:** `docs/requirements/project.md` requires that on an `active` project, a service line "can be deleted only if no time has been logged against it." The current implementation allows unconditional deletion (soft-delete) regardless of logged time, on both `draft` and `active` projects — only a `closed` project blocks it.
+**What:** `specs/requirements/project.md` requires that on an `active` project, a service line "can be deleted only if no time has been logged against it." The current implementation allows unconditional deletion (soft-delete) regardless of logged time, on both `draft` and `active` projects — only a `closed` project blocks it.
 
 **Where:** `backend/app/services/project_service.py:309-320` (`delete_service_line`), enforced (or rather, not enforced) via `backend/app/api/projects.py:186-200`.
 
-**Spec reference:** `docs/requirements/project.md` §Service Lines ("Edit/delete rules by project status") and §2 Entity: Service Line's Validation rules.
+**Spec reference:** `specs/requirements/project.md` §Service Lines ("Edit/delete rules by project status") and §2 Entity: Service Line's Validation rules.
 
 **Why it matters:** This isn't a stale-but-harmless gap. The code's own comment says the check is "not yet enforceable, no time-entry concept exists yet" — but the time-entry feature (`time_entries` table, `time_entry_service.py`, the whole My Timesheet/Validation screens) has since been fully built in this same codebase. The blocking dependency the comment cites no longer exists, yet the check was never added when it landed. A `project_admin` can today soft-delete a service line that a consultant has already logged (and a `project_manager` may have already locked) real billable time against, on a project that's actively being billed — service-line-level `value` calculations silently drop that line's `quantity × unit_price` from the project total, with no data-integrity guard at all.
 
@@ -81,11 +81,11 @@ Be exhaustive rather than concise — this audit is meant to be a thorough refer
 
 ### 2. Party Identifier `scheme_id`/VAT format validation not implemented — Moderate
 
-**What:** `docs/requirements/company.md` requires `scheme_id` to be "validated against the current ISO 6523 ICD / Peppol EAS code list at write time, not just at export time," and a `VAT` identifier's `id_value` to "match the regex/format rules of the country indicated by its prefix." The implementation only checks that `scheme_id` is non-empty when required (`legal_registration`/`peppol_participant`) and that `id_value` is non-empty — no code list or per-country VAT format exists anywhere in the codebase.
+**What:** `specs/requirements/company.md` requires `scheme_id` to be "validated against the current ISO 6523 ICD / Peppol EAS code list at write time, not just at export time," and a `VAT` identifier's `id_value` to "match the regex/format rules of the country indicated by its prefix." The implementation only checks that `scheme_id` is non-empty when required (`legal_registration`/`peppol_participant`) and that `id_value` is non-empty — no code list or per-country VAT format exists anywhere in the codebase.
 
 **Where:** `backend/app/schemas/company.py` (`PartyIdentifierWrite.check_scheme_id_required`).
 
-**Spec reference:** `docs/requirements/company.md` §2.2 "scheme_id — code list rules", §2 Validation rules.
+**Spec reference:** `specs/requirements/company.md` §2.2 "scheme_id — code list rules", §2 Validation rules.
 
 **Why it matters:** A completely invalid `scheme_id` (e.g. `"XX"`) or malformed VAT number is silently accepted today. Since no Peppol export/serialization feature exists yet either, the practical blast radius is currently zero — but the doc explicitly frames this as a write-time (not export-time) requirement, so it's a genuine, not just theoretical, gap once export is built.
 
@@ -101,7 +101,7 @@ Be exhaustive rather than concise — this audit is meant to be a thorough refer
 
 **Where:** `backend/app/services/company_service.py:99-137` (`duplicate_company`); the DB constraint it would need to violate is the per-company `uq_party_identifiers` index in `backend/app/models/company.py:84-91`.
 
-**Spec reference:** `docs/requirements/company.md` §Company Form "Duplicate", Open Questions.
+**Spec reference:** `specs/requirements/company.md` §Company Form "Duplicate", Open Questions.
 
 **Why it matters:** Clicking `Duplicate` on any company and saving without touching its Party Identifiers immediately produces two active companies both claiming the same VAT number / legal registration number / Peppol participant ID — a real Peppol-compliance problem (these identifiers are meant to uniquely resolve to one legal entity), not just a data-quality nicety.
 
@@ -119,7 +119,7 @@ Be exhaustive rather than concise — this audit is meant to be a thorough refer
 
 **Where:** `frontend/src/components/projects/ServiceLineFormDialog.tsx:238` (quantity), `:262` (unit_price).
 
-**Spec reference:** `docs/requirements/project.md` §Service Lines "Add/Edit Modal".
+**Spec reference:** `specs/requirements/project.md` §Service Lines "Add/Edit Modal".
 
 **Why it matters:** This is the same class of bug identified and partially addressed elsewhere in this codebase for the timesheet hours input (see the fix discussion around `TimesheetDesktopGrid.tsx`/`TimesheetMobileView.tsx`): a spec explicitly asking for proactive character-level filtering, implemented instead as after-the-fact validation. A user can type e.g. "12ab.5x" and see it sit in the field until they try to submit.
 
@@ -137,7 +137,7 @@ Be exhaustive rather than concise — this audit is meant to be a thorough refer
 
 **Where:** `frontend/src/components/projects/ProjectsTable.tsx` (the `useReactTable(...)` call and the `TableHeader` render block).
 
-**Spec reference:** `docs/requirements/project.md` §Projects List Screen.
+**Spec reference:** `specs/requirements/project.md` §Projects List Screen.
 
 **Why it matters:** Only the backend's hardcoded `created_at desc` order (matching the spec's "default sort on landing") is ever shown — a user has no way to re-sort by name, status, client, or type as the spec explicitly promises. Contrast with `CompaniesTable`/`UsersTable`, whose specs don't claim sortability, and with `ProjectsTable`'s own already-implemented column-visibility ("Columns") feature, which shows the sorting omission isn't a TanStack-integration limitation.
 
@@ -157,7 +157,7 @@ Be exhaustive rather than concise — this audit is meant to be a thorough refer
 
 **Where:** `backend/app/schemas/auth.py` (`LoginRequest.email`), `frontend/src/pages/LoginPage.tsx`, `frontend/src/providers/AuthProvider.tsx` (`login(email, password)`).
 
-**Spec reference:** `docs/requirements/auth.md`, `docs/requirements/user.md` §Entity ("name_id... not necessarily an email address").
+**Spec reference:** `specs/requirements/auth.md`, `specs/requirements/user.md` §Entity ("name_id... not necessarily an email address").
 
 **Why it matters:** Purely a naming/consistency issue today (local login only) — no behavior is broken, since the value is never actually validated as an email format. But it's the one place in the codebase where the "identity field is not necessarily an email" principle isn't reflected in naming, which is exactly the kind of inconsistency that tends to cause a real bug once SSO (whose `name_id` is explicitly not guaranteed email-shaped) is wired into this same login surface.
 
@@ -171,9 +171,9 @@ Be exhaustive rather than concise — this audit is meant to be a thorough refer
 
 ### 7. `database.md`'s migration policy contradicts the project's actual, consistent practice — Moderate
 
-**What:** `docs/architecture/database.md` §Migrations states: "Never edit an Alembic migration that has already been merged; write a new one." In practice, the entire project history does the opposite: `backend/alembic/versions/` contains exactly one file, `0001_initial.py`, and `git log -- backend/alembic/versions/` shows 5 separate feature commits (initial codebase, timesheeting, timesheeting usability, the project_admin/project_manager role split, project manager assignment) that each modified that same file rather than adding a new one.
+**What:** `specs/architecture/database.md` §Migrations states: "Never edit an Alembic migration that has already been merged; write a new one." In practice, the entire project history does the opposite: `backend/alembic/versions/` contains exactly one file, `0001_initial.py`, and `git log -- backend/alembic/versions/` shows 5 separate feature commits (initial codebase, timesheeting, timesheeting usability, the project_admin/project_manager role split, project manager assignment) that each modified that same file rather than adding a new one.
 
-**Where:** `docs/architecture/database.md` §Migrations vs. `backend/alembic/versions/` (only `0001_initial.py`) and `git log`.
+**Where:** `specs/architecture/database.md` §Migrations vs. `backend/alembic/versions/` (only `0001_initial.py`) and `git log`.
 
 **Why it matters:** This isn't a one-off slip — it's the consistently applied convention across every schema change so far, directly opposite to what the architecture doc tells a new contributor (or agent) to do. Whoever next reads `database.md` and follows it literally (writing `0002_...py`) would break from the established pattern; whoever follows the established pattern is contradicting the doc. One of the two needs to change.
 
@@ -187,9 +187,9 @@ Be exhaustive rather than concise — this audit is meant to be a thorough refer
 
 ### 8. `auth.md`'s session-refresh design is marked "not yet implemented" but is fully built — Moderate
 
-**What:** `docs/requirements/auth.md` §Session Expiry & Token Refresh is headed "**Status: not yet implemented.** This section is a design writeup, not a description of current behavior." The mechanism it describes in detail — concurrent-refresh de-duplication, a retry-once guard, exempting `/auth/refresh`/`/auth/login`/`/auth/logout` from the interceptor, an event-bridge (not hard-redirect) sync into `AuthProvider`, and not double-notifying on the mount-time `/auth/me` check — is fully implemented, matching the design almost point-for-point.
+**What:** `specs/requirements/auth.md` §Session Expiry & Token Refresh is headed "**Status: not yet implemented.** This section is a design writeup, not a description of current behavior." The mechanism it describes in detail — concurrent-refresh de-duplication, a retry-once guard, exempting `/auth/refresh`/`/auth/login`/`/auth/logout` from the interceptor, an event-bridge (not hard-redirect) sync into `AuthProvider`, and not double-notifying on the mount-time `/auth/me` check — is fully implemented, matching the design almost point-for-point.
 
-**Where:** `docs/requirements/auth.md` §Session Expiry & Token Refresh vs. `frontend/src/api/client.ts` (`attemptRefresh`, `AUTH_EXEMPT_PATHS`, `SILENT_REFRESH_PATHS`), `frontend/src/providers/AuthProvider.tsx`, `frontend/src/api/sessionEvents.ts`. The implementation's own comments cite "auth.md design doc, point 1/3/5" — it was clearly built directly from this section.
+**Where:** `specs/requirements/auth.md` §Session Expiry & Token Refresh vs. `frontend/src/api/client.ts` (`attemptRefresh`, `AUTH_EXEMPT_PATHS`, `SILENT_REFRESH_PATHS`), `frontend/src/providers/AuthProvider.tsx`, `frontend/src/api/sessionEvents.ts`. The implementation's own comments cite "auth.md design doc, point 1/3/5" — it was clearly built directly from this section.
 
 **Why it matters:** Anyone (human or agent) trusting this doc's status line to decide "is this built yet?" gets the wrong answer, and might re-implement or redesign a mechanism that already exists and already matches the design closely.
 
@@ -208,7 +208,7 @@ Be exhaustive rather than concise — this audit is meant to be a thorough refer
 - "**Known divergence**: the current implementation (`ServiceLinesTable.tsx`) still does `line.users.map((u) => u.full_name).join(", "))`... not yet fixed." The actual code (`frontend/src/components/projects/ServiceLinesTable.tsx:144-146`) already renders one `<div>` per consultant, exactly as the spec requires — no `join(", ")` anywhere in the file.
 - "This is a divergence from the currently-implemented picker, which calls `listUsers({ role: "consultant" })` once on open and filters nothing itself." Both `ServiceLineFormDialog.tsx` and `ProjectManagersPicker.tsx` already implement debounced (300ms), server-side search exactly as specified.
 
-**Where:** `docs/requirements/project.md` §Service Lines (Consultants column note) and §Project Managers/§Service Lines "Add/Edit Modal" (search note) vs. `frontend/src/components/projects/ServiceLinesTable.tsx`, `ServiceLineFormDialog.tsx`, `ProjectManagersPicker.tsx`.
+**Where:** `specs/requirements/project.md` §Service Lines (Consultants column note) and §Project Managers/§Service Lines "Add/Edit Modal" (search note) vs. `frontend/src/components/projects/ServiceLinesTable.tsx`, `ServiceLineFormDialog.tsx`, `ProjectManagersPicker.tsx`.
 
 **Why it matters:** Low risk on its own, but it's a pattern worth noticing: two separate self-documented "this is wrong, not yet fixed" notes in the same file, both actually fixed without the note being removed. It suggests spec updates aren't consistently made when a flagged gap gets closed, which erodes trust in every other "not yet implemented"/"known divergence" note in the doc set (see also #8 above).
 
@@ -220,11 +220,11 @@ Be exhaustive rather than concise — this audit is meant to be a thorough refer
 
 ---
 
-### 10. `docs/sast.md` is stale on its own top 2 findings — Moderate
+### 10. `specs/sast.md` is stale on its own top 2 findings — Moderate
 
-**What:** `docs/sast.md` (dated 2026-08-05) lists as its #1 (Critical) and #2 (High) findings a hardcoded fallback JWT signing secret and hardcoded fallback DB/seed-admin-password defaults in `Settings`. Both are already fixed: every field on `Settings` in `backend/app/core/config.py` is now required with no default (`database_url: str`, `jwt_secret_key: str`, `seed_admin_password: str`, etc.), and the file's own comment explicitly references this exact fix ("see docs/sast.md"). Findings #3-7 (no logout revocation, no login rate limiting, `cookie_secure` defaulting `False`, the login timing side-channel, and no security response headers) all remain accurate as of this audit.
+**What:** `specs/sast.md` (dated 2026-08-05) lists as its #1 (Critical) and #2 (High) findings a hardcoded fallback JWT signing secret and hardcoded fallback DB/seed-admin-password defaults in `Settings`. Both are already fixed: every field on `Settings` in `backend/app/core/config.py` is now required with no default (`database_url: str`, `jwt_secret_key: str`, `seed_admin_password: str`, etc.), and the file's own comment explicitly references this exact fix ("see specs/sast.md"). Findings #3-7 (no logout revocation, no login rate limiting, `cookie_secure` defaulting `False`, the login timing side-channel, and no security response headers) all remain accurate as of this audit.
 
-**Where:** `docs/sast.md` Executive Summary and Findings #1-2 vs. `backend/app/core/config.py`.
+**Where:** `specs/sast.md` Executive Summary and Findings #1-2 vs. `backend/app/core/config.py`.
 
 **Why it matters:** The report's own "Top 3 risks" list leads with two issues that are no longer real, which could cause wasted remediation effort or, worse, false confidence that the remaining findings (which are still valid) are similarly already handled.
 
@@ -236,9 +236,9 @@ Be exhaustive rather than concise — this audit is meant to be a thorough refer
 
 ### 11. `index.md` still describes the superseded 3-role model — Minor
 
-**What:** `docs/requirements/index.md` §1 Overview still says "`users` roles are `administrator`, `manager` or `consultant`," "A `consultant` can only see one screen: `timesheet`," and "A `manager` can additionally see `projects`." This is the pre-split role model; `user.md` §Entity documents the actual current 4-role model (`administrator`/`project_admin`/`project_manager`/`consultant`) and explicitly notes `project_admin` is "renamed from the earlier `manager`" and `project_manager` is a distinct, newer role.
+**What:** `specs/requirements/index.md` §1 Overview still says "`users` roles are `administrator`, `manager` or `consultant`," "A `consultant` can only see one screen: `timesheet`," and "A `manager` can additionally see `projects`." This is the pre-split role model; `user.md` §Entity documents the actual current 4-role model (`administrator`/`project_admin`/`project_manager`/`consultant`) and explicitly notes `project_admin` is "renamed from the earlier `manager`" and `project_manager` is a distinct, newer role.
 
-**Where:** `docs/requirements/index.md` §1 Overview vs. `docs/requirements/user.md` §Entity, §Role → Screen Access.
+**Where:** `specs/requirements/index.md` §1 Overview vs. `specs/requirements/user.md` §Entity, §Role → Screen Access.
 
 **Why it matters:** `index.md` is the top-level entry point into the requirements doc set — a reader starting there gets a materially wrong role model before ever reaching `user.md`'s correction.
 
@@ -250,9 +250,9 @@ Be exhaustive rather than concise — this audit is meant to be a thorough refer
 
 ### 12. "No em dashes in code/comments/docs" rule is violated almost everywhere, including by itself — Minor
 
-**What:** `backend.md` §Code Quality Standards: "**Punctuation**: no em dashes in code/comments/docs — use commas, colons, or separate sentences." The rule's own sentence contains an em dash. A repo-wide check found em dashes in the majority of `backend/app/**/*.py` files' comments/docstrings (17 of the files checked), and every requirements/architecture doc in `docs/` is written with em dashes as its dominant punctuation style throughout.
+**What:** `backend.md` §Code Quality Standards: "**Punctuation**: no em dashes in code/comments/docs — use commas, colons, or separate sentences." The rule's own sentence contains an em dash. A repo-wide check found em dashes in the majority of `backend/app/**/*.py` files' comments/docstrings (17 of the files checked), and every requirements/architecture doc in `specs/` is written with em dashes as its dominant punctuation style throughout.
 
-**Where:** `docs/architecture/backend.md` §Code Quality Standards vs. nearly the entire `backend/app` tree and `docs/` tree.
+**Where:** `specs/architecture/backend.md` §Code Quality Standards vs. nearly the entire `backend/app` tree and `specs/` tree.
 
 **Why it matters:** Not a functional issue, but a rule this comprehensively and consistently ignored (by the very document stating it) signals either the rule is wrong/should be scoped more narrowly (e.g. to generated user-facing strings only), or style conventions in this project aren't actually enforced/reviewed against this doc.
 
@@ -280,11 +280,11 @@ Be exhaustive rather than concise — this audit is meant to be a thorough refer
 
 ### 14. Login timing side-channel remains unaddressed — Low-Moderate
 
-**What:** `authenticate_local_user` still returns early without any password-verification work for "no such active local user"/SSO/no-password cases, and only runs the (deliberately expensive) Argon2 `verify()` when a real local account is found — exactly the pattern `docs/sast.md` Finding #6 already identified as defeating the app's own stated "generic error, don't reveal whether an email is registered" goal via response-time measurement.
+**What:** `authenticate_local_user` still returns early without any password-verification work for "no such active local user"/SSO/no-password cases, and only runs the (deliberately expensive) Argon2 `verify()` when a real local account is found — exactly the pattern `specs/sast.md` Finding #6 already identified as defeating the app's own stated "generic error, don't reveal whether an email is registered" goal via response-time measurement.
 
 **Where:** `backend/app/services/user_service.py:144-155`.
 
-**Spec reference:** `docs/requirements/auth.md` User Stories ("a generic error message on failed login, so that the system doesn't reveal whether an email is registered"); `docs/sast.md` Finding #6.
+**Spec reference:** `specs/requirements/auth.md` User Stories ("a generic error message on failed login, so that the system doesn't reveal whether an email is registered"); `specs/sast.md` Finding #6.
 
 **Severity:** Low-Moderate (already catalogued in `sast.md`; repeated here because it directly contradicts a stated user story, not just a general hardening suggestion).
 
@@ -294,7 +294,7 @@ Be exhaustive rather than concise — this audit is meant to be a thorough refer
 
 ### 15. No rate limiting on login, no security response headers — Low
 
-**What:** Both remain exactly as `docs/sast.md` Findings #4 and #7 described: `POST /auth/login` has no throttling/lockout of any kind, and `main.py` registers only `CORSMiddleware` — no `Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options`, or `Strict-Transport-Security`.
+**What:** Both remain exactly as `specs/sast.md` Findings #4 and #7 described: `POST /auth/login` has no throttling/lockout of any kind, and `main.py` registers only `CORSMiddleware` — no `Content-Security-Policy`, `X-Frame-Options`, `X-Content-Type-Options`, or `Strict-Transport-Security`.
 
 **Where:** `backend/app/api/auth.py` (login), `backend/app/main.py`.
 
@@ -358,7 +358,7 @@ No Critical findings — the codebase's security-critical defaults (JWT secret, 
 
 ## shadcn/ui Usage Audit (2026-09-06)
 
-A separate, narrower pass, requested specifically to check this codebase's actual shadcn/ui usage against the framework's own best-practice guidance — the `shadcn` skill installed via `pnpm dlx skills add shadcn/ui` (`.agents/skills/shadcn/`, cloned from `github.com/shadcn/ui.git`). Findings continue the numbering above. "Guidance reference" below points at the skill's rule files rather than a `docs/requirements/*.md` spec, since this pass checks framework conventions, not this app's own functional spec.
+A separate, narrower pass, requested specifically to check this codebase's actual shadcn/ui usage against the framework's own best-practice guidance — the `shadcn` skill installed via `pnpm dlx skills add shadcn/ui` (`.agents/skills/shadcn/`, cloned from `github.com/shadcn/ui.git`). Findings continue the numbering above. "Guidance reference" below points at the skill's rule files rather than a `specs/requirements/*.md` spec, since this pass checks framework conventions, not this app's own functional spec.
 
 Every `.tsx` file under `frontend/src` was reviewed: all 19 files in `components/ui/`, every consumer across `components/{companies,projects,timesheet,users,data-table}/` and `pages/`, plus `components.json` and `index.css`.
 

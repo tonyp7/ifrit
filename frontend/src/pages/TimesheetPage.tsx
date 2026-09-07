@@ -28,7 +28,7 @@ export function TimesheetPage() {
 
   // Week on mobile, Month on desktop/tablet — a one-time default computed at
   // mount from the same `md:` breakpoint the views themselves switch on, not a
-  // live-synced setting (see docs/requirements/timesheet.md#my-timesheet-clocking).
+  // live-synced setting (see specs/requirements/timesheet.md#my-timesheet-clocking).
   const [periodType, setPeriodType] = useState<PeriodType>(defaultPeriodType);
   const [periodDate, setPeriodDate] = useState<Date>(defaultPeriodDate);
   const [selectedKey, setSelectedKey] = useState<string>(() => toDayKey(defaultPeriodDate()));
@@ -91,7 +91,7 @@ export function TimesheetPage() {
 
   // Same label TimesheetHeader itself shows (e.g. "August 2026" / "Week 34") — used
   // by the "Removing a service line" confirmation dialog to name exactly the range
-  // about to be cleared (see docs/requirements/timesheet.md#interactions--input-rules).
+  // about to be cleared (see specs/requirements/timesheet.md#interactions--input-rules).
   const periodLabel =
     periodType === "month"
       ? formatMonthLabel(periodDate)

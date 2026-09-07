@@ -25,7 +25,7 @@ interface ResetPasswordDialogProps {
   onConfirm: (newPassword: string) => Promise<void>;
 }
 
-// See docs/requirements/user.md#password-policy — same 12-255/printable rule and
+// See specs/requirements/user.md#password-policy — same 12-255/printable rule and
 // live strength meter as the User Form's initial-password field.
 export function ResetPasswordDialog({
   open,

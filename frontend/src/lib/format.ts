@@ -1,7 +1,7 @@
 // Decimal amounts (quantity, unit_price, value, total_value) come from the API as
-// strings (see docs/architecture/backend.md — Decimal is JSON-serialized as a string
+// strings (see specs/architecture/backend.md — Decimal is JSON-serialized as a string
 // to avoid float precision loss). Display them human-readable — see
-// docs/requirements/project.md#calculated-values for the two different rules below.
+// specs/requirements/project.md#calculated-values for the two different rules below.
 
 /** `NUMERIC(12, 5)` quantities — decimals shown only when needed, up to 5 places,
  * never padded with trailing zeros (e.g. `1.5`, not `1.50000`; `10`, not `10.00000`). */

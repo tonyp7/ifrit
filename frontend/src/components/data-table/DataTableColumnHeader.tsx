@@ -23,7 +23,7 @@ interface DataTableColumnHeaderProps<TData extends RowData, TValue> {
 // current direction (`ArrowUp`/`ArrowDown`) or `ChevronsUpDown` when unsorted. This
 // is template/example code per shadcn's own docs (there's no `npx shadcn add` entry
 // for it), so it lives under components/data-table/ rather than components/ui/ —
-// see docs/architecture/frontend.md#component-patterns.
+// see specs/architecture/frontend.md#component-patterns.
 export function DataTableColumnHeader<TData extends RowData, TValue>({
   column,
   title,

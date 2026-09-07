@@ -7,7 +7,7 @@ Ifrit is a Project & Resource Management Web App with the following core functio
 - Create `projects`, `companies` and `users`
 - Manage `projects`, `companies` and `users`
 - A `Company` is always usable as a project `client`; it can additionally be flagged
-  `is_vendor` to also be usable as a project `vendor` (see [company.md](docs/requirements/company.md))
+  `is_vendor` to also be usable as a project `vendor` (see [company.md](company.md))
 - A project must have a `vendor` entity and a `client` entity — the same company may be both
   on the same project (inter-company/self-billing)
 - A project must have an `invoicing currency`
@@ -25,11 +25,11 @@ Ifrit is a Project & Resource Management Web App with the following core functio
 ## 2. User Stories
 
 
-- [auth.md](docs/requirements/auth.md) — User stories related to authentication
-- [user.md](docs/requirements/user.md) — Defines what is the user
-- [project.md](docs/requirements/project.md) — component structure, state management, styling rules
-- [company.md](docs/requirements/company.md) — schema conventions, migrations, indexing rules
-- [home.md](docs/requirements/home.md) — User stories for the post-login home/landing screen
+- [auth.md](auth.md) — User stories related to authentication
+- [user.md](user.md) — Defines what is the user
+- [project.md](project.md) — component structure, state management, styling rules
+- [company.md](company.md) — schema conventions, migrations, indexing rules
+- [home.md](home.md) — User stories for the post-login home/landing screen
 
 
 ## 3. Entities
@@ -41,7 +41,7 @@ Ifrit is a Project & Resource Management Web App with the following core functio
 
 ## 6. Non-Functional Requirements
 
-See [index.md](docs/architecture/index.md)
+See [index.md](../architecture/index.md)
 
 ## 7. Out of Scope
 

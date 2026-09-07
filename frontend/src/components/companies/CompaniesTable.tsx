@@ -58,14 +58,14 @@ export function CompaniesTable() {
   // Sorting is server-side (see the `manualSorting: true` below and
   // components/data-table/sorting.ts) — this table is also server-paginated, so a
   // client-side-only sort would only ever reorder whatever page is already in
-  // memory, not the whole dataset (see docs/requirements/company.md
+  // memory, not the whole dataset (see specs/requirements/company.md
   // #companies-list-screen).
   const [sorting, setSorting] = useState<SortingState>([]);
 
   // Debounce the search input before it drives the actual (server-side) filter —
   // shadcn/ui's native Data Table filter component, kept manual/server-driven rather
   // than tanstack's client-side row filtering, since results are paginated server-side
-  // (see docs/requirements/company.md#companies-list-screen).
+  // (see specs/requirements/company.md#companies-list-screen).
   useEffect(() => {
     const handle = setTimeout(() => {
       setSearch(searchInput);

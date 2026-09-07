@@ -25,20 +25,20 @@ PAGE_SIZE = 50
 
 class ProjectReadOnlyError(Exception):
     """Raised when an action is attempted on a `closed` project (see
-    docs/requirements/project.md#status-enum) — the project itself, or its service
+    specs/requirements/project.md#status-enum) — the project itself, or its service
     lines, are fully read-only in that state."""
 
 
 class InvalidReferenceError(Exception):
     """Raised when a write references a vendor/client/currency/consultant that
     doesn't satisfy the app-level rule for that reference (see
-    docs/requirements/project.md#1-entity-project)."""
+    specs/requirements/project.md#1-entity-project)."""
 
 
 class ServiceLineHasLoggedTimeError(Exception):
     """Raised when deleting a service line on an `active` project is attempted
     while time has already been logged against it (see
-    docs/requirements/project.md#validation-rules-1) — editing remains allowed,
+    specs/requirements/project.md#validation-rules-1) — editing remains allowed,
     only deletion is blocked."""
 
 
@@ -73,13 +73,13 @@ async def list_projects(
 ) -> tuple[list[tuple[Project, str, str]], int]:
     """Returns (project, vendor_company_name, client_company_name) tuples — the list
     screen shows company names, not raw ids (see
-    docs/requirements/project.md#projects-list-screen)."""
+    specs/requirements/project.md#projects-list-screen)."""
     vendor = aliased(Company)
     client = aliased(Company)
 
     # Built here (not at module scope) since client_company_name/vendor_company_name
     # sort by the aliased join columns above, not a plain Project attribute — see
-    # docs/requirements/project.md#projects-list-screen.
+    # specs/requirements/project.md#projects-list-screen.
     sortable_columns = {
         "name": Project.name,
         "status": Project.status,
@@ -174,8 +174,8 @@ async def update_project(
     db: AsyncSession, project: Project, data: ProjectWrite
 ) -> Project:
     # `status` is the one field exempted from a `closed` project's read-only state
-    # (see docs/requirements/project.md#status-enum) — everything else, including
-    # `project_managers` (see docs/requirements/project.md#project-managers, which is
+    # (see specs/requirements/project.md#status-enum) — everything else, including
+    # `project_managers` (see specs/requirements/project.md#project-managers, which is
     # NOT exempted the way `status` is), must be unchanged while closed.
     if project.status == "closed":
         other_fields = data.model_dump(exclude={"status", "project_manager_ids"})
@@ -210,7 +210,7 @@ async def duplicate_project(db: AsyncSession, source: Project) -> Project:
         status="draft",
         is_active=True,
         # Copied verbatim, same consistency reason service lines' consultant
-        # assignments are — see docs/requirements/project.md#project-managers.
+        # assignments are — see specs/requirements/project.md#project-managers.
         project_managers=list(source.project_managers),
     )
     for line in source.service_lines:
@@ -258,9 +258,9 @@ async def _resolve_project_managers(
     db: AsyncSession, user_ids: list[uuid.UUID]
 ) -> list[User]:
     """Same shape as _resolve_consultants above, checking `project_manager` instead
-    of `consultant` — see docs/requirements/project.md#project-managers. Holding the
+    of `consultant` — see specs/requirements/project.md#project-managers. Holding the
     role is the only eligibility check; there is deliberately no minimum-one or
-    empty-assignment guard (see docs/requirements/project.md#1-entity-project)."""
+    empty-assignment guard (see specs/requirements/project.md#1-entity-project)."""
     if not user_ids:
         return []
     result = await db.execute(
@@ -346,8 +346,8 @@ async def delete_service_line(
     if project.status == "closed":
         raise ProjectReadOnlyError("Cannot delete a service line on a closed project")
     # On an `active` project, a line with any logged time is edit-only, not
-    # deletable — see docs/requirements/project.md#validation-rules-1. `draft`
-    # has no such restriction (see docs/requirements/project.md#service-lines).
+    # deletable — see specs/requirements/project.md#validation-rules-1. `draft`
+    # has no such restriction (see specs/requirements/project.md#service-lines).
     if project.status == "active" and await _has_logged_time(db, line.id):
         raise ServiceLineHasLoggedTimeError(
             "Cannot delete a service line with logged time on an active project"

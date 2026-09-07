@@ -53,9 +53,9 @@ async def list_users_endpoint(
 ) -> UserListResponse:
     """Users, optionally filtered by role and/or a `full_name`/`name_id` substring
     (`search`) — used by both the Service Line consultant picker (see
-    docs/requirements/project.md#service-lines, `is_active=true`, page 1 is always
+    specs/requirements/project.md#service-lines, `is_active=true`, page 1 is always
     enough since `search` already narrows it) and the Users List Screen (see
-    docs/requirements/user.md#users-list-screen, no `is_active` filter so both active
+    specs/requirements/user.md#users-list-screen, no `is_active` filter so both active
     and inactive users show)."""
     users, total = await list_users(
         db, role, search, page, is_active, sort_by=sort_by, sort_dir=sort_dir

@@ -20,7 +20,7 @@ interface PasswordStrengthMeterProps {
 // Live under any password-entry field, recomputed on every value change regardless
 // of source (keystroke, paste, …) since it's driven by the controlled `password`
 // prop, not an input event listener — see
-// docs/requirements/user.md#password-policy.
+// specs/requirements/user.md#password-policy.
 export function PasswordStrengthMeter({ password }: PasswordStrengthMeterProps) {
   const { t } = useTranslation(["user"]);
   const score = useMemo(() => getPasswordScore(password), [password]);

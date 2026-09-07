@@ -1,7 +1,7 @@
 #!/bin/bash
 # Container entrypoint — starts uvicorn (backend) and nginx (static frontend +
 # reverse proxy) together in this one container, per
-# docs/architecture/infra.md § Containerisation ("supervised by a lightweight
+# specs/architecture/infra.md § Containerisation ("supervised by a lightweight
 # process manager or entrypoint script" — this is the entrypoint-script option,
 # deliberately not pulling in supervisord/s6 for just two processes).
 #
@@ -11,7 +11,7 @@ set -euo pipefail
 
 # Idempotent — alembic no-ops if already at head — so it's safe to run on every
 # container start rather than requiring a separate manual migration step. See
-# docs/architecture/infra.md § Deployment.
+# specs/architecture/infra.md § Deployment.
 alembic upgrade head
 
 # Bound to localhost only: nginx is the sole caller, from inside this same

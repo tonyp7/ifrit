@@ -34,7 +34,7 @@ interface TimesheetDesktopGridProps {
   hasEntriesInPeriod: (serviceLineId: string) => boolean;
   hasLockedEntriesInPeriod: (serviceLineId: string) => boolean;
   /** The entry owner is no longer currently assigned to this service line — see
-   * docs/requirements/timesheet.md#persistence: read-only regardless of lock. */
+   * specs/requirements/timesheet.md#persistence: read-only regardless of lock. */
   isUnassignedInPeriod: (serviceLineId: string) => boolean;
   onRemoveServiceLine: (serviceLineId: string) => void;
   onClearAndRemoveServiceLine: (serviceLineId: string) => Promise<void>;
@@ -42,9 +42,9 @@ interface TimesheetDesktopGridProps {
   onCellBlur: (serviceLineId: string, dayKey: string) => void;
   // Keeps `selectedKey` pointed at whatever day the user is actually looking at on
   // desktop, so a later Week<->Month switch re-anchors on that day instead of a
-  // stale value — see docs/requirements/timesheet.md#shared-header-all-breakpoints.
+  // stale value — see specs/requirements/timesheet.md#shared-header-all-breakpoints.
   onFocusDay: (dayKey: string) => void;
-  /** Validation screen only — see docs/requirements/timesheet.md's Validation §
+  /** Validation screen only — see specs/requirements/timesheet.md's Validation §
    * Lock / Unlock. Left undefined on My Timesheet, which has no lock control. */
   isFullyLockedInPeriod?: (serviceLineId: string) => boolean;
   onToggleLock?: (serviceLineId: string) => Promise<void>;
@@ -181,7 +181,7 @@ export function TimesheetDesktopGrid({
                   // ever render the red, losing the weekend shading entirely. Each branch
                   // here already bakes the weekend variant in, so there's nothing left to
                   // merge/collide. Locked still wins over unassigned if both apply — see
-                  // docs/requirements/timesheet.md's Validation § Lock / Unlock.
+                  // specs/requirements/timesheet.md's Validation § Lock / Unlock.
                   const backgroundClass = locked
                     ? weekend
                       ? "bg-red-200 dark:bg-red-900/50"

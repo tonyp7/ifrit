@@ -4,7 +4,7 @@ from pydantic import BaseModel, Field, model_validator
 
 from app.models.user import ThemePreference
 
-# See docs/requirements/user.md#password-policy.
+# See specs/requirements/user.md#password-policy.
 PASSWORD_MIN_LENGTH = 12
 PASSWORD_MAX_LENGTH = 255
 VALID_ROLES = {"administrator", "project_admin", "project_manager", "consultant"}
@@ -55,7 +55,7 @@ class UserCreate(BaseModel):
             raise ValueError(f"roles must be a subset of {sorted(VALID_ROLES)}")
         if self.password is not None:
             _check_password_value(self.password)
-        # See docs/requirements/user.md#user-form-create--edit--duplicate: a local
+        # See specs/requirements/user.md#user-form-create--edit--duplicate: a local
         # user needs an initial password; an SSO user must never have one set.
         if not self.is_sso and not self.password:
             raise ValueError("password is required for a local (non-SSO) user")

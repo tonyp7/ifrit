@@ -28,13 +28,13 @@ interface TimesheetMobileViewProps {
   hasEntriesInPeriod: (serviceLineId: string) => boolean;
   hasLockedEntriesInPeriod: (serviceLineId: string) => boolean;
   /** The entry owner is no longer currently assigned to this service line — see
-   * docs/requirements/timesheet.md#persistence: read-only regardless of lock. */
+   * specs/requirements/timesheet.md#persistence: read-only regardless of lock. */
   isUnassignedInPeriod: (serviceLineId: string) => boolean;
   onRemoveServiceLine: (serviceLineId: string) => void;
   onClearAndRemoveServiceLine: (serviceLineId: string) => Promise<void>;
   onCellChange: (serviceLineId: string, dayKey: string, value: string) => void;
   onCellBlur: (serviceLineId: string, dayKey: string) => void;
-  /** Validation screen only — see docs/requirements/timesheet.md's Validation §
+  /** Validation screen only — see specs/requirements/timesheet.md's Validation §
    * Lock / Unlock. Left undefined on My Timesheet, which has no lock control. */
   isFullyLockedInPeriod?: (serviceLineId: string) => boolean;
   onToggleLock?: (serviceLineId: string) => Promise<void>;
@@ -129,7 +129,7 @@ export function TimesheetMobileView({
                   "flex items-center gap-3 rounded-md border-l-4 bg-card p-3",
                   serviceLineBorderColor(index),
                   // Locked wins over unassigned if both apply — see
-                  // docs/requirements/timesheet.md's Validation § Lock / Unlock.
+                  // specs/requirements/timesheet.md's Validation § Lock / Unlock.
                   locked && "bg-red-100 dark:bg-red-950/40",
                   unassigned && "bg-muted/60",
                 )}

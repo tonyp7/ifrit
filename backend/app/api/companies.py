@@ -23,7 +23,7 @@ router = APIRouter(prefix="/companies", tags=["companies"])
 
 # Read-only lookups are also needed by the `projects` screen (project_admin-accessible,
 # not just `configuration`) to populate its vendor/client pickers — see
-# docs/requirements/project.md's own "As a project_admin, I want to create a project by
+# specs/requirements/project.md's own "As a project_admin, I want to create a project by
 # selecting... vendor... client..." user story. Every write below stays
 # administrator-only: that's genuine Companies-configuration management, not a
 # read a project_admin needs. Router-level `dependencies` used to gate everything to

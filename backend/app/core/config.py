@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     # seed_admin_password) this is a real security fix: a hardcoded fallback there
     # would mean a deployment that forgets to set the env var silently runs with a
     # value published in this repo's own .env.example, rather than failing to
-    # start (see docs/sast.md). For the rest it's for consistency — no field
+    # start (see specs/sast.md). For the rest it's for consistency — no field
     # should look configurable via .env while actually tolerating being unset.
     # Local dev is unaffected: .env already sets all of these explicitly.
     #

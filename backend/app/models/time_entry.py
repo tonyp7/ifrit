@@ -24,7 +24,7 @@ class TimeEntry(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     # A time entry's primary subject is the person who logged it; deleting that user
-    # deletes their entries (see docs/requirements/timesheet.md#data-model).
+    # deletes their entries (see specs/requirements/timesheet.md#data-model).
     user_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
     )
@@ -39,7 +39,7 @@ class TimeEntry(Base):
     # enforced the domain constraint for free, but asyncpg binds/decodes TIME exclusively
     # via datetime.time (hour capped at 23) and can neither write nor read back 24:00:00 —
     # confirmed against a live connection. The CHECK constraint below does that job
-    # explicitly instead (see docs/requirements/timesheet.md#data-model).
+    # explicitly instead (see specs/requirements/timesheet.md#data-model).
     time_entry: Mapped[timedelta] = mapped_column(Interval, nullable=False)
     # Unused in the current UI — deliberate scope-fencing for a later iteration.
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)

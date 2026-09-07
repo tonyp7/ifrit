@@ -18,7 +18,7 @@ from app.services.sorting import resolve_sort
 PAGE_SIZE = 50
 
 # Whitelist of client-sortable columns for the Companies List Screen (see
-# docs/requirements/company.md#companies-list-screen) — never resolve `sort_by`
+# specs/requirements/company.md#companies-list-screen) — never resolve `sort_by`
 # against the model dynamically (see app/services/sorting.py).
 _SORTABLE_COLUMNS = {
     "legal_name": Company.legal_name,
@@ -44,7 +44,7 @@ async def list_companies(
         stmt = stmt.where(Company.legal_name.ilike(pattern))
         count_stmt = count_stmt.where(Company.legal_name.ilike(pattern))
     # is_vendor/is_active: used by the Project form's vendor/client pickers (see
-    # docs/requirements/project.md#1-entity-project) to narrow the list beyond the
+    # specs/requirements/project.md#1-entity-project) to narrow the list beyond the
     # companies admin screen's unfiltered/all-statuses default.
     if is_vendor is not None:
         stmt = stmt.where(Company.is_vendor == is_vendor)
@@ -197,7 +197,7 @@ async def get_conflicting_primary_address(
     exclude_address_id: uuid.UUID | None = None,
 ) -> Address | None:
     """The existing primary Address of this type for this company, if any — used to
-    reject a second one (see docs/requirements/company.md §3 Validation rules)."""
+    reject a second one (see specs/requirements/company.md §3 Validation rules)."""
     stmt = select(Address).where(
         Address.company_id == company_id,
         Address.address_type == address_type,

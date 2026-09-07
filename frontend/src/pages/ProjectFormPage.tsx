@@ -71,7 +71,7 @@ export function ProjectFormPage() {
   const isReadOnly = project?.status === "closed";
 
   // Built inside the component (not at module scope) so the validation messages can
-  // go through t() — see docs/architecture/frontend.md#internationalization-i18n.
+  // go through t() — see specs/architecture/frontend.md#internationalization-i18n.
   const schema = useMemo(
     () =>
       z.object({
@@ -204,7 +204,7 @@ export function ProjectFormPage() {
   const projectType = watch("project_type");
   const status = watch("status");
   // Drives currency-aware decimal formatting for the Service Lines table and Total
-  // value below (e.g. 2 decimals for USD, 0 for JPY) — see docs/architecture/database.md#currencies.
+  // value below (e.g. 2 decimals for USD, 0 for JPY) — see specs/architecture/database.md#currencies.
   const selectedCurrency = currencies.find((c) => c.alpha_code === currencyCode);
 
   return (
@@ -320,7 +320,7 @@ export function ProjectFormPage() {
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field>
                   {/* status stays editable even when the rest of the form is read-only
-                      (see docs/requirements/project.md#status-enum) — otherwise a closed
+                      (see specs/requirements/project.md#status-enum) — otherwise a closed
                       project could never be reopened. */}
                   <FieldLabel htmlFor="status">{t("Status")}</FieldLabel>
                   <Select

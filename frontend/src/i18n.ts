@@ -3,7 +3,7 @@ import HttpBackend from "i18next-http-backend";
 import { initReactI18next } from "react-i18next";
 
 // Namespaces mirror the requirement docs' feature epics (see
-// docs/architecture/frontend.md#internationalization-i18n) plus `common` for
+// specs/architecture/frontend.md#internationalization-i18n) plus `common` for
 // generic, reused-everywhere strings (actions, statuses, nav chrome).
 export const NAMESPACES = [
   "common",
@@ -19,7 +19,7 @@ void i18n
   .use(HttpBackend)
   .use(initReactI18next)
   .init({
-    // English only for now (see docs/requirements/home.md#appearance) — components
+    // English only for now (see specs/requirements/home.md#appearance) — components
     // are still written translation-ready via t(), so adding a language later is
     // just new JSON files under public/locales, not a component rewrite.
     lng: "en",

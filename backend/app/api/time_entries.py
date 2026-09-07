@@ -62,7 +62,7 @@ async def upsert_time_entries(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[TimeEntryUpsertResult]:
-    """Bulk, per-item-validated (see docs/requirements/timesheet.md's "API contract"
+    """Bulk, per-item-validated (see specs/requirements/timesheet.md's "API contract"
     section) — a single cell blur sends a one-element `payload`, the timesheet's
     clear-on-remove-service-line flow sends one covering every day being cleared.
     `200` only if every item succeeded; `207 Multi-Status` if any item was rejected
@@ -83,7 +83,7 @@ async def list_managed_time_entries(
     db: AsyncSession = Depends(get_db),
 ) -> ManagedTimeEntriesResponse:
     """Validation screen's one-call-loads-everything endpoint (see
-    docs/requirements/timesheet.md's "GET /time-entries/managed" API contract) — no
+    specs/requirements/timesheet.md's "GET /time-entries/managed" API contract) — no
     identity parameter, the caller's own project_manager assignments determine the
     whole response. `GET /time-entries` and `GET /time-entries/eligible-service-lines`
     are unrelated and unchanged; this is a separate, purpose-built read path."""
@@ -100,7 +100,7 @@ async def set_service_line_lock(
     db: AsyncSession = Depends(get_db),
 ) -> list[TimeEntryOut]:
     """Lock/unlock a whole (consultant, service line, period) at once — see
-    docs/requirements/timesheet.md's Validation § Lock / Unlock and its API
+    specs/requirements/timesheet.md's Validation § Lock / Unlock and its API
     contract. A single action, not a bulk array like PUT /time-entries: any failing
     authorization check rejects the whole request rather than partially applying."""
     try:

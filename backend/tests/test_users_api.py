@@ -560,7 +560,7 @@ async def test_list_users_sort_composes_with_pagination(client, db_session) -> N
     # Sorting must happen server-side, before pagination splits rows into pages —
     # a client-side-only sort only reorders whatever page is already in memory,
     # which silently breaks once there's more than one page. See
-    # docs/requirements/user.md#users-list-screen.
+    # specs/requirements/user.md#users-list-screen.
     await _login_admin(client, db_session)
     for i in range(54):
         await create_user(

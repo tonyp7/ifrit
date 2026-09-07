@@ -12,7 +12,7 @@ from app.services.sorting import resolve_sort
 PAGE_SIZE = 50
 
 # Whitelist of client-sortable columns for the Users List Screen (see
-# docs/requirements/user.md#users-list-screen) — `roles` is deliberately excluded,
+# specs/requirements/user.md#users-list-screen) — `roles` is deliberately excluded,
 # a list of role chips has no meaningful single-column order. Never resolve
 # `sort_by` against the model dynamically (see app/services/sorting.py).
 _SORTABLE_COLUMNS = {
@@ -26,7 +26,7 @@ _SORTABLE_COLUMNS = {
 class SelfLockoutError(Exception):
     """Raised when an administrator attempts to deactivate their own account or
     remove their own `administrator` role — see
-    docs/requirements/user.md#open-questions (self-lockout)."""
+    specs/requirements/user.md#open-questions (self-lockout)."""
 
 
 async def get_user_by_name_id(db: AsyncSession, name_id: str) -> User | None:
@@ -54,9 +54,9 @@ async def list_users(
 ) -> tuple[list[User], int]:
     """Users, optionally filtered to a single role — e.g. `role=consultant` for the
     Service Line consultant-assignment picker (see
-    docs/requirements/project.md#service-lines) — and/or a `full_name`/`name_id`
+    specs/requirements/project.md#service-lines) — and/or a `full_name`/`name_id`
     substring match (that same picker's server-side search, and the Users List
-    Screen's header search — see docs/requirements/user.md#users-list-screen).
+    Screen's header search — see specs/requirements/user.md#users-list-screen).
     Always paginated at `PAGE_SIZE`, matching list_companies/list_projects — the
     picker only ever needs page 1 anyway, since it narrows via `role`/`search` first,
     and never passes `sort_by`/`sort_dir` — it has no sortable-header UI, so the
@@ -120,7 +120,7 @@ async def create_user(db: AsyncSession, data: UserCreate) -> User:
 async def update_user(
     db: AsyncSession, user: User, data: UserUpdate, current_user: User
 ) -> User:
-    """See docs/requirements/user.md#user-form-create--edit--duplicate for the
+    """See specs/requirements/user.md#user-form-create--edit--duplicate for the
     is_sso-transition password handling, and #open-questions for the self-lockout
     rule this enforces."""
     is_self = user.id == current_user.id
