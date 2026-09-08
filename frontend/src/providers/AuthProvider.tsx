@@ -35,12 +35,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       .finally(() => setIsLoading(false));
   }, []);
 
-  // The sole subscriber to api/client.ts's session-expired signal (see
-  // specs/requirements/auth.md's design doc) — this is the one place `user` gets
-  // cleared and the app navigates to /login in response to a session dying
-  // mid-use, rather than each screen independently reacting to its own failed
-  // request. See sessionEvents.ts for why this is an event bridge rather than a
-  // hard window.location redirect.
+  // The sole subscriber to api/client.ts's session-expired signal — this is the
+  // one place `user` gets cleared and the app navigates to /login in response to
+  // a session dying mid-use, rather than each screen independently reacting to
+  // its own failed request. See sessionEvents.ts for why this is an event bridge
+  // rather than a hard window.location redirect.
   useEffect(() => {
     return onSessionExpired(() => {
       setUser(null);

@@ -24,21 +24,18 @@ PAGE_SIZE = 50
 
 
 class ProjectReadOnlyError(Exception):
-    """Raised when an action is attempted on a `closed` project (see
-    specs/requirements/project.md#status-enum) — the project itself, or its service
-    lines, are fully read-only in that state."""
+    """Raised when an action is attempted on a `closed` project — the project itself,
+    or its service lines, are fully read-only in that state."""
 
 
 class InvalidReferenceError(Exception):
     """Raised when a write references a vendor/client/currency/consultant that
-    doesn't satisfy the app-level rule for that reference (see
-    specs/requirements/project.md#1-entity-project)."""
+    doesn't satisfy the app-level rule for that reference."""
 
 
 class ServiceLineHasLoggedTimeError(Exception):
     """Raised when deleting a service line on an `active` project is attempted
-    while time has already been logged against it (see
-    specs/requirements/project.md#validation-rules-1) — editing remains allowed,
+    while time has already been logged against it — editing remains allowed,
     only deletion is blocked."""
 
 
@@ -72,14 +69,13 @@ async def list_projects(
     sort_dir: str | None = None,
 ) -> tuple[list[tuple[Project, str, str]], int]:
     """Returns (project, vendor_company_name, client_company_name) tuples — the list
-    screen shows company names, not raw ids (see
-    specs/requirements/project.md#projects-list-screen)."""
+    screen shows company names, not raw ids."""
     vendor = aliased(Company)
     client = aliased(Company)
 
     # Built here (not at module scope) since client_company_name/vendor_company_name
-    # sort by the aliased join columns above, not a plain Project attribute — see
-    # specs/requirements/project.md#projects-list-screen.
+    # sort by the aliased join columns above, not a plain Project attribute — those
+    # aliases only exist inside this function.
     sortable_columns = {
         "name": Project.name,
         "status": Project.status,
@@ -173,10 +169,9 @@ async def create_project(db: AsyncSession, data: ProjectWrite) -> Project:
 async def update_project(
     db: AsyncSession, project: Project, data: ProjectWrite
 ) -> Project:
-    # `status` is the one field exempted from a `closed` project's read-only state
-    # (see specs/requirements/project.md#status-enum) — everything else, including
-    # `project_managers` (see specs/requirements/project.md#project-managers, which is
-    # NOT exempted the way `status` is), must be unchanged while closed.
+    # `status` is the one field exempted from a `closed` project's read-only state —
+    # everything else, including `project_managers` (which is NOT exempted the way
+    # `status` is), must be unchanged while closed.
     if project.status == "closed":
         other_fields = data.model_dump(exclude={"status", "project_manager_ids"})
         current = {field: getattr(project, field) for field in other_fields}
@@ -210,7 +205,8 @@ async def duplicate_project(db: AsyncSession, source: Project) -> Project:
         status="draft",
         is_active=True,
         # Copied verbatim, same consistency reason service lines' consultant
-        # assignments are — see specs/requirements/project.md#project-managers.
+        # assignments are: a duplicate should start as a faithful snapshot of the
+        # source, not a blank slate.
         project_managers=list(source.project_managers),
     )
     for line in source.service_lines:
@@ -258,9 +254,10 @@ async def _resolve_project_managers(
     db: AsyncSession, user_ids: list[uuid.UUID]
 ) -> list[User]:
     """Same shape as _resolve_consultants above, checking `project_manager` instead
-    of `consultant` — see specs/requirements/project.md#project-managers. Holding the
-    role is the only eligibility check; there is deliberately no minimum-one or
-    empty-assignment guard (see specs/requirements/project.md#1-entity-project)."""
+    of `consultant`. Holding the role is the only eligibility check; there is
+    deliberately no minimum-one or empty-assignment guard — a project with zero
+    project managers is valid, it simply can't have its timesheets validated by
+    anyone yet."""
     if not user_ids:
         return []
     result = await db.execute(
@@ -346,8 +343,9 @@ async def delete_service_line(
     if project.status == "closed":
         raise ProjectReadOnlyError("Cannot delete a service line on a closed project")
     # On an `active` project, a line with any logged time is edit-only, not
-    # deletable — see specs/requirements/project.md#validation-rules-1. `draft`
-    # has no such restriction (see specs/requirements/project.md#service-lines).
+    # deletable — deleting it would silently orphan the time entries already logged
+    # against it, with no cascade and no warning. `draft` has no such restriction
+    # since no time can be logged against a project that isn't active yet.
     if project.status == "active" and await _has_logged_time(db, line.id):
         raise ServiceLineHasLoggedTimeError(
             "Cannot delete a service line with logged time on an active project"

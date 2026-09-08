@@ -4,15 +4,14 @@ before a real user-management flow exists. Credentials come from env vars
 with the default password.
 
 Assigned `administrator`, `project_admin`, and `project_manager` roles — `projects` access
-is granted by the literal `project_admin` role only, not inferred from `administrator` (see
-specs/requirements/user.md#role--screen-access), so an administrator-only bootstrap account
-would have no way to reach `projects` to verify/manage anything there. `project_manager` is
-included for the same reason: it's the only way to reach the `Validation` sub-destination
-(see specs/requirements/home.md#timesheet-menu), and this bootstrap account is meant to be
-able to exercise every screen. Note `project_manager`'s actual authority is scoped to
-projects that user is assigned to (see specs/requirements/project.md#project-managers) —
-holding the role alone is what's needed to reach the nav entry point, not to see non-empty
-data there unless this account is also assigned as a project manager on a real project.
+is granted by the literal `project_admin` role only, not inferred from `administrator`, so
+an administrator-only bootstrap account would have no way to reach `projects` to
+verify/manage anything there. `project_manager` is included for the same reason: it's the
+only way to reach the `Validation` sub-destination, and this bootstrap account is meant to
+be able to exercise every screen. Note `project_manager`'s actual authority is scoped to
+projects that user is assigned to — holding the role alone is what's needed to reach the
+nav entry point, not to see non-empty data there unless this account is also assigned as a
+project manager on a real project.
 
 Usage (from backend/): uv run python -m scripts.seed_admin
 """

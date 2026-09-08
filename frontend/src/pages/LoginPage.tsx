@@ -26,7 +26,7 @@ export function LoginPage() {
   const [formError, setFormError] = useState<string | null>(null);
 
   // Built inside the component (not at module scope) so the validation messages can
-  // go through t() — see specs/architecture/frontend.md#internationalization-i18n.
+  // go through t(), which isn't available at module scope.
   const loginSchema = useMemo(
     () =>
       z.object({
@@ -49,7 +49,7 @@ export function LoginPage() {
       await login(values.email, values.password);
       navigate("/", { replace: true });
     } catch (err) {
-      // Generic message: don't reveal whether the email exists (see auth.md).
+      // Generic message: don't reveal whether the email exists.
       setFormError(
         err instanceof ApiError ? err.message : t("Something went wrong. Please try again."),
       );

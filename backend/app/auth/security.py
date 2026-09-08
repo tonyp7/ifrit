@@ -8,9 +8,9 @@ from argon2.exceptions import VerifyMismatchError
 
 from app.core.config import settings
 
-# Argon2id, not bcrypt: bcrypt only uses the first 72 *bytes* of input, which the
-# password policy's 255-character/full-Unicode allowance can easily exceed (see
-# specs/requirements/user.md#password-policy) — Argon2 has no such practical limit.
+# Argon2id, not bcrypt: bcrypt only uses the first 72 *bytes* of input, which this
+# app's 255-character/full-Unicode password allowance can easily exceed — Argon2
+# has no such practical limit.
 _password_hasher = PasswordHasher()
 
 

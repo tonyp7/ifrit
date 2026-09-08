@@ -13,10 +13,9 @@ interface DataTablePaginationProps {
 }
 
 // Shared Previous/Next footer — every list screen in this app paginates the same way
-// (50/page, server-side, no jump-to-page — see e.g.
-// specs/requirements/company.md#companies-list-screen), so this was identical
-// boilerplate across every table already; see DataTable.tsx's own comment for why
-// this lives under components/data-table/ rather than components/ui/.
+// (50/page, server-side, no jump-to-page), so this was identical boilerplate across
+// every table already; see DataTable.tsx's own comment for why this lives under
+// components/data-table/ rather than components/ui/.
 export function DataTablePagination({
   page,
   pageSize,

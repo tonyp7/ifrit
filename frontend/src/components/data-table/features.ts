@@ -20,8 +20,7 @@ import {
 // table — there's nothing left for a client-side row model to compute; the
 // feature is registered purely for its column/table APIs and state
 // (`column.toggleSorting`, `state.pagination`, etc.), matching TanStack's own
-// "server owns processing" pattern for manual features. See
-// specs/architecture/frontend.md#component-patterns.
+// "server owns processing" pattern for manual features.
 export const features = tableFeatures({
   rowSortingFeature,
   rowPaginationFeature,

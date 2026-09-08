@@ -62,11 +62,10 @@ export function UsersTable() {
   // Sorting is server-side (see the `manualSorting: true` below and
   // components/data-table/sorting.ts) — this table is also server-paginated, so a
   // client-side-only sort would only ever reorder whatever page is already in
-  // memory, not the whole dataset (see specs/requirements/user.md#users-list-screen).
+  // memory, not the whole dataset.
   const [sorting, setSorting] = useState<SortingState>([]);
 
-  // Same debounce pattern as CompaniesTable — see
-  // specs/requirements/company.md#companies-list-screen.
+  // Same debounce pattern as CompaniesTable.
   useEffect(() => {
     const handle = setTimeout(() => {
       setSearch(searchInput);
@@ -102,8 +101,7 @@ export function UsersTable() {
 
   function handleDuplicate(user: User) {
     // Client-side only, unlike Company's server-side /duplicate — name_id is
-    // globally unique, so there's no valid placeholder to persist immediately. See
-    // specs/requirements/user.md#user-form-create--edit--duplicate.
+    // globally unique, so there's no valid placeholder to persist immediately.
     navigate("/configuration/users/new", {
       state: { duplicateFrom: { roles: user.roles, is_sso: user.is_sso } },
     });

@@ -35,7 +35,7 @@ async def get_current_user(
 
 def require_roles(*allowed_roles: str) -> Callable[[User], User]:
     """Dependency factory enforcing the current user holds at least one of the given
-    roles (see the Role -> Screen Access matrix in specs/requirements/user.md)."""
+    roles."""
 
     def check(user: User = Depends(get_current_user)) -> User:
         user_roles = {role.name for role in user.roles}

@@ -62,9 +62,9 @@ async def upsert_time_entries(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[TimeEntryUpsertResult]:
-    """Bulk, per-item-validated (see specs/requirements/timesheet.md's "API contract"
-    section) — a single cell blur sends a one-element `payload`, the timesheet's
-    clear-on-remove-service-line flow sends one covering every day being cleared.
+    """Bulk, per-item-validated — a single cell blur sends a one-element `payload`,
+    the timesheet's clear-on-remove-service-line flow sends one covering every day
+    being cleared.
     `200` only if every item succeeded; `207 Multi-Status` if any item was rejected
     (locked, or not currently assigned to the service line) — whether that's one item
     or all of them, the response array already carries the per-item detail a caller
@@ -82,10 +82,9 @@ async def list_managed_time_entries(
     user: User = Depends(require_roles("project_manager")),  # noqa: B008
     db: AsyncSession = Depends(get_db),
 ) -> ManagedTimeEntriesResponse:
-    """Validation screen's one-call-loads-everything endpoint (see
-    specs/requirements/timesheet.md's "GET /time-entries/managed" API contract) — no
-    identity parameter, the caller's own project_manager assignments determine the
-    whole response. `GET /time-entries` and `GET /time-entries/eligible-service-lines`
+    """Validation screen's one-call-loads-everything endpoint — no identity
+    parameter, the caller's own project_manager assignments determine the whole
+    response. `GET /time-entries` and `GET /time-entries/eligible-service-lines`
     are unrelated and unchanged; this is a separate, purpose-built read path."""
     consultants = await time_entry_service.list_managed_time_entries(
         db, user, start_date, end_date
@@ -99,10 +98,9 @@ async def set_service_line_lock(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[TimeEntryOut]:
-    """Lock/unlock a whole (consultant, service line, period) at once — see
-    specs/requirements/timesheet.md's Validation § Lock / Unlock and its API
-    contract. A single action, not a bulk array like PUT /time-entries: any failing
-    authorization check rejects the whole request rather than partially applying."""
+    """Lock/unlock a whole (consultant, service line, period) at once. A single
+    action, not a bulk array like PUT /time-entries: any failing authorization
+    check rejects the whole request rather than partially applying."""
     try:
         return await time_entry_service.set_service_line_lock(db, user, payload)
     except NotAuthorizedError as err:

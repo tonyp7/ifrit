@@ -11,10 +11,9 @@ from app.services.sorting import resolve_sort
 
 PAGE_SIZE = 50
 
-# Whitelist of client-sortable columns for the Users List Screen (see
-# specs/requirements/user.md#users-list-screen) — `roles` is deliberately excluded,
-# a list of role chips has no meaningful single-column order. Never resolve
-# `sort_by` against the model dynamically (see app/services/sorting.py).
+# Whitelist of client-sortable columns for the Users List Screen — `roles` is
+# deliberately excluded, a list of role chips has no meaningful single-column order.
+# Never resolve `sort_by` against the model dynamically (see app/services/sorting.py).
 _SORTABLE_COLUMNS = {
     "full_name": User.full_name,
     "name_id": User.name_id,
@@ -25,8 +24,8 @@ _SORTABLE_COLUMNS = {
 
 class SelfLockoutError(Exception):
     """Raised when an administrator attempts to deactivate their own account or
-    remove their own `administrator` role — see
-    specs/requirements/user.md#open-questions (self-lockout)."""
+    remove their own `administrator` role — without this, an administrator could
+    accidentally lock every administrator out of the app with no way back in."""
 
 
 async def get_user_by_name_id(db: AsyncSession, name_id: str) -> User | None:
@@ -53,11 +52,10 @@ async def list_users(
     sort_dir: str | None = None,
 ) -> tuple[list[User], int]:
     """Users, optionally filtered to a single role — e.g. `role=consultant` for the
-    Service Line consultant-assignment picker (see
-    specs/requirements/project.md#service-lines) — and/or a `full_name`/`name_id`
+    Service Line consultant-assignment picker — and/or a `full_name`/`name_id`
     substring match (that same picker's server-side search, and the Users List
-    Screen's header search — see specs/requirements/user.md#users-list-screen).
-    Always paginated at `PAGE_SIZE`, matching list_companies/list_projects — the
+    Screen's header search). Always paginated at `PAGE_SIZE`, matching
+    list_companies/list_projects — the
     picker only ever needs page 1 anyway, since it narrows via `role`/`search` first,
     and never passes `sort_by`/`sort_dir` — it has no sortable-header UI, so the
     default (`full_name` ascending) always applies there.
@@ -120,9 +118,10 @@ async def create_user(db: AsyncSession, data: UserCreate) -> User:
 async def update_user(
     db: AsyncSession, user: User, data: UserUpdate, current_user: User
 ) -> User:
-    """See specs/requirements/user.md#user-form-create--edit--duplicate for the
-    is_sso-transition password handling, and #open-questions for the self-lockout
-    rule this enforces."""
+    """Handles the two is_sso-transition directions (password becomes permanently
+    unrecoverable going local -> SSO; a new password is required going SSO ->
+    local) and enforces the self-lockout rule: an administrator can't remove their
+    own administrator role."""
     is_self = user.id == current_user.id
     was_administrator = any(role.name == "administrator" for role in user.roles)
     will_be_administrator = "administrator" in data.roles
@@ -132,7 +131,8 @@ async def update_user(
 
     if data.is_sso and not user.is_sso:
         # Local -> SSO: the password becomes permanently unrecoverable, not just
-        # hidden (see the Alert copy in user.md#user-form-create--edit--duplicate).
+        # hidden — hashed_password is cleared outright, not preserved for a
+        # possible future switch back.
         user.hashed_password = None
     elif not data.is_sso and user.is_sso:
         # SSO -> local: a password is required to make the account usable again.

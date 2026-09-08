@@ -4,8 +4,7 @@ import { useAuth } from "@/hooks/useAuth";
 
 // Post-login landing screen — first nav bar item, shown to every role regardless of
 // which other screens they can access. Currently an empty placeholder; will later
-// host generic information and/or widgets and/or a dashboard (see
-// specs/requirements/home.md).
+// host generic information and/or widgets and/or a dashboard.
 export function HomePage() {
   const { user } = useAuth();
   const { t } = useTranslation(["home"]);

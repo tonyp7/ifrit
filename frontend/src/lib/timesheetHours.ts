@@ -10,10 +10,9 @@ export function formatHours(value: number): string {
   return value % 1 === 0 ? String(value) : value.toFixed(1);
 }
 
-// Blur-time correction (see specs/requirements/timesheet.md#interactions--input-rules:
-// "reject/ignore out-of-range or non-numeric input rather than throwing"): empty ->
-// "0" (triggers delete-on-zero), invalid -> revert to fallback, otherwise clamp to
-// 0-24 and round to the nearest 0.5.
+// Blur-time correction — reject/ignore out-of-range or non-numeric input rather
+// than throwing: empty -> "0" (triggers delete-on-zero), invalid -> revert to
+// fallback, otherwise clamp to 0-24 and round to the nearest 0.5.
 export function normalizeHours(raw: string, fallback: string): string {
   const trimmed = raw.trim();
   if (trimmed === "") return "0";

@@ -10,9 +10,8 @@ class TimeEntryUpsert(BaseModel):
     date: date_
     hours: Decimal
     # None (the default, and the only value My Timesheet's own calls ever send) means
-    # "the caller's own entry" — see specs/requirements/timesheet.md's Validation
-    # § Scope "Editing (override)": a project_manager overriding a consultant's entry
-    # sets this to that consultant's id. Never resolved from anywhere but this field —
+    # "the caller's own entry"; a project_manager overriding a consultant's entry sets
+    # this to that consultant's id instead. Never resolved from anywhere but this field —
     # see time_entry_service._upsert_one's authorization check.
     user_id: uuid.UUID | None = None
 
@@ -41,9 +40,8 @@ class TimeEntryListResponse(BaseModel):
 
 
 class TimeEntryUpsertResult(BaseModel):
-    """One request item's outcome from the bulk `PUT /time-entries` (see
-    specs/requirements/timesheet.md's "API contract" — every item in the request
-    array is processed and reported independently, never all-or-nothing).
+    """One request item's outcome from the bulk `PUT /time-entries` — every item in the
+    request array is processed and reported independently, never all-or-nothing.
     `entry`/`error` are mutually exclusive: `entry` is set (or left `None` for a
     successful delete) when `ok` is `True`; `error` is set — `"locked"`,
     `"not_eligible"`, or `"not_authorized"` (a `project_manager` override rejected
@@ -69,8 +67,8 @@ class EligibleServiceLineListResponse(BaseModel):
 
 
 class ManagedConsultantOut(BaseModel):
-    """One consultant's block on the Validation screen — see
-    specs/requirements/timesheet.md's "GET /time-entries/managed" API contract."""
+    """One consultant's block on the Validation screen, as returned by
+    GET /time-entries/managed."""
 
     user_id: uuid.UUID
     full_name: str
@@ -88,9 +86,9 @@ class ManagedTimeEntriesResponse(BaseModel):
 
 
 class TimeEntryLockRequest(BaseModel):
-    """PUT /time-entries/lock — see specs/requirements/timesheet.md's Validation §
-    Lock / Unlock. One (consultant, service line, period) action per call, not a
-    bulk array — there's no equivalent "many independent items" shape here."""
+    """PUT /time-entries/lock. One (consultant, service line, period) action per call,
+    not a bulk array — unlike the entry-upsert endpoint above, there's no batch of
+    independent lock actions to report on individually."""
 
     user_id: uuid.UUID
     service_line_id: uuid.UUID

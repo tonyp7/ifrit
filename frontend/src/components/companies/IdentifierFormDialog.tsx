@@ -34,7 +34,7 @@ const SCHEME_REQUIRED: IdentifierType[] = ["legal_registration", "peppol_partici
 
 // Shape-only, used purely for type inference — the validated instance (with
 // translated messages) is built inside the component via useMemo below, since
-// message strings need t() (see specs/architecture/frontend.md#internationalization-i18n).
+// message strings need t(), which isn't available at module scope.
 const _shapeSchema = z.object({
   id_type: z.enum(ID_TYPE_VALUES),
   scheme_id: z.string().optional(),

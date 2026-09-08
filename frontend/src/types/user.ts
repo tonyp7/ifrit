@@ -2,9 +2,8 @@ export type Role = "administrator" | "project_admin" | "project_manager" | "cons
 
 export type ThemePreference = "light" | "dark" | "system";
 
-// Single source of truth for value -> display label, per
-// specs/requirements/user.md#user-form-create--edit--duplicate — raw enum values are
-// never shown to the user.
+// Single source of truth for value -> display label — raw enum values are never
+// shown to the user.
 export const ROLE_LABELS: Record<Role, string> = {
   administrator: "Administrator",
   project_admin: "Project Admin",

@@ -44,9 +44,8 @@ const UOM_VALUES = Object.keys(UOM_LABELS) as [Uom, ...Uom[]];
 // Values may be pre-filled already comma-grouped (see formatQuantity/formatMoney) —
 // strip that before checking shape, same as on submit.
 const DECIMAL_PATTERN = /^\d+(\.\d+)?$/;
-// Matches CompaniesTable's search debounce (see
-// specs/requirements/company.md#companies-list-screen) — same rationale, applied here
-// to the consultant picker's server-side search.
+// Matches CompaniesTable's search debounce — same rationale, applied here to the
+// consultant picker's server-side search.
 const SEARCH_DEBOUNCE_MS = 300;
 
 const _shapeSchema = z.object({
@@ -79,7 +78,7 @@ interface ServiceLineFormDialogProps {
   initialConsultants?: ServiceLineConsultant[];
   onSaved: () => void;
   /** The project's invoicing currency's decimal precision, for formatting the
-   * pre-filled Unit price value — see specs/architecture/database.md#currencies. */
+   * pre-filled Unit price value. */
   minorUnit: number | null | undefined;
 }
 
@@ -156,8 +155,8 @@ export function ServiceLineFormDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Server-side search (see specs/requirements/project.md#service-lines) — only fetches
-  // while the picker is open. Instant on open (empty query), debounced while typing.
+  // Server-side search — only fetches while the picker is open. Instant on open
+  // (empty query), debounced while typing.
   useEffect(() => {
     if (!consultantPopoverOpen) return;
     let cancelled = false;

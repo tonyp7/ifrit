@@ -46,10 +46,8 @@ async def test_list_companies_rejects_consultant(client, db_session) -> None:
 
 async def test_list_and_get_company_allow_manager(client, db_session) -> None:
     # Read-only lookups are also needed by the `projects` screen (project_admin-accessible)
-    # to populate its vendor/client pickers — see specs/requirements/project.md's
-    # "As a project_admin, I want to create a project by selecting... vendor... client..."
-    # user story. Only company-configuration *writes* stay administrator-only (see
-    # test_company_writes_reject_manager below).
+    # to populate its vendor/client pickers. Only company-configuration *writes* stay
+    # administrator-only (see test_company_writes_reject_manager below).
     company = await create_company(db_session, legal_name="Acme Vendor", is_vendor=True)
     await _login_manager(client, db_session)
 
@@ -155,10 +153,9 @@ async def test_list_companies_pagination(client, db_session) -> None:
 
 
 async def test_list_companies_sort_composes_with_pagination(client, db_session) -> None:
-    # Sorting must be applied before pagination splits the rows into pages — see
-    # specs/requirements/company.md#companies-list-screen: a client-side-only sort
-    # (as originally implemented) only reorders whatever page is already in memory,
-    # which silently breaks once there's more than one page.
+    # Sorting must be applied before pagination splits the rows into pages: a
+    # client-side-only sort (as originally implemented) only reorders whatever page
+    # is already in memory, which silently breaks once there's more than one page.
     await _login_admin(client, db_session)
     for i in range(55):
         await create_company(db_session, legal_name=f"Company {i:03d}")

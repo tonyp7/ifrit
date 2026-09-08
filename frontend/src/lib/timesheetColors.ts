@@ -1,8 +1,7 @@
-// Fixed rotating palette for service-line rows (see
-// specs/requirements/timesheet.md#interactions--input-rules — "Add service line...
-// assigns the next color from a fixed rotating palette"). Assignment is purely
-// positional (a row's color = its index in the current `serviceLines` array), so no
-// separate assignment state needs to be tracked or persisted.
+// Fixed rotating palette for service-line rows: adding a new one assigns the next
+// color in the list. Assignment is purely positional (a row's color = its index in
+// the current `serviceLines` array), so no separate assignment state needs to be
+// tracked or persisted.
 const SERVICE_LINE_BORDER_COLORS = [
   "border-l-blue-500",
   "border-l-emerald-500",

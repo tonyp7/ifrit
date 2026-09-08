@@ -38,7 +38,7 @@ export function CompanyFormPage() {
   const [formError, setFormError] = useState<string | null>(null);
 
   // Built inside the component (not at module scope) so the validation messages can
-  // go through t() — see specs/architecture/frontend.md#internationalization-i18n.
+  // go through t(), which isn't available at module scope.
   const schema = useMemo(
     () =>
       z.object({

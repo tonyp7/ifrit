@@ -559,8 +559,7 @@ async def test_list_users_paginated_response_shape(client, db_session) -> None:
 async def test_list_users_sort_composes_with_pagination(client, db_session) -> None:
     # Sorting must happen server-side, before pagination splits rows into pages —
     # a client-side-only sort only reorders whatever page is already in memory,
-    # which silently breaks once there's more than one page. See
-    # specs/requirements/user.md#users-list-screen.
+    # which silently breaks once there's more than one page.
     await _login_admin(client, db_session)
     for i in range(54):
         await create_user(

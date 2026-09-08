@@ -33,8 +33,8 @@ interface TimesheetDesktopGridProps {
   onAddServiceLine: (serviceLineId: string) => void;
   hasEntriesInPeriod: (serviceLineId: string) => boolean;
   hasLockedEntriesInPeriod: (serviceLineId: string) => boolean;
-  /** The entry owner is no longer currently assigned to this service line — see
-   * specs/requirements/timesheet.md#persistence: read-only regardless of lock. */
+  /** The entry owner is no longer currently assigned to this service line —
+   * read-only regardless of lock. */
   isUnassignedInPeriod: (serviceLineId: string) => boolean;
   onRemoveServiceLine: (serviceLineId: string) => void;
   onClearAndRemoveServiceLine: (serviceLineId: string) => Promise<void>;
@@ -42,10 +42,10 @@ interface TimesheetDesktopGridProps {
   onCellBlur: (serviceLineId: string, dayKey: string) => void;
   // Keeps `selectedKey` pointed at whatever day the user is actually looking at on
   // desktop, so a later Week<->Month switch re-anchors on that day instead of a
-  // stale value — see specs/requirements/timesheet.md#shared-header-all-breakpoints.
+  // stale value.
   onFocusDay: (dayKey: string) => void;
-  /** Validation screen only — see specs/requirements/timesheet.md's Validation §
-   * Lock / Unlock. Left undefined on My Timesheet, which has no lock control. */
+  /** Validation screen only. Left undefined on My Timesheet, which has no lock
+   * control. */
   isFullyLockedInPeriod?: (serviceLineId: string) => boolean;
   onToggleLock?: (serviceLineId: string) => Promise<void>;
 }
@@ -180,8 +180,7 @@ export function TimesheetDesktopGrid({
                   // `locked && "bg-red-100"` on the same weekend+locked cell would only
                   // ever render the red, losing the weekend shading entirely. Each branch
                   // here already bakes the weekend variant in, so there's nothing left to
-                  // merge/collide. Locked still wins over unassigned if both apply — see
-                  // specs/requirements/timesheet.md's Validation § Lock / Unlock.
+                  // merge/collide. Locked still wins over unassigned if both apply.
                   const backgroundClass = locked
                     ? weekend
                       ? "bg-red-200 dark:bg-red-900/50"

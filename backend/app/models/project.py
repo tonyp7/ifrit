@@ -43,12 +43,11 @@ service_line_consultants = Table(
 )
 
 # Users (holding the project_manager role) assigned to review/lock a project's
-# timesheets — see specs/requirements/project.md#1-entity-project. Only reflects
-# current assignment, not history. Named `project_manager_assignments`, distinct
-# from `Project.project_managers` below (the relationship attribute) — same
-# distinct-names precaution as `service_line_consultants`/`ServiceLine.users`
-# above, since `secondary=project_managers` would otherwise shadow this Table
-# with the class attribute being defined on the same line.
+# timesheets. Only reflects current assignment, not history. Named
+# `project_manager_assignments`, distinct from `Project.project_managers` below (the
+# relationship attribute) — same distinct-names precaution as
+# `service_line_consultants`/`ServiceLine.users` above, since `secondary=project_managers`
+# would otherwise shadow this Table with the class attribute being defined on the same line.
 project_manager_assignments = Table(
     "project_managers",
     Base.metadata,
@@ -74,8 +73,8 @@ class Project(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    # Must reference a company with is_vendor = true (app-level check, see
-    # specs/requirements/project.md#1-entity-project).
+    # Must reference a company with is_vendor = true — a business rule on Company, not
+    # enforceable via a plain FK, so this is checked at the app level instead.
     vendor_company_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("companies.id"), nullable=False
     )
@@ -90,13 +89,15 @@ class Project(Base):
     )
     project_type: Mapped[ProjectType] = mapped_column(String(20), nullable=False)
     # status transitions are unrestricted (any -> any); it's a filtering/edit-rule
-    # switch, not a workflow gate — see specs/requirements/project.md#status-enum.
+    # switch (e.g. gating whether service lines can still be edited), not a workflow
+    # gate with an enforced lifecycle.
     status: Mapped[ProjectStatus] = mapped_column(
         String(10), nullable=False, default="draft", server_default="draft"
     )
-    # Soft-delete flag, independent of `status` — see specs/requirements/project.md
-    # #1-entity-project. Deleted projects are filtered out of the list entirely
-    # (unlike Company, which keeps deactivated rows visible).
+    # Soft-delete flag, independent of `status`: a project can be `closed` (a real
+    # lifecycle state) and still `is_active = true`, or vice versa. Deleted projects are
+    # filtered out of the list entirely (unlike Company, which keeps deactivated rows
+    # visible).
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
@@ -136,21 +137,21 @@ class ServiceLine(Base):
         ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
     )
-    # Free text, no uniqueness constraint, may be empty — lets a consultant assigned to
-    # more than one line on the same project tell them apart when logging time (see
-    # specs/requirements/project.md#2-entity-service-line, specs/requirements/timesheet.md).
+    # Free text, no uniqueness constraint, may be empty — exists purely so a consultant
+    # assigned to more than one service line on the same project can tell them apart
+    # when picking which one to log time against; not used in billing or calculations.
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    # Does not depend on uom — always the same decimal shape (see
-    # specs/requirements/project.md#2-entity-service-line).
+    # Does not depend on uom — always the same decimal shape regardless of whether it's
+    # counting hours, days, or a fixed quantity.
     quantity: Mapped[Decimal] = mapped_column(Numeric(12, 5), nullable=False)
     uom: Mapped[Uom] = mapped_column(String(10), nullable=False)
     # Denominated in the parent project's invoicing_currency — no separate per-line
     # currency field. Numeric(14, 4): more decimal places than any real-world minor
     # unit needs, headroom for currencies like BHD (3 decimals) without rounding loss.
     unit_price: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False)
-    # Soft-delete flag — see specs/requirements/project.md#validation-rules-1. Every
-    # query listing a project's service lines must filter to is_active = true (see the
-    # partial index below); there is no UI to recover a soft-deleted line.
+    # Soft-delete flag. Every query listing a project's service lines must filter to
+    # is_active = true (see the partial index below); there is no UI to recover a
+    # soft-deleted line.
     is_active: Mapped[bool] = mapped_column(default=True)
 
     project: Mapped[Project] = relationship(back_populates="service_lines")

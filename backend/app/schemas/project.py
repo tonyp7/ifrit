@@ -14,8 +14,8 @@ class ProjectWrite(BaseModel):
     invoicing_currency: str
     project_type: ProjectType
     status: ProjectStatus = "draft"
-    # Held/saved as part of the Project itself, not a separate child-entity flow —
-    # see specs/requirements/project.md#project-managers.
+    # Held/saved as part of the Project itself, not a separate child-entity flow with
+    # its own create/update/delete endpoints.
     project_manager_ids: list[uuid.UUID] = []
 
     @model_validator(mode="after")

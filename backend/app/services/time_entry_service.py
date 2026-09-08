@@ -28,10 +28,9 @@ from app.schemas.time_entry import (
 class NotAuthorizedError(Exception):
     """Raised by `set_service_line_lock` when the caller isn't a project_manager
     assigned to the target service line's project, or the target consultant isn't
-    assigned to it — see specs/requirements/timesheet.md's Validation § API contract
-    for PUT /time-entries/lock. Unlike a bulk PUT /time-entries item's per-item
-    {ok: false}, this is a single-action endpoint — any failing check rejects the
-    whole request, not a partial success."""
+    assigned to it. Unlike a bulk PUT /time-entries item's per-item {ok: false}, this
+    is a single-action endpoint — any failing check rejects the whole request, not a
+    partial success."""
 
 
 def _hours_to_timedelta(hours: Decimal) -> timedelta:
@@ -109,8 +108,7 @@ async def list_time_entries(
 ) -> list[tuple[TimeEntry, ServiceLine, Project]]:
     # Deliberately no is_active/status filtering here, unlike the eligibility query
     # above: historical entries must stay visible even after the user is later
-    # unassigned or the line/project is deactivated (see
-    # specs/requirements/timesheet.md#state's population rule).
+    # unassigned or the line/project is deactivated.
     stmt = (
         select(TimeEntry, ServiceLine, Project)
         .join(ServiceLine, TimeEntry.service_line_id == ServiceLine.id)
@@ -162,25 +160,24 @@ async def _fetch_existing(
 async def _upsert_one(
     db: AsyncSession, user: User, item: TimeEntryUpsert
 ) -> TimeEntryUpsertResult:
-    """One item of the bulk `PUT /time-entries` request (see
-    specs/requirements/timesheet.md's "API contract: PUT /time-entries is bulk, not
-    single-entry"). hours == 0 deletes any existing row instead of saving a zero;
-    hours > 0 upserts, always unlocked, only if the entry's owner is currently
-    assigned to the service line. **Every path here checks `is_locked` first,
-    unconditionally** — locked rows are immutable through this endpoint regardless
-    of direction (delete or overwrite) or who's calling; unlocking is exclusively a
-    `project_manager`'s action via PUT /time-entries/lock, never this one. This is
-    enforced here, server-side, independent of whatever the frontend believes the
-    lock state is — see the same section's note on why relying on the frontend
-    disabling a locked input alone isn't sufficient.
+    """One item of the bulk `PUT /time-entries` request — this endpoint is always
+    bulk, never a single-entry shape, even for a one-cell edit. hours == 0 deletes
+    any existing row instead of saving a zero; hours > 0 upserts, always unlocked,
+    only if the entry's owner is currently assigned to the service line. **Every path
+    here checks `is_locked` first, unconditionally** — locked rows are immutable
+    through this endpoint regardless of direction (delete or overwrite) or who's
+    calling; unlocking is exclusively a `project_manager`'s action via
+    PUT /time-entries/lock, never this one. This is enforced here, server-side,
+    independent of whatever the frontend believes the lock state is — a disabled
+    input is a UI courtesy, not a security boundary; nothing stops a direct API call
+    from attempting the same write.
 
     `item.user_id` is the entry's *owner* — `None` (the only value My Timesheet's
     own calls ever send) means the caller's own entry; a different id is a
-    `project_manager`'s override of a consultant's entry (see
-    specs/requirements/timesheet.md's Validation § Scope, "Editing (override)"). An
-    override is authorized per item, not once for the whole request — matching the
-    "each item is processed and persisted independently" rule this endpoint already
-    follows for everything else."""
+    `project_manager`'s override of a consultant's entry. An override is authorized
+    per item, not once for the whole request — matching the "each item is processed
+    and persisted independently" rule this endpoint already follows for everything
+    else."""
     owner_id = item.user_id if item.user_id is not None else user.id
 
     if owner_id != user.id:
@@ -268,12 +265,10 @@ async def upsert_time_entries(
 ) -> list[TimeEntryUpsertResult]:
     """Bulk blur-triggered save — a single cell edit sends a one-element list; the
     clear-on-remove-service-line flow sends one list covering every day being
-    cleared in the current period, in one call (see
-    specs/requirements/timesheet.md#interactions--input-rules, "Removing a service
-    line"). Each item is processed and persisted **independently** — one item's
-    rejection (see _upsert_one above) never blocks or rolls back any other item in
-    this same list; that's the API layer's job to report (207 vs 200), not this
-    function's."""
+    cleared in the current period, in one call. Each item is processed and persisted
+    **independently** — one item's rejection (see _upsert_one above) never blocks or
+    rolls back any other item in this same list; that's the API layer's job to report
+    (207 vs 200), not this function's."""
     return [await _upsert_one(db, user, item) for item in items]
 
 
@@ -306,11 +301,10 @@ def to_eligible_service_line_out(
 async def list_managed_time_entries(
     db: AsyncSession, project_manager: User, start_date: date, end_date: date
 ) -> list[ManagedConsultantOut]:
-    """GET /time-entries/managed — see specs/requirements/timesheet.md's Validation §
-    API contract. One query for the roster, one for all entries across that whole
-    roster, one for all eligible-service-line sets across that whole roster — never
-    N round trips per consultant (see that section's rejection of the per-consultant
-    loop alternative)."""
+    """GET /time-entries/managed. One query for the roster, one for all entries
+    across that whole roster, one for all eligible-service-line sets across that
+    whole roster — never N round trips per consultant, which would scale linearly
+    with roster size instead of staying constant."""
     pm_project_ids = await _pm_project_ids(db, project_manager.id)
     if not pm_project_ids:
         return []
@@ -328,7 +322,7 @@ async def list_managed_time_entries(
     # Roster part 2: anyone with historical data on a line under one of these
     # projects, regardless of current assignment/active status — same "history
     # stays visible" principle as My Timesheet's own population rule, applied one
-    # level up (see specs/requirements/timesheet.md#state).
+    # level up.
     historical_ids_stmt = (
         select(TimeEntry.user_id)
         .join(ServiceLine, ServiceLine.id == TimeEntry.service_line_id)
@@ -355,8 +349,7 @@ async def list_managed_time_entries(
 
     # All in-scope entries for the whole roster in one query — scoped to service
     # lines under *this* project_manager's projects only, never a consultant's
-    # lines on projects this project_manager isn't assigned to (§Scope's hard
-    # project-scoping rule).
+    # lines on projects this project_manager isn't assigned to.
     entries_stmt = (
         select(TimeEntry, ServiceLine, Project)
         .join(ServiceLine, TimeEntry.service_line_id == ServiceLine.id)
@@ -408,8 +401,7 @@ async def list_managed_time_entries(
 async def set_service_line_lock(
     db: AsyncSession, caller: User, request: TimeEntryLockRequest
 ) -> list[TimeEntryOut]:
-    """PUT /time-entries/lock — see specs/requirements/timesheet.md's Validation §
-    Lock / Unlock and its API contract. Locks or unlocks every day in
+    """PUT /time-entries/lock. Locks or unlocks every day in
     [start_date, end_date] for one (consultant, service line) pair — never per
     cell, never per day as separate actions from the caller's perspective."""
     if not _is_project_manager(caller):
@@ -438,13 +430,11 @@ async def set_service_line_lock(
 
     if request.locked:
         for day in days:
-            # Single atomic upsert per day — see specs/requirements/timesheet.md's
-            # "must be written as a single atomic upsert per day" resolution: the
-            # conflict branch touches is_locked ONLY, never hours, so a
-            # consultant's value that lands moments before this statement runs is
-            # locked as entered, never zeroed out by it. Postgres's own row-level
-            # serialization on the unique key makes this safe under concurrency,
-            # not application-level read-then-decide logic.
+            # Single atomic upsert per day: the conflict branch touches is_locked
+            # ONLY, never hours, so a consultant's value that lands moments before
+            # this statement runs is locked as entered, never zeroed out by it.
+            # Postgres's own row-level serialization on the unique key makes this
+            # safe under concurrency, not application-level read-then-decide logic.
             stmt = (
                 pg_insert(TimeEntry)
                 .values(
@@ -480,10 +470,11 @@ async def set_service_line_lock(
         ).scalars().all()
         for row in existing_rows:
             if row.time_entry == timedelta(0):
-                # One of lock's own gap-fill rows — a genuine consultant-entered 0
-                # can never exist (see §Persistence) — so unlocking removes it
-                # entirely, restoring the true gap, rather than leaving a 0 row
-                # unlocked.
+                # A genuine consultant save of 0 hours is always translated to a
+                # delete instead (see _upsert_one above), so any row with
+                # time_entry == 0 that reaches this point must be one of lock's own
+                # gap-fill rows — safe to remove entirely, restoring the true gap,
+                # rather than leaving a 0 row unlocked.
                 await db.delete(row)
             else:
                 row.is_locked = False
@@ -511,8 +502,8 @@ async def _is_eligible_ignoring_active_status(
     """Same consultant-assignment check `_is_eligible` makes, minus the active
     project/service-line filters — locking/unlocking a *historical* assignment
     must keep working even after the project's since closed or the line
-    deactivated (see specs/requirements/timesheet.md's Validation § Scope: history
-    stays visible and, by extension, lockable, regardless of current status)."""
+    deactivated: history stays visible and, by extension, lockable, regardless of
+    current status."""
     result = await db.execute(
         select(service_line_consultants.c.user_id).where(
             service_line_consultants.c.service_line_id == service_line_id,

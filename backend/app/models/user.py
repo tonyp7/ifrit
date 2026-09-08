@@ -41,16 +41,16 @@ class User(Base):
     )
     # Identity used to match a login: for a local user this is their email; for an SSO
     # user this is the SAML NameID asserted by the IdP, which is conventionally
-    # email-shaped but not guaranteed to be a valid email (see specs/requirements/auth.md).
+    # email-shaped but not guaranteed to be a valid email.
     name_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     # Null for SSO users — an is_sso account has no local password and cannot log in
-    # via email/password (see specs/requirements/auth.md).
+    # via email/password.
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_sso: Mapped[bool] = mapped_column(default=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(default=True)
     # Set from the profile menu, persisted so it follows the user across devices/sessions
-    # (see specs/requirements/home.md#appearance). Plain column, not a lookup table — a
+    # rather than living in browser storage. Plain column, not a lookup table — a
     # single-valued attribute fully dependent on the user's key, already in BCNF.
     theme_preference: Mapped[ThemePreference] = mapped_column(
         String(10), default="system", server_default="system"

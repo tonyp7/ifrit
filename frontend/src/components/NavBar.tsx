@@ -38,7 +38,7 @@ import type { ThemePreference } from "@/types/user";
 // `aria-current="page"` that NavLink sets on the active route automatically for plain
 // links; the Configuration menu trigger isn't a NavLink (it opens a dropdown instead
 // of navigating directly), so it sets `aria-current` manually via `isActive` below to
-// stay visually consistent with the rest (see specs/requirements/home.md#navigation).
+// stay visually consistent with the rest.
 const navIconClass =
   "flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground aria-[current=page]:bg-secondary aria-[current=page]:text-foreground";
 
@@ -47,10 +47,9 @@ export function NavBar() {
   const { themePreference, setThemePreference } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
-  // NAV_ITEMS' `label` is the English source string, used here as the translation key
-  // (see specs/architecture/frontend.md#internationalization-i18n) — it's defined at
-  // module scope in config/navigation.ts, outside any component, so it can't call
-  // useTranslation() itself.
+  // NAV_ITEMS' `label` is the English source string, used here as the translation
+  // key — it's defined at module scope in config/navigation.ts, outside any
+  // component, so it can't call useTranslation() itself.
   const { t } = useTranslation(["common"]);
 
   if (!user) return null;
@@ -58,10 +57,10 @@ export function NavBar() {
 
   const items = NAV_ITEMS.filter((item) => canAccessNavItem(item, currentUser.roles));
 
-  // A child gated by its own `requiredRoles` (e.g. Validation, project_manager-only
-  // — see specs/requirements/home.md#timesheet-menu) may not be visible to every
-  // user who can see the parent item at all — Configuration's children have no
-  // such gate and are always both visible, same as before this concept existed.
+  // A child gated by its own `requiredRoles` (e.g. Validation, project_manager-only)
+  // may not be visible to every user who can see the parent item at all —
+  // Configuration's children have no such gate and are always both visible, same as
+  // before this concept existed.
   function visibleChildren(item: (typeof items)[number]) {
     return item.children?.filter(
       (child) => !child.requiredRoles || child.requiredRoles.some((role) => currentUser.roles.includes(role)),

@@ -29,7 +29,7 @@ class Company(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     # Every company is implicitly usable as a project's client; is_vendor additionally
-    # marks it as selectable as a project's vendor (see specs/requirements/company.md).
+    # marks it as selectable as a project's vendor.
     is_vendor: Mapped[bool] = mapped_column(default=False)
     legal_name: Mapped[str] = mapped_column(String(255), nullable=False)
     trading_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -120,10 +120,9 @@ class Address(Base):
             "address_type IN ('registered', 'bill_to', 'ship_to', 'postal')",
             name="ck_addresses_address_type",
         ),
-        # At most one primary address per (company_id, address_type) — see
-        # specs/requirements/company.md §3 Validation rules. Defense in depth: the API
-        # layer checks this proactively for a clean error message, this index is the
-        # DB-level backstop (also closes the race between two concurrent requests).
+        # At most one primary address per (company_id, address_type). Defense in depth:
+        # the API layer checks this proactively for a clean error message, this index is
+        # the DB-level backstop (also closes the race between two concurrent requests).
         Index(
             "uq_addresses_primary_per_type",
             "company_id",

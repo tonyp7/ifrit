@@ -11,13 +11,13 @@ export class ApiError extends Error {
   }
 }
 
-// Endpoints exempt from the 401 -> refresh-and-retry interceptor below (see
-// specs/requirements/auth.md's design doc, point 3):
+// Endpoints exempt from the 401 -> refresh-and-retry interceptor below:
 // - /auth/refresh's own 401 is the "give up" signal the interceptor produces —
 //   routing it back through the same logic would recurse forever.
 // - /auth/login's 401 (wrong credentials) is a normal, expected outcome of that
-//   specific call, not a session-expiry signal (see auth.md's User Stories: never
-//   reveal whether an email is registered) — LoginPage handles it inline.
+//   specific call, not a session-expiry signal (the backend deliberately returns
+//   a generic error so a failed login never reveals whether an email is
+//   registered) — LoginPage handles it inline.
 // - /auth/logout has no reason to try to refresh-and-retry itself.
 const AUTH_EXEMPT_PATHS = ["/auth/refresh", "/auth/login", "/auth/logout"];
 
@@ -26,12 +26,12 @@ const AUTH_EXEMPT_PATHS = ["/auth/refresh", "/auth/login", "/auth/logout"];
 // sessionExpired if that refresh fails — AuthProvider's own mount-time catch
 // already handles that outcome correctly (setUser(null), which ProtectedRoute
 // already turns into a redirect), so notifying too would just be a redundant
-// second redirect attempt (see auth.md design doc, point 5).
+// second redirect attempt.
 const SILENT_REFRESH_PATHS = ["/auth/me"];
 
 // Shared across concurrent requests so a burst of simultaneous 401s (e.g. a screen
 // that fires several fetches on mount) triggers exactly one refresh call, not one
-// per request — see auth.md design doc, point 1.
+// per request.
 let refreshPromise: Promise<boolean> | null = null;
 
 function attemptRefresh(): Promise<boolean> {
@@ -78,9 +78,9 @@ async function request<T>(path: string, init?: RequestInit, isRetry = false): Pr
   });
 
   if (!response.ok) {
-    // Central 401 handling (see specs/requirements/auth.md's design doc) — a 401
-    // means "you are not logged in," never a normal page-specific error, so this
-    // is handled once here instead of by each of the app's screens independently.
+    // Central 401 handling — a 401 means "you are not logged in," never a normal
+    // page-specific error, so this is handled once here instead of by each of the
+    // app's screens independently.
     if (response.status === 401 && !isRetry && !AUTH_EXEMPT_PATHS.includes(path)) {
       const refreshed = await attemptRefresh();
       if (refreshed) {

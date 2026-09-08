@@ -2,8 +2,8 @@ import type { PeriodType } from "@/types/timesheet";
 
 // Every function here works in the browser's local timezone (plain Date
 // getters/setters, never the UTC/ISO variants) — "today," day boundaries, and which
-// `date` an entry lands on are deliberately local, not server/UTC time (see
-// specs/requirements/timesheet.md#my-timesheet-clocking).
+// `date` an entry lands on are deliberately local, not server/UTC time, so a
+// consultant's day always matches their own clock regardless of server location.
 
 export function toDayKey(d: Date): string {
   const y = d.getFullYear();
@@ -23,8 +23,7 @@ export function addDays(d: Date, amount: number): Date {
   return next;
 }
 
-// Monday-start week, hardcoded per ISO-8601 (see
-// specs/requirements/timesheet.md#interactions--input-rules).
+// Monday-start week, hardcoded per ISO-8601.
 export function startOfWeekMonday(d: Date): Date {
   const date = new Date(d.getFullYear(), d.getMonth(), d.getDate());
   const mondayIndexedDay = (date.getDay() + 6) % 7; // Mon=0 ... Sun=6
@@ -96,7 +95,7 @@ export function formatWeekdayShort(d: Date): string {
 
 // Single-letter weekday (M, T, W, ...) — desktop grid's Month view only (28-31
 // columns need the narrower label; Week view's 7 columns use formatWeekdayShort
-// above instead — see specs/requirements/timesheet.md#desktop--tablet-view).
+// above instead).
 export function formatWeekdayNarrow(d: Date): string {
   return new Intl.DateTimeFormat(undefined, { weekday: "narrow" }).format(d);
 }
@@ -111,10 +110,9 @@ export function formatFullDate(d: Date): string {
 
 // The one DOM-touching function in this file: mirrors the exact `md:` breakpoint
 // (768px / 48rem, Tailwind's default) the mobile/desktop timesheet views already
-// switch on via `md:hidden` / `hidden md:flex` — see
-// specs/requirements/timesheet.md#my-timesheet-clocking for the default-periodType
-// rule this backs (Week on mobile, Month on desktop). A one-time check, not a
-// live-resize listener — see defaultPeriodType below.
+// switch on via `md:hidden` / `hidden md:flex`, so the default period (Week on
+// mobile, Month on desktop, see defaultPeriodType below) matches whichever layout
+// actually renders. A one-time check, not a live-resize listener.
 function isDesktopViewport(): boolean {
   return typeof window !== "undefined" && window.matchMedia("(min-width: 768px)").matches;
 }

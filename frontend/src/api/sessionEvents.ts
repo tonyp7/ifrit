@@ -1,7 +1,6 @@
 // Event bridge between api/client.ts (a plain module with no React context access)
 // and AuthProvider.tsx (the sole owner of `user` state and the only thing that can
-// navigate). See specs/requirements/auth.md#session-expiry--token-refresh--design-not-yet-implemented
-// point 4 — chosen over a hard `window.location` redirect specifically to keep a
+// navigate) — chosen over a hard `window.location` redirect specifically to keep a
 // session expiry a normal in-SPA navigation.
 //
 // Single-subscriber by design: AuthProvider is the only consumer. A second call to

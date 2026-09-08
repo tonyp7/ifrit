@@ -1,8 +1,8 @@
 # syntax=docker/dockerfile:1
 #
 # Single multi-stage build producing one combined image (nginx + static frontend +
-# FastAPI/uvicorn) — see specs/architecture/infra.md § Containerisation. There is no
-# separate "web" image; this is intentionally the only Dockerfile for the app.
+# FastAPI/uvicorn). There is no separate "web" image; this is intentionally the
+# only Dockerfile for the app.
 #
 # Build from the REPO ROOT so both backend/ and frontend/ are in context:
 #   docker build -f docker/Dockerfile -t ifrit-app .
@@ -42,8 +42,8 @@ RUN pnpm build
 
 # ---------------------------------------------------------------------------
 # Stage 2: backend build — installs the FastAPI app via uv, on Debian Trixie Slim
-# (specs/architecture/infra.md: do not switch base OS/arch without updating that
-# file first)
+# (a deliberate choice other parts of this Dockerfile depend on, e.g. Stage 3's
+# Debian-specific apt-get flow — don't switch base OS/arch without checking those)
 # ---------------------------------------------------------------------------
 FROM python:3.12-slim-trixie AS backend-build
 WORKDIR /app
@@ -64,12 +64,17 @@ RUN uv sync --frozen --no-dev
 # Stage 3: final — nginx (serves the static SPA, reverse-proxies /api/* to
 # uvicorn) + the backend venv, both running in this one container. Supervised by
 # a plain entrypoint script (docker/entrypoint.sh) rather than a separate process
-# manager package — see specs/architecture/infra.md § Containerisation.
+# manager package.
 # ---------------------------------------------------------------------------
 FROM python:3.12-slim-trixie AS final
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends nginx \
+# DEBIAN_FRONTEND=noninteractive is scoped to this RUN only (not ENV), so it
+# never leaks into the final image's runtime environment. Without it, apt-get
+# still installs nginx fine, but debconf wastes time/noise cascading through
+# Dialog -> Readline -> Teletype frontends (none usable in a build layer with
+# no TTY) before landing on Noninteractive anyway.
+RUN DEBIAN_FRONTEND=noninteractive apt-get update \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends nginx \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -87,9 +92,8 @@ RUN chmod +x /entrypoint.sh
 
 EXPOSE 80
 
-# /api/health is unauthenticated and already implemented (backend/app/main.py) —
-# see specs/architecture/infra.md. No curl/wget in this image; a stdlib check
-# avoids adding either just for this.
+# /api/health is unauthenticated and already implemented (backend/app/main.py).
+# No curl/wget in this image; a stdlib check avoids adding either just for this.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
     CMD python3 -c "import urllib.request as u; u.urlopen('http://127.0.0.1/api/health', timeout=3)" || exit 1
 

@@ -18,12 +18,11 @@ interface ConsultantTimesheetBlockProps {
   onSelectDay: (dayKey: string) => void;
 }
 
-// One block on the Validation screen (see specs/requirements/timesheet.md's
-// Validation § Screen layout) — a bold consultant-name header plus that
+// One block on the Validation screen — a bold consultant-name header plus that
 // consultant's timesheet, rendered through the exact same shared grid components
-// and useTimesheetGrid hook My Timesheet uses (see the Validation "Implementation
-// note: one shared mechanism, not two"), parameterized with this consultant's
-// user_id as the override owner and a lock control on each row.
+// and useTimesheetGrid hook My Timesheet uses (one shared mechanism, not two),
+// parameterized with this consultant's user_id as the override owner and a lock
+// control on each row.
 export function ConsultantTimesheetBlock({
   consultant,
   periodType,

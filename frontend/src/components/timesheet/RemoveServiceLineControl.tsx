@@ -19,8 +19,8 @@ interface RemoveServiceLineControlProps {
   hasEntries: boolean;
   /** Any *locked* entry for this line, for any day in the current period. */
   hasLockedEntries: boolean;
-  /** The entry owner is no longer currently assigned to this service line — see
-   * specs/requirements/timesheet.md#persistence: read-only, same as locked. */
+  /** The entry owner is no longer currently assigned to this service line —
+   * read-only, same as locked. */
   isUnassigned?: boolean;
   /** e.g. "August 2026" or "Week 34" — same label the Shared Header shows. */
   periodLabel: string;
@@ -33,8 +33,7 @@ interface RemoveServiceLineControlProps {
   onConfirmedClear: () => Promise<void>;
 }
 
-// Three-way behavior per specs/requirements/timesheet.md#interactions--input-rules
-// ("Removing a service line"): no entries this period -> immediate removal; logged
+// Three-way behavior: no entries this period -> immediate removal; logged
 // (unlocked) entries this period -> confirm-then-clear; any locked entry this
 // period -> disabled, no way to remove at all. Shared between
 // TimesheetDesktopGrid and TimesheetMobileView so this branching and its

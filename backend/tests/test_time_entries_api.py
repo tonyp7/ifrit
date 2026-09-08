@@ -270,8 +270,8 @@ async def test_upsert_rejects_locked_entry_regardless_of_direction(
         json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "3"}],
     )
 
-    # No Validation/lock endpoint exists yet (see specs/requirements/timesheet.md's
-    # Validation placeholder) — lock the row directly for this test.
+    # Locks the row directly via the DB rather than through PUT /time-entries/lock,
+    # to isolate this test to the upsert endpoint's own locked-row handling.
     from sqlalchemy import update
 
     from app.models.time_entry import TimeEntry
@@ -300,8 +300,7 @@ async def test_upsert_rejects_locked_entry_regardless_of_direction(
     ]
 
     # ...and so is attempting to delete (zero out) one — regardless of direction, a
-    # locked row is immutable through this endpoint (see
-    # specs/requirements/timesheet.md's "API contract").
+    # locked row is immutable through this endpoint.
     delete_attempt = await client.put(
         "/api/time-entries",
         json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "0"}],
@@ -493,8 +492,7 @@ async def test_managed_lists_consultants_including_zero_data(client, db_session)
     assert len(consultants[consultant_id]["entries"]) == 1
     assert consultants[consultant_id]["entries"][0]["hours"] == "3.00"
     # Zero-data consultant still gets a slot, with an empty entries list and the
-    # eligible service line ready to add — see
-    # specs/requirements/timesheet.md's Validation § Scope.
+    # eligible service line ready to add.
     assert consultants[c2]["entries"] == []
     assert [l["service_line_id"] for l in consultants[c2]["eligible_service_lines"]] == [
         service_line_id
@@ -587,8 +585,8 @@ async def test_managed_includes_historical_consultant_after_unassignment(
     consultants = {c["user_id"]: c for c in response.json()["consultants"]}
     assert consultant_id in consultants
     assert len(consultants[consultant_id]["entries"]) == 1
-    # No longer eligible to be added to — see specs/requirements/timesheet.md's
-    # "Unassigned" cell state, derived client-side from this exact field.
+    # No longer eligible to be added to — the frontend's "Unassigned" cell state is
+    # derived client-side from this exact field.
     assert consultants[consultant_id]["eligible_service_lines"] == []
 
 
