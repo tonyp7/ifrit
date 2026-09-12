@@ -23,21 +23,24 @@ interface TimesheetMobileViewProps {
    * hides it and relies on the shared header's own period switching instead. */
   showSummaryFooter?: boolean;
   periodLabel: string;
-  addOptions: EligibleServiceLine[];
-  onAddServiceLine: (serviceLineId: string) => void;
-  hasEntriesInPeriod: (serviceLineId: string) => boolean;
-  hasLockedEntriesInPeriod: (serviceLineId: string) => boolean;
+  /** My Timesheet/Validation only — see TimesheetDesktopGrid's identical props for
+   * why these (and the two below) are optional here. */
+  addOptions?: EligibleServiceLine[];
+  onAddServiceLine?: (serviceLineId: string) => void;
+  hasEntriesInPeriod?: (userId: string, serviceLineId: string) => boolean;
+  hasLockedEntriesInPeriod?: (userId: string, serviceLineId: string) => boolean;
   /** The entry owner is no longer currently assigned to this service line —
    * read-only regardless of lock. */
-  isUnassignedInPeriod: (serviceLineId: string) => boolean;
-  onRemoveServiceLine: (serviceLineId: string) => void;
-  onClearAndRemoveServiceLine: (serviceLineId: string) => Promise<void>;
-  onCellChange: (serviceLineId: string, dayKey: string, value: string) => void;
-  onCellBlur: (serviceLineId: string, dayKey: string) => void;
-  /** Validation screen only. Left undefined on My Timesheet, which has no lock
-   * control. */
-  isFullyLockedInPeriod?: (serviceLineId: string) => boolean;
-  onToggleLock?: (serviceLineId: string) => Promise<void>;
+  isUnassignedInPeriod: (userId: string, serviceLineId: string) => boolean;
+  /** Reporting only — see TimesheetDesktopGrid's identical prop. */
+  unassignedTooltip?: (userId: string, serviceLineId: string) => string;
+  onRemoveServiceLine?: (userId: string, serviceLineId: string) => void;
+  onClearAndRemoveServiceLine?: (userId: string, serviceLineId: string) => Promise<void>;
+  onCellChange: (userId: string, serviceLineId: string, dayKey: string, value: string) => void;
+  onCellBlur: (userId: string, serviceLineId: string, dayKey: string) => void;
+  /** My Timesheet never sets these — no lock control there. */
+  isFullyLockedInPeriod?: (userId: string, serviceLineId: string) => boolean;
+  onToggleLock?: (userId: string, serviceLineId: string) => Promise<void>;
 }
 
 export function TimesheetMobileView({
@@ -55,6 +58,7 @@ export function TimesheetMobileView({
   hasEntriesInPeriod,
   hasLockedEntriesInPeriod,
   isUnassignedInPeriod,
+  unassignedTooltip,
   onRemoveServiceLine,
   onClearAndRemoveServiceLine,
   onCellChange,
@@ -118,13 +122,13 @@ export function TimesheetMobileView({
 
         <div className="flex flex-col gap-2">
           {serviceLines.map((line, index) => {
-            const key = cellKey(line.service_line_id, selectedKey);
+            const key = cellKey(line.user_id, line.service_line_id, selectedKey);
             const cell = entries[key];
             const locked = cell?.is_locked ?? false;
-            const unassigned = !locked && isUnassignedInPeriod(line.service_line_id);
+            const unassigned = !locked && isUnassignedInPeriod(line.user_id, line.service_line_id);
             return (
               <div
-                key={line.service_line_id}
+                key={`${line.user_id}__${line.service_line_id}`}
                 className={cn(
                   "flex items-center gap-3 rounded-md border-l-4 bg-card p-3",
                   serviceLineBorderColor(index),
@@ -138,6 +142,12 @@ export function TimesheetMobileView({
                   <p className="truncate text-xs text-muted-foreground">
                     {line.service_line_name ?? t("(unnamed service line)")}
                   </p>
+                  {/* Reporting only — see TimesheetDesktopGrid's identical addition. */}
+                  {line.consultant_name && (
+                    <p className="truncate text-xs text-muted-foreground">
+                      {line.consultant_name}
+                    </p>
+                  )}
                 </div>
                 <Input
                   type="number"
@@ -148,41 +158,52 @@ export function TimesheetMobileView({
                   disabled={locked || unassigned}
                   title={
                     unassigned
-                      ? t(
+                      ? (unassignedTooltip?.(line.user_id, line.service_line_id) ??
+                        t(
                           "This consultant is no longer assigned to this service line — read-only.",
-                        )
+                        ))
                       : undefined
                   }
                   value={cell?.hours ?? ""}
                   onChange={(e) =>
-                    onCellChange(line.service_line_id, selectedKey, e.target.value)
+                    onCellChange(line.user_id, line.service_line_id, selectedKey, e.target.value)
                   }
-                  onBlur={() => onCellBlur(line.service_line_id, selectedKey)}
+                  onBlur={() => onCellBlur(line.user_id, line.service_line_id, selectedKey)}
                   className="w-20 text-right"
                   aria-label={t("Hours")}
                 />
                 {isFullyLockedInPeriod && onToggleLock && (
                   <LockServiceLineControl
-                    isFullyLocked={isFullyLockedInPeriod(line.service_line_id)}
-                    onToggle={() => onToggleLock(line.service_line_id)}
+                    isFullyLocked={isFullyLockedInPeriod(line.user_id, line.service_line_id)}
+                    onToggle={() => onToggleLock(line.user_id, line.service_line_id)}
                   />
                 )}
-                <RemoveServiceLineControl
-                  hasEntries={hasEntriesInPeriod(line.service_line_id)}
-                  hasLockedEntries={hasLockedEntriesInPeriod(line.service_line_id)}
-                  isUnassigned={isUnassignedInPeriod(line.service_line_id)}
-                  periodLabel={periodLabel}
-                  onRemove={() => onRemoveServiceLine(line.service_line_id)}
-                  onConfirmedClear={() =>
-                    onClearAndRemoveServiceLine(line.service_line_id)
-                  }
-                />
+                {hasEntriesInPeriod &&
+                  hasLockedEntriesInPeriod &&
+                  onRemoveServiceLine &&
+                  onClearAndRemoveServiceLine && (
+                    <RemoveServiceLineControl
+                      hasEntries={hasEntriesInPeriod(line.user_id, line.service_line_id)}
+                      hasLockedEntries={hasLockedEntriesInPeriod(
+                        line.user_id,
+                        line.service_line_id,
+                      )}
+                      isUnassigned={isUnassignedInPeriod(line.user_id, line.service_line_id)}
+                      periodLabel={periodLabel}
+                      onRemove={() => onRemoveServiceLine(line.user_id, line.service_line_id)}
+                      onConfirmedClear={() =>
+                        onClearAndRemoveServiceLine(line.user_id, line.service_line_id)
+                      }
+                    />
+                  )}
               </div>
             );
           })}
         </div>
 
-        <AddServiceLineSelect options={addOptions} onAdd={onAddServiceLine} />
+        {onAddServiceLine && (
+          <AddServiceLineSelect options={addOptions ?? []} onAdd={onAddServiceLine} />
+        )}
       </div>
 
       {showSummaryFooter && (

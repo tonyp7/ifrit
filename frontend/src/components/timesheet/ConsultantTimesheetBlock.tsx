@@ -55,10 +55,11 @@ export function ConsultantTimesheetBlock({
     initialEntries: consultant.entries,
     eligibleLines: consultant.eligible_service_lines,
     ownerUserId: consultant.user_id,
+    rowOwnerId: consultant.user_id,
   });
 
-  async function handleToggleLock(serviceLineId: string) {
-    const nextLocked = !isFullyLockedInPeriod(serviceLineId);
+  async function handleToggleLock(_userId: string, serviceLineId: string) {
+    const nextLocked = !isFullyLockedInPeriod(consultant.user_id, serviceLineId);
     try {
       const updated = await setServiceLineLock({
         user_id: consultant.user_id,

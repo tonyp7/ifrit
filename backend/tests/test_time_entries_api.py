@@ -892,3 +892,323 @@ async def test_override_respects_lock(client, db_session) -> None:
     )
     assert response.status_code == 207
     assert response.json()[0]["error"] == "locked"
+
+
+# --- Reporting screen: GET /time-entries/report/filters and /report ---------------
+
+
+async def _close_project(client, project_id: str, *, pm_id: str) -> None:
+    """PATCH a project to status="closed", keeping its project_manager assignment —
+    used to exercise Reporting's "closed projects stay reachable" behavior, which
+    Validation's own scope deliberately excludes."""
+    current = (await client.get(f"/api/projects/{project_id}")).json()
+    response = await client.patch(
+        f"/api/projects/{project_id}",
+        json={
+            "name": current["name"],
+            "vendor_company_id": current["vendor_company_id"],
+            "client_company_id": current["client_company_id"],
+            "invoicing_currency": current["invoicing_currency"],
+            "project_type": current["project_type"],
+            "status": "closed",
+            "project_manager_ids": [pm_id],
+        },
+    )
+    assert response.status_code == 200
+
+
+async def test_report_filters_requires_project_manager_role(client, db_session) -> None:
+    await _login_manager_first(client, db_session)
+    await _setup_project_with_consultant_and_pm(
+        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+    )
+    await _login_as(client, "project_admin@example.com", "project_admin-pw")
+    response = await client.get("/api/time-entries/report/filters")
+    assert response.status_code == 403
+
+
+async def test_report_filters_includes_closed_project_and_inactive_line(
+    client, db_session
+) -> None:
+    await _login_manager_first(client, db_session)
+    project_id, service_line_id, _consultant_id, pm_id = (
+        await _setup_project_with_consultant_and_pm(
+            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        )
+    )
+    await _login_as(client, "project_admin@example.com", "project_admin-pw")
+    await _close_project(client, project_id, pm_id=pm_id)
+
+    await _login_as(client, "pm@example.com")
+    response = await client.get("/api/time-entries/report/filters")
+    assert response.status_code == 200
+    body = response.json()
+    assert [p["status"] for p in body["projects"] if p["project_id"] == project_id] == [
+        "closed"
+    ]
+    assert service_line_id in {sl["service_line_id"] for sl in body["service_lines"]}
+
+
+async def test_report_requires_project_manager_role(client, db_session) -> None:
+    await _login_manager_first(client, db_session)
+    await _setup_project_with_consultant_and_pm(
+        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+    )
+    await _login_as(client, "project_admin@example.com", "project_admin-pw")
+    response = await client.get(
+        "/api/time-entries/report",
+        params={"start_date": "2026-08-01", "end_date": "2026-08-31"},
+    )
+    assert response.status_code == 403
+
+
+async def test_report_default_includes_zero_data_assigned_row(client, db_session) -> None:
+    """No filters — the whole scope shows, including a currently-assigned pairing
+    with nothing logged this period (row membership's core resolved rule)."""
+    await _login_manager_first(client, db_session)
+    _project_id, service_line_id, consultant_id, _pm_id = (
+        await _setup_project_with_consultant_and_pm(
+            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        )
+    )
+    await _login_as(client, "pm@example.com")
+    response = await client.get(
+        "/api/time-entries/report",
+        params={"start_date": "2026-08-01", "end_date": "2026-08-31"},
+    )
+    assert response.status_code == 200
+    rows = response.json()["items"]
+    assert len(rows) == 1
+    assert rows[0]["user_id"] == consultant_id
+    assert rows[0]["service_line_id"] == service_line_id
+    assert rows[0]["entries"] == []
+    assert rows[0]["is_assigned"] is True
+
+
+async def test_report_includes_historical_row_after_unassignment(client, db_session) -> None:
+    await _login_manager_first(client, db_session)
+    project_id, service_line_id, consultant_id, _pm_id = (
+        await _setup_project_with_consultant_and_pm(
+            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        )
+    )
+    await _login_as(client, "c@example.com")
+    await client.put(
+        "/api/time-entries",
+        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "3"}],
+    )
+    await _login_as(client, "project_admin@example.com", "project_admin-pw")
+    await client.patch(
+        f"/api/projects/{project_id}/service-lines/{service_line_id}",
+        json={
+            "name": "Discovery",
+            "quantity": "10",
+            "uom": "hours",
+            "unit_price": "100.00",
+            "user_ids": [],
+        },
+    )
+
+    await _login_as(client, "pm@example.com")
+    response = await client.get(
+        "/api/time-entries/report",
+        params={"start_date": "2026-08-01", "end_date": "2026-08-31"},
+    )
+    rows = response.json()["items"]
+    assert len(rows) == 1
+    assert rows[0]["user_id"] == consultant_id
+    assert len(rows[0]["entries"]) == 1
+    # No longer assigned at all — is_assigned tracks the narrower, edit-predicting
+    # rule, not the broader membership rule that still surfaces the row.
+    assert rows[0]["is_assigned"] is False
+
+
+async def test_report_is_assigned_false_on_closed_project(client, db_session) -> None:
+    await _login_manager_first(client, db_session)
+    project_id, service_line_id, _consultant_id, pm_id = (
+        await _setup_project_with_consultant_and_pm(
+            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        )
+    )
+    await _login_as(client, "c@example.com")
+    await client.put(
+        "/api/time-entries",
+        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "3"}],
+    )
+    await _login_as(client, "project_admin@example.com", "project_admin-pw")
+    await _close_project(client, project_id, pm_id=pm_id)
+
+    await _login_as(client, "pm@example.com")
+    response = await client.get(
+        "/api/time-entries/report",
+        params={"start_date": "2026-08-01", "end_date": "2026-08-31"},
+    )
+    rows = response.json()["items"]
+    assert len(rows) == 1
+    # Still visible with its real historical hours, but not "assigned" — an edit
+    # attempt through PUT /time-entries would still be rejected as not_eligible on
+    # a closed project, so the UI's read-only signal has to agree.
+    assert rows[0]["entries"][0]["hours"] == "3.00"
+    assert rows[0]["is_assigned"] is False
+
+
+async def test_report_filters_narrow_by_consultant_project_and_status(
+    client, db_session
+) -> None:
+    await _login_manager_first(client, db_session)
+    project_id, service_line_id, consultant_id, pm_id = (
+        await _setup_project_with_consultant_and_pm(
+            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        )
+    )
+    # A second, unrelated project+consultant under the same pm.
+    await create_user(db_session, name_id="c2@example.com", password="pw", role_name="consultant")
+    await _login_as(client, "project_admin@example.com", "project_admin-pw")
+    vendor = await create_company(db_session, legal_name="Other Vendor", is_vendor=True)
+    client_company = await create_company(db_session, legal_name="Other Client")
+    currency = (await client.get("/api/currencies")).json()
+    c2_id = next(
+        u["id"]
+        for u in (await client.get("/api/users", params={"page": 1})).json()["items"]
+        if u["name_id"] == "c2@example.com"
+    )
+    other_project = await client.post(
+        "/api/projects",
+        json={
+            "name": "Other Project",
+            "vendor_company_id": str(vendor.id),
+            "client_company_id": str(client_company.id),
+            "invoicing_currency": currency[0]["alpha_code"],
+            "project_type": "time_and_material",
+            "status": "active",
+            "project_manager_ids": [pm_id],
+        },
+    )
+    other_project_id = other_project.json()["id"]
+    other_line = await client.post(
+        f"/api/projects/{other_project_id}/service-lines",
+        json={
+            "name": "Other Line",
+            "quantity": "5",
+            "uom": "hours",
+            "unit_price": "50.00",
+            "user_ids": [c2_id],
+        },
+    )
+    other_line_id = other_line.json()["id"]
+
+    await _login_as(client, "pm@example.com")
+
+    # Unfiltered: both rows.
+    unfiltered = await client.get(
+        "/api/time-entries/report",
+        params={"start_date": "2026-08-01", "end_date": "2026-08-31"},
+    )
+    assert {r["service_line_id"] for r in unfiltered.json()["items"]} == {
+        service_line_id,
+        other_line_id,
+    }
+
+    # Filtered to just the first consultant.
+    by_consultant = await client.get(
+        "/api/time-entries/report",
+        params={
+            "start_date": "2026-08-01",
+            "end_date": "2026-08-31",
+            "consultant_ids": [consultant_id],
+        },
+    )
+    assert {r["service_line_id"] for r in by_consultant.json()["items"]} == {service_line_id}
+
+    # Filtered to just the other project.
+    by_project = await client.get(
+        "/api/time-entries/report",
+        params={
+            "start_date": "2026-08-01",
+            "end_date": "2026-08-31",
+            "project_ids": [other_project_id],
+        },
+    )
+    assert {r["service_line_id"] for r in by_project.json()["items"]} == {other_line_id}
+
+    # A project_id outside this pm's scope is silently dropped, not a 403 — combine
+    # with a genuine one to prove the request still succeeds and just ignores it.
+    with_bogus_id = await client.get(
+        "/api/time-entries/report",
+        params={
+            "start_date": "2026-08-01",
+            "end_date": "2026-08-31",
+            "project_ids": [project_id, "00000000-0000-0000-0000-000000000000"],
+        },
+    )
+    assert with_bogus_id.status_code == 200
+    assert {r["service_line_id"] for r in with_bogus_id.json()["items"]} == {service_line_id}
+
+    # Filtered by status=draft — neither project is draft, so nothing shows.
+    by_status = await client.get(
+        "/api/time-entries/report",
+        params={
+            "start_date": "2026-08-01",
+            "end_date": "2026-08-31",
+            "statuses": ["draft"],
+        },
+    )
+    assert by_status.json()["items"] == []
+
+
+async def test_report_sort_order(client, db_session) -> None:
+    # create_user's default full_name is "Jane Doe" for every user unless given
+    # explicitly — sort order needs two genuinely distinct names to be meaningful.
+    await _login_manager_first(client, db_session)
+    zack = await create_user(
+        db_session,
+        name_id="zack@example.com",
+        password="pw",
+        role_name="consultant",
+        full_name="Zack Zephyr",
+    )
+    alice = await create_user(
+        db_session,
+        name_id="alice@example.com",
+        password="pw",
+        role_name="consultant",
+        full_name="Alice Anderson",
+    )
+    pm = await create_user(
+        db_session, name_id="pm@example.com", password="pw", role_name="project_manager"
+    )
+    await _login_as(client, "project_admin@example.com", "project_admin-pw")
+    vendor = await create_company(db_session, legal_name="Acme Vendor", is_vendor=True)
+    client_company = await create_company(db_session, legal_name="Beta Client")
+    currency = await create_currency(db_session, alpha_code="USD", numeric_code="840")
+    project = await client.post(
+        "/api/projects",
+        json={
+            "name": "Acme Rollout",
+            "vendor_company_id": str(vendor.id),
+            "client_company_id": str(client_company.id),
+            "invoicing_currency": currency.alpha_code,
+            "project_type": "time_and_material",
+            "status": "active",
+            "project_manager_ids": [str(pm.id)],
+        },
+    )
+    project_id = project.json()["id"]
+    await client.post(
+        f"/api/projects/{project_id}/service-lines",
+        json={
+            "name": "Discovery",
+            "quantity": "10",
+            "uom": "hours",
+            "unit_price": "100.00",
+            "user_ids": [str(zack.id), str(alice.id)],
+        },
+    )
+
+    await _login_as(client, "pm@example.com")
+    response = await client.get(
+        "/api/time-entries/report",
+        params={"start_date": "2026-08-01", "end_date": "2026-08-31"},
+    )
+    rows = response.json()["items"]
+    assert [r["user_id"] for r in rows] == [str(alice.id), str(zack.id)]

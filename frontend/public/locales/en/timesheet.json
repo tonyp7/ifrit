@@ -29,5 +29,20 @@
   "Unlock service line": "Unlock service line",
   "Failed to update lock state.": "Failed to update lock state.",
   "Failed to load timesheets.": "Failed to load timesheets.",
-  "No consultants to review for this period.": "No consultants to review for this period."
+  "No consultants to review for this period.": "No consultants to review for this period.",
+  "Failed to load filters.": "Failed to load filters.",
+  "Filters": "Filters",
+  "Consultants": "Consultants",
+  "Projects": "Projects",
+  "Service Lines": "Service Lines",
+  "Export": "Export",
+  "No timesheets match the current filters.": "No timesheets match the current filters.",
+  "Search…": "Search…",
+  "No results found.": "No results found.",
+  "Project Status": "Project Status",
+  "Draft": "Draft",
+  "Active": "Active",
+  "Closed": "Closed",
+  "This service line is read-only because the project is still in Draft.": "This service line is read-only because the project is still in Draft.",
+  "This service line is read-only because the project has been closed.": "This service line is read-only because the project has been closed."
 }

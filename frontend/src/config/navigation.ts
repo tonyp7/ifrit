@@ -40,6 +40,7 @@ export const NAV_ITEMS: NavItem[] = [
     children: [
       { to: "/timesheet", label: "My timesheet" },
       { to: "/validation", label: "Validation", requiredRoles: ["project_manager"] },
+      { to: "/reporting", label: "Reporting", requiredRoles: ["project_manager"] },
     ],
   },
   {

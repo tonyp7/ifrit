@@ -26,28 +26,44 @@ interface TimesheetDesktopGridProps {
   serviceLines: ServiceLineRow[];
   entries: Record<string, EntryCell>;
   dayTotal: (dayKey: string) => number;
-  serviceLineTotal: (serviceLineId: string) => number;
+  // Every callback below that identifies "which row" takes a leading `userId` —
+  // needed because Reporting's rows span many different consultants in one grid
+  // instance, unlike My Timesheet/Validation (whose hook ignores it, already
+  // knowing its own single owner) — see useTimesheetGrid's own comment on this.
+  serviceLineTotal: (userId: string, serviceLineId: string) => number;
   periodTotal: number;
   periodLabel: string;
-  addOptions: EligibleServiceLine[];
-  onAddServiceLine: (serviceLineId: string) => void;
-  hasEntriesInPeriod: (serviceLineId: string) => boolean;
-  hasLockedEntriesInPeriod: (serviceLineId: string) => boolean;
+  /** My Timesheet/Validation only — Reporting has no "Add service line" affordance
+   * (its row set is entirely filter-driven), so these three are left undefined
+   * there and the Add control simply isn't rendered. */
+  addOptions?: EligibleServiceLine[];
+  onAddServiceLine?: (serviceLineId: string) => void;
+  /** My Timesheet/Validation only, alongside the above — Reporting has "no X icon
+   * to delete a line" per its own spec, so these two (and the row's remove
+   * control) are left undefined there too. */
+  hasEntriesInPeriod?: (userId: string, serviceLineId: string) => boolean;
+  hasLockedEntriesInPeriod?: (userId: string, serviceLineId: string) => boolean;
+  onRemoveServiceLine?: (userId: string, serviceLineId: string) => void;
+  onClearAndRemoveServiceLine?: (userId: string, serviceLineId: string) => Promise<void>;
   /** The entry owner is no longer currently assigned to this service line —
-   * read-only regardless of lock. */
-  isUnassignedInPeriod: (serviceLineId: string) => boolean;
-  onRemoveServiceLine: (serviceLineId: string) => void;
-  onClearAndRemoveServiceLine: (serviceLineId: string) => Promise<void>;
-  onCellChange: (serviceLineId: string, dayKey: string, value: string) => void;
-  onCellBlur: (serviceLineId: string, dayKey: string) => void;
+   * read-only regardless of lock. Still required on every screen, including
+   * Reporting (driven there by each row's own `is_assigned`). */
+  isUnassignedInPeriod: (userId: string, serviceLineId: string) => boolean;
+  /** Reporting only — overrides the tooltip shown on an unassigned cell with a
+   * reason specific to *why* (the project's still in Draft, or closed), rather
+   * than always claiming the consultant was personally removed, which often
+   * isn't the actual cause. My Timesheet/Validation leave this undefined and
+   * keep the default generic message below. */
+  unassignedTooltip?: (userId: string, serviceLineId: string) => string;
+  onCellChange: (userId: string, serviceLineId: string, dayKey: string, value: string) => void;
+  onCellBlur: (userId: string, serviceLineId: string, dayKey: string) => void;
   // Keeps `selectedKey` pointed at whatever day the user is actually looking at on
   // desktop, so a later Week<->Month switch re-anchors on that day instead of a
   // stale value.
   onFocusDay: (dayKey: string) => void;
-  /** Validation screen only. Left undefined on My Timesheet, which has no lock
-   * control. */
-  isFullyLockedInPeriod?: (serviceLineId: string) => boolean;
-  onToggleLock?: (serviceLineId: string) => Promise<void>;
+  /** My Timesheet never sets these — no lock control there. */
+  isFullyLockedInPeriod?: (userId: string, serviceLineId: string) => boolean;
+  onToggleLock?: (userId: string, serviceLineId: string) => Promise<void>;
 }
 
 export function TimesheetDesktopGrid({
@@ -64,6 +80,7 @@ export function TimesheetDesktopGrid({
   hasEntriesInPeriod,
   hasLockedEntriesInPeriod,
   isUnassignedInPeriod,
+  unassignedTooltip,
   onRemoveServiceLine,
   onClearAndRemoveServiceLine,
   onCellChange,
@@ -133,7 +150,7 @@ export function TimesheetDesktopGrid({
           </thead>
           <tbody>
             {serviceLines.map((line, index) => (
-              <tr key={line.service_line_id}>
+              <tr key={`${line.user_id}__${line.service_line_id}`}>
                 <td
                   className={cn(
                     "sticky left-0 z-10 border-b border-r border-l-4 bg-background p-2",
@@ -147,31 +164,48 @@ export function TimesheetDesktopGrid({
                       <p className="truncate text-xs text-muted-foreground">
                         {line.service_line_name ?? t("(unnamed service line)")}
                       </p>
+                      {/* Reporting only — a row here can belong to any consultant,
+                          not just one implicit owner, so the label needs a third
+                          line to disambiguate. */}
+                      {line.consultant_name && (
+                        <p className="truncate text-xs text-muted-foreground">
+                          {line.consultant_name}
+                        </p>
+                      )}
                     </div>
                     {isFullyLockedInPeriod && onToggleLock && (
                       <LockServiceLineControl
-                        isFullyLocked={isFullyLockedInPeriod(line.service_line_id)}
-                        onToggle={() => onToggleLock(line.service_line_id)}
+                        isFullyLocked={isFullyLockedInPeriod(line.user_id, line.service_line_id)}
+                        onToggle={() => onToggleLock(line.user_id, line.service_line_id)}
                       />
                     )}
-                    <RemoveServiceLineControl
-                      hasEntries={hasEntriesInPeriod(line.service_line_id)}
-                      hasLockedEntries={hasLockedEntriesInPeriod(line.service_line_id)}
-                      isUnassigned={isUnassignedInPeriod(line.service_line_id)}
-                      periodLabel={periodLabel}
-                      onRemove={() => onRemoveServiceLine(line.service_line_id)}
-                      onConfirmedClear={() =>
-                        onClearAndRemoveServiceLine(line.service_line_id)
-                      }
-                    />
+                    {hasEntriesInPeriod &&
+                      hasLockedEntriesInPeriod &&
+                      onRemoveServiceLine &&
+                      onClearAndRemoveServiceLine && (
+                        <RemoveServiceLineControl
+                          hasEntries={hasEntriesInPeriod(line.user_id, line.service_line_id)}
+                          hasLockedEntries={hasLockedEntriesInPeriod(
+                            line.user_id,
+                            line.service_line_id,
+                          )}
+                          isUnassigned={isUnassignedInPeriod(line.user_id, line.service_line_id)}
+                          periodLabel={periodLabel}
+                          onRemove={() => onRemoveServiceLine(line.user_id, line.service_line_id)}
+                          onConfirmedClear={() =>
+                            onClearAndRemoveServiceLine(line.user_id, line.service_line_id)
+                          }
+                        />
+                      )}
                   </div>
                 </td>
                 {days.map((day) => {
                   const dayKey = toDayKey(day);
-                  const key = cellKey(line.service_line_id, dayKey);
+                  const key = cellKey(line.user_id, line.service_line_id, dayKey);
                   const cell = entries[key];
                   const locked = cell?.is_locked ?? false;
-                  const unassigned = !locked && isUnassignedInPeriod(line.service_line_id);
+                  const unassigned =
+                    !locked && isUnassignedInPeriod(line.user_id, line.service_line_id);
                   const weekend = isWeekend(day);
                   // Resolved to a single class, not left as several `cn()` entries that
                   // could combine — `cn()`/`tailwind-merge` treats same-property
@@ -206,16 +240,17 @@ export function TimesheetDesktopGrid({
                         disabled={locked || unassigned}
                         title={
                           unassigned
-                            ? t(
+                            ? (unassignedTooltip?.(line.user_id, line.service_line_id) ??
+                              t(
                                 "This consultant is no longer assigned to this service line — read-only.",
-                              )
+                              ))
                             : undefined
                         }
                         value={cell?.hours ?? ""}
                         onChange={(e) =>
-                          onCellChange(line.service_line_id, dayKey, e.target.value)
+                          onCellChange(line.user_id, line.service_line_id, dayKey, e.target.value)
                         }
-                        onBlur={() => onCellBlur(line.service_line_id, dayKey)}
+                        onBlur={() => onCellBlur(line.user_id, line.service_line_id, dayKey)}
                         onFocus={() => onFocusDay(dayKey)}
                         aria-label={t("Hours")}
                         className={cn(
@@ -252,7 +287,7 @@ export function TimesheetDesktopGrid({
                     lastColWidth,
                   )}
                 >
-                  {formatHours(serviceLineTotal(line.service_line_id)) || "0"}h
+                  {formatHours(serviceLineTotal(line.user_id, line.service_line_id)) || "0"}h
                 </td>
               </tr>
             ))}
@@ -284,13 +319,18 @@ export function TimesheetDesktopGrid({
         </table>
       </div>
 
-      {serviceLines.length === 0 && (
-        <p className="text-sm text-muted-foreground">
-          {t("No service lines added yet. Use “Add service line” below to start logging time.")}
-        </p>
+      {onAddServiceLine && (
+        <>
+          {serviceLines.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              {t(
+                "No service lines added yet. Use “Add service line” below to start logging time.",
+              )}
+            </p>
+          )}
+          <AddServiceLineSelect options={addOptions ?? []} onAdd={onAddServiceLine} />
+        </>
       )}
-
-      <AddServiceLineSelect options={addOptions} onAdd={onAddServiceLine} />
     </div>
   );
 }

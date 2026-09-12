@@ -7,6 +7,8 @@ import type {
   TimeEntryListResponse,
   TimeEntryUpsertInput,
   TimeEntryUpsertResult,
+  TimesheetReportFilters,
+  TimesheetReportResponse,
 } from "@/types/timesheet";
 
 export function listTimeEntries(startDate: string, endDate: string) {
@@ -40,4 +42,34 @@ export function getManagedTimeEntries(startDate: string, endDate: string) {
 // Lock/unlock a whole (consultant, service line, period) at once.
 export function setServiceLineLock(payload: ServiceLineLockRequest) {
   return apiClient.put<TimeEntry[]>("/time-entries/lock", payload);
+}
+
+// Reporting screen's filter dropdowns — static, not period-scoped, one fetch on
+// mount.
+export function getReportFilters() {
+  return apiClient.get<TimesheetReportFilters>("/time-entries/report/filters");
+}
+
+export interface TimesheetReportParams {
+  startDate: string;
+  endDate: string;
+  projectIds?: string[];
+  serviceLineIds?: string[];
+  consultantIds?: string[];
+  statuses?: string[];
+}
+
+// Reporting screen's row data — a flat, pre-sorted (consultant, service_line)
+// list. All four filter arrays are optional; omitted/empty means no restriction
+// on that dimension.
+export function getTimesheetReport(params: TimesheetReportParams) {
+  const query = new URLSearchParams({
+    start_date: params.startDate,
+    end_date: params.endDate,
+  });
+  for (const id of params.projectIds ?? []) query.append("project_ids", id);
+  for (const id of params.serviceLineIds ?? []) query.append("service_line_ids", id);
+  for (const id of params.consultantIds ?? []) query.append("consultant_ids", id);
+  for (const status of params.statuses ?? []) query.append("statuses", status);
+  return apiClient.get<TimesheetReportResponse>(`/time-entries/report?${query.toString()}`);
 }

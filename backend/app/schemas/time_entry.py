@@ -95,3 +95,57 @@ class TimeEntryLockRequest(BaseModel):
     start_date: date_
     end_date: date_
     locked: bool
+
+
+class ReportFilterProjectOut(BaseModel):
+    project_id: uuid.UUID
+    name: str
+    status: str
+
+
+class ReportFilterServiceLineOut(BaseModel):
+    service_line_id: uuid.UUID
+    service_line_name: str | None
+    project_id: uuid.UUID
+    project_name: str
+
+
+class ReportFilterConsultantOut(BaseModel):
+    user_id: uuid.UUID
+    full_name: str
+
+
+class TimesheetReportFiltersOut(BaseModel):
+    """GET /time-entries/report/filters. Populates the Reporting screen's four
+    filter dropdowns — static, not period-scoped, and deliberately not restricted
+    to active projects/service lines the way GET /time-entries/eligible-service-lines
+    is, since Reporting needs closed-project/inactive-line history reachable too."""
+
+    projects: list[ReportFilterProjectOut]
+    service_lines: list[ReportFilterServiceLineOut]
+    consultants: list[ReportFilterConsultantOut]
+
+
+class TimesheetReportRowOut(BaseModel):
+    """One row of GET /time-entries/report — a (consultant, service_line) pair, not
+    grouped by consultant the way ManagedConsultantOut is. `is_assigned` is
+    deliberately the *narrower* existing eligibility rule (active project + active
+    service line + current assignment) — the same one PUT /time-entries' per-item
+    handler already enforces before accepting an hours > 0 write — reused here so
+    the UI's Unassigned/read-only cell state always matches what an edit would
+    actually be accepted, even on a row that's visible because it's historical or a
+    since-closed-project assignment."""
+
+    user_id: uuid.UUID
+    full_name: str
+    project_id: uuid.UUID
+    project_name: str
+    project_status: str
+    service_line_id: uuid.UUID
+    service_line_name: str | None
+    entries: list[TimeEntryOut]
+    is_assigned: bool
+
+
+class TimesheetReportResponse(BaseModel):
+    items: list[TimesheetReportRowOut]

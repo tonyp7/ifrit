@@ -9,6 +9,7 @@ import { HomePage } from "@/pages/HomePage";
 import { LoginPage } from "@/pages/LoginPage";
 import { ProjectFormPage } from "@/pages/ProjectFormPage";
 import { ProjectsPage } from "@/pages/ProjectsPage";
+import { ReportingPage } from "@/pages/ReportingPage";
 import { TimesheetPage } from "@/pages/TimesheetPage";
 import { UserFormPage } from "@/pages/UserFormPage";
 import { UsersPage } from "@/pages/UsersPage";
@@ -24,6 +25,7 @@ export default function App() {
           <Route path="/timesheet" element={<TimesheetPage />} />
           <Route element={<RequireRoles roles={["project_manager"]} />}>
             <Route path="/validation" element={<ValidationPage />} />
+            <Route path="/reporting" element={<ReportingPage />} />
           </Route>
           <Route element={<RequireRoles roles={["project_admin"]} />}>
             <Route path="/projects" element={<ProjectsPage />} />

@@ -1,6 +1,8 @@
 from datetime import UTC, date, datetime, timedelta
 
-from app.models.project import Project
+from sqlalchemy import select
+
+from app.models.project import Project, ServiceLine, service_line_consultants
 from app.models.time_entry import TimeEntry
 from tests.factories import create_company, create_currency, create_user
 
@@ -598,3 +600,168 @@ async def test_active_project_allows_service_line_delete_without_logged_time(
 
     detail = await client.get(f"/api/projects/{project_id}")
     assert detail.json()["service_lines"] == []
+
+    # A line with no time_entries row at all is a hard delete, not is_active=False
+    # — the row itself must be gone, not just filtered out of the API response.
+    db_session.expire_all()
+    assert (await db_session.get(ServiceLine, line_id)) is None
+
+
+async def test_locked_zero_hour_entry_still_blocks_delete_on_active_project(
+    client, db_session
+) -> None:
+    """A locked 0-hour gap-fill row (see timesheet.md's Lock/Unlock) exists because
+    a project_manager took a real, recorded action on it — the delete-blocking
+    check must be an existence check, not filtered to hours > 0, or this history
+    would be silently destroyed."""
+    await _login_manager(client, db_session)
+    vendor, client_company, currency = await _setup_refs(db_session)
+    consultant = await create_user(
+        db_session,
+        name_id="consultant-lockedzero@example.com",
+        password="pw",
+        role_name="consultant",
+    )
+
+    create = await client.post(
+        "/api/projects", json=_project_payload(vendor, client_company, currency)
+    )
+    project_id = create.json()["id"]
+    add_line = await client.post(
+        f"/api/projects/{project_id}/service-lines",
+        json={
+            "quantity": "10",
+            "uom": "hours",
+            "unit_price": "100.00",
+            "user_ids": [str(consultant.id)],
+        },
+    )
+    line_id = add_line.json()["id"]
+    await client.patch(
+        f"/api/projects/{project_id}",
+        json=_project_payload(vendor, client_company, currency, status="active"),
+    )
+
+    db_session.add(
+        TimeEntry(
+            user_id=consultant.id,
+            service_line_id=line_id,
+            date=date(2026, 1, 5),
+            time_entry=timedelta(0),
+            is_locked=True,
+        )
+    )
+    await db_session.commit()
+
+    delete_line = await client.delete(
+        f"/api/projects/{project_id}/service-lines/{line_id}"
+    )
+    assert delete_line.status_code == 409
+
+    db_session.expire_all()
+    assert (await db_session.get(ServiceLine, line_id)) is not None
+
+
+async def test_draft_project_delete_without_logged_time_is_hard_delete(
+    client, db_session
+) -> None:
+    await _login_manager(client, db_session)
+    vendor, client_company, currency = await _setup_refs(db_session)
+    consultant = await create_user(
+        db_session,
+        name_id="consultant-draft-empty@example.com",
+        password="pw",
+        role_name="consultant",
+    )
+
+    create = await client.post(
+        "/api/projects", json=_project_payload(vendor, client_company, currency)
+    )
+    project_id = create.json()["id"]
+    add_line = await client.post(
+        f"/api/projects/{project_id}/service-lines",
+        json={
+            "quantity": "10",
+            "uom": "hours",
+            "unit_price": "100.00",
+            "user_ids": [str(consultant.id)],
+        },
+    )
+    line_id = add_line.json()["id"]
+
+    delete_line = await client.delete(
+        f"/api/projects/{project_id}/service-lines/{line_id}"
+    )
+    assert delete_line.status_code == 204
+
+    db_session.expire_all()
+    assert (await db_session.get(ServiceLine, line_id)) is None
+    # The consultant assignment cascades away with the hard-deleted line — no
+    # orphaned, unreachable service_line_consultants row left behind.
+    assignment = (
+        await db_session.execute(
+            select(service_line_consultants).where(
+                service_line_consultants.c.service_line_id == line_id
+            )
+        )
+    ).first()
+    assert assignment is None
+
+
+async def test_draft_project_delete_with_logged_time_is_soft_delete(
+    client, db_session
+) -> None:
+    """A draft project can carry real history from an earlier active -> draft
+    transition — the existence check has to run regardless of the project's
+    *current* status, not be skipped just because it isn't active right now."""
+    await _login_manager(client, db_session)
+    vendor, client_company, currency = await _setup_refs(db_session)
+    consultant = await create_user(
+        db_session,
+        name_id="consultant-draft-history@example.com",
+        password="pw",
+        role_name="consultant",
+    )
+
+    create = await client.post(
+        "/api/projects", json=_project_payload(vendor, client_company, currency)
+    )
+    project_id = create.json()["id"]
+    add_line = await client.post(
+        f"/api/projects/{project_id}/service-lines",
+        json={
+            "quantity": "10",
+            "uom": "hours",
+            "unit_price": "100.00",
+            "user_ids": [str(consultant.id)],
+        },
+    )
+    line_id = add_line.json()["id"]
+
+    await client.patch(
+        f"/api/projects/{project_id}",
+        json=_project_payload(vendor, client_company, currency, status="active"),
+    )
+    db_session.add(
+        TimeEntry(
+            user_id=consultant.id,
+            service_line_id=line_id,
+            date=date(2026, 1, 5),
+            time_entry=timedelta(hours=8),
+        )
+    )
+    await db_session.commit()
+    await client.patch(
+        f"/api/projects/{project_id}",
+        json=_project_payload(vendor, client_company, currency, status="draft"),
+    )
+
+    delete_line = await client.delete(
+        f"/api/projects/{project_id}/service-lines/{line_id}"
+    )
+    assert delete_line.status_code == 204
+
+    db_session.expire_all()
+    line = await db_session.get(ServiceLine, line_id)
+    assert line is not None
+    assert line.is_active is False

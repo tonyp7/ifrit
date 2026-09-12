@@ -342,16 +342,39 @@ async def delete_service_line(
 ) -> None:
     if project.status == "closed":
         raise ProjectReadOnlyError("Cannot delete a service line on a closed project")
-    # On an `active` project, a line with any logged time is edit-only, not
+    # On an `active` project, a line with any time_entries row is edit-only, not
     # deletable — deleting it would silently orphan the time entries already logged
-    # against it, with no cascade and no warning. `draft` has no such restriction
-    # since no time can be logged against a project that isn't active yet.
-    if project.status == "active" and await _has_logged_time(db, line.id):
+    # against it, with no cascade and no warning. `_has_logged_time` is an
+    # existence check, not filtered by value: a locked 0-hour gap-fill row (see
+    # set_service_line_lock) still counts, since it exists precisely because a
+    # project_manager took a real, recorded action on it, not because anyone
+    # actually logged zero hours.
+    #
+    # `draft` isn't exempt from this check the way it used to be — a draft project
+    # can carry real historical time from an earlier active -> draft transition
+    # (status transitions are unrestricted), so "no time can be logged against a
+    # non-active project" is true only for entries created *while* draft, not for
+    # everything the line has ever accumulated.
+    has_history = await _has_logged_time(db, line.id)
+    if project.status == "active" and has_history:
         raise ServiceLineHasLoggedTimeError(
             "Cannot delete a service line with logged time on an active project"
         )
-    line.is_active = False
-    await db.commit()
+    if has_history:
+        # Preserve it: a draft project reaching this branch has real history from
+        # before it was draft (active can never reach here with has_history=True,
+        # it already raised above).
+        line.is_active = False
+        await db.commit()
+    else:
+        # Nothing to preserve. A hard delete here (rather than the is_active=False
+        # used when there IS history) avoids leaving a permanent, invisible,
+        # zero-purpose row behind forever — the DB's own ON DELETE CASCADE on
+        # service_line_consultants.service_line_id takes any now-stale consultant
+        # assignments with it, rather than leaving them orphaned on a line nothing
+        # can ever reach again.
+        await db.delete(line)
+        await db.commit()
 
 
 def to_consultant_out(user: User) -> ServiceLineConsultantOut:

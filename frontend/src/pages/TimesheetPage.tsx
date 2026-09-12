@@ -7,6 +7,7 @@ import { listEligibleServiceLines, listTimeEntries } from "@/api/timeEntries";
 import { TimesheetDesktopGrid } from "@/components/timesheet/TimesheetDesktopGrid";
 import { TimesheetHeader } from "@/components/timesheet/TimesheetHeader";
 import { TimesheetMobileView } from "@/components/timesheet/TimesheetMobileView";
+import { useAuth } from "@/hooks/useAuth";
 import { useTimesheetGrid } from "@/hooks/useTimesheetGrid";
 import {
   defaultPeriodDate,
@@ -25,6 +26,7 @@ import type { EligibleServiceLine, PeriodType, TimeEntry } from "@/types/timeshe
 
 export function TimesheetPage() {
   const { t } = useTranslation(["timesheet"]);
+  const { user } = useAuth();
 
   // Week on mobile, Month on desktop/tablet — a one-time default computed at
   // mount from the same `md:` breakpoint the views themselves switch on, not a
@@ -87,7 +89,7 @@ export function TimesheetPage() {
     handleClearAndRemoveServiceLine,
     handleCellChange,
     handleCellBlur,
-  } = useTimesheetGrid({ days, initialEntries, eligibleLines });
+  } = useTimesheetGrid({ days, initialEntries, eligibleLines, rowOwnerId: user?.id ?? "" });
 
   // Same label TimesheetHeader itself shows (e.g. "August 2026" / "Week 34") — used
   // by the "Removing a service line" confirmation dialog to name exactly the range

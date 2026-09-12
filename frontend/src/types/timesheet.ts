@@ -52,12 +52,19 @@ export interface TimeEntryUpsertResult {
 
 // Client-side row shown in `serviceLines` state — a subset of the fields
 // TimeEntry/EligibleServiceLine both already carry, common to whichever one a
-// row came from.
+// row came from. `user_id` is always the row's owner (the caller's own id on My
+// Timesheet, a consultant's id on Validation/Reporting) — it's what cellKey uses
+// to key local state, not just an API-payload concern. `consultant_name` is
+// Reporting-only: when set, TimesheetDesktopGrid/TimesheetMobileView render it as
+// a third line in the row label, since a Reporting row can belong to any
+// consultant, not just one implicit owner.
 export interface ServiceLineRow {
   service_line_id: string;
   service_line_name: string | null;
   project_id: string;
   project_name: string;
+  user_id: string;
+  consultant_name?: string;
 }
 
 // A single cell's local, editable state — `hours` is the live-typed or
@@ -91,4 +98,53 @@ export interface ServiceLineLockRequest {
   start_date: string;
   end_date: string;
   locked: boolean;
+}
+
+// Reporting screen's four filter dropdowns — GET /time-entries/report/filters.
+// Static, not period-scoped: fetched once on mount, not re-fetched on period or
+// filter changes.
+export interface ReportFilterProject {
+  project_id: string;
+  name: string;
+  status: "draft" | "active" | "closed";
+}
+
+export interface ReportFilterServiceLine {
+  service_line_id: string;
+  service_line_name: string | null;
+  project_id: string;
+  project_name: string;
+}
+
+export interface ReportFilterConsultant {
+  user_id: string;
+  full_name: string;
+}
+
+export interface TimesheetReportFilters {
+  projects: ReportFilterProject[];
+  service_lines: ReportFilterServiceLine[];
+  consultants: ReportFilterConsultant[];
+}
+
+// One row of GET /time-entries/report — a (consultant, service_line) pair, not
+// grouped by consultant the way ManagedConsultant is. `is_assigned` is
+// deliberately the *narrower* eligibility rule (see the backend's own docstring
+// on TimesheetReportRowOut) — it's what isUnassignedInPeriod is derived from on
+// this screen, since Reporting has no `eligible_service_lines` list to check a
+// row against the way Validation does.
+export interface TimesheetReportRow {
+  user_id: string;
+  full_name: string;
+  project_id: string;
+  project_name: string;
+  project_status: "draft" | "active" | "closed";
+  service_line_id: string;
+  service_line_name: string | null;
+  entries: TimeEntry[];
+  is_assigned: boolean;
+}
+
+export interface TimesheetReportResponse {
+  items: TimesheetReportRow[];
 }

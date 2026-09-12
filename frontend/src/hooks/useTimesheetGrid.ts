@@ -15,8 +15,13 @@ import type {
   TimeEntryUpsertResult,
 } from "@/types/timesheet";
 
-// Per-item error codes the bulk PUT /time-entries can report — see TimeEntryUpsertResult.
-function errorMessage(error: TimeEntryUpsertResult["error"], t: (key: string) => string): string {
+// Per-item error codes the bulk PUT /time-entries can report — see
+// TimeEntryUpsertResult. Exported for useReportGrid, which hits the exact same
+// error codes on its own per-row cell edits.
+export function errorMessage(
+  error: TimeEntryUpsertResult["error"],
+  t: (key: string) => string,
+): string {
   if (error === "locked") return t("This entry has been locked and can't be changed.");
   if (error === "not_eligible") return t("You're not assigned to this service line.");
   if (error === "not_authorized") return t("You're not authorized to edit this entry.");
@@ -36,8 +41,17 @@ export interface UseTimesheetGridOptions {
   eligibleLines: EligibleServiceLine[];
   // undefined = the caller's own entries (My Timesheet). Set to a consultant's id
   // on the Validation screen, so cell edits are sent as a project_manager
-  // override instead.
+  // override instead. This is purely an *API-payload* concern — never touch it
+  // for local state keying, see rowOwnerId below for that.
   ownerUserId?: string;
+  // Always a concrete id — the row's actual owner, used to key local `entries`
+  // state (see cellKey) and stamped onto every ServiceLineRow this hook builds.
+  // On My Timesheet this is the caller's own id (from useAuth()); on Validation
+  // it's the same value as ownerUserId above (the consultant being reviewed).
+  // Distinct from ownerUserId because that one's undefined-means-self semantics
+  // control the API payload, not local keying — a hook instance always has one
+  // real owner either way, this just says who.
+  rowOwnerId: string;
 }
 
 // Shared state/logic behind both My Timesheet and each consultant block on the
@@ -46,7 +60,13 @@ export interface UseTimesheetGridOptions {
 // cell/add/remove handler. The two screens differ only in what they pass in
 // (initialEntries/eligibleLines/ownerUserId) and which extra chrome (lock
 // control, consultant header) they render around this.
-export function useTimesheetGrid({ days, initialEntries, eligibleLines, ownerUserId }: UseTimesheetGridOptions) {
+export function useTimesheetGrid({
+  days,
+  initialEntries,
+  eligibleLines,
+  ownerUserId,
+  rowOwnerId,
+}: UseTimesheetGridOptions) {
   const { t } = useTranslation(["timesheet"]);
 
   const [entries, setEntries] = useState<Record<string, EntryCell>>({});
@@ -61,7 +81,7 @@ export function useTimesheetGrid({ days, initialEntries, eligibleLines, ownerUse
     const seen = new Set<string>();
     const historical: ServiceLineRow[] = [];
     for (const item of initialEntries) {
-      nextEntries[cellKey(item.service_line_id, item.date)] = {
+      nextEntries[cellKey(rowOwnerId, item.service_line_id, item.date)] = {
         hours: formatHours(Number(item.hours)),
         is_locked: item.is_locked,
       };
@@ -72,45 +92,56 @@ export function useTimesheetGrid({ days, initialEntries, eligibleLines, ownerUse
           service_line_name: item.service_line_name,
           project_id: item.project_id,
           project_name: item.project_name,
+          user_id: rowOwnerId,
         });
       }
     }
     setEntries(nextEntries);
     setHistoricalServiceLines(historical);
     setAddedServiceLines([]);
-  }, [initialEntries]);
+  }, [initialEntries, rowOwnerId]);
 
   // Checks live `entries` state directly — kept correctly in sync on every
   // mutation (blur-save, blur-delete, and the clear-on-remove bulk call alike) —
   // rather than `historicalServiceLines`, which is only a snapshot from the last
   // load and goes stale the moment a line's entries change locally without a
   // fresh fetch.
+  // Every callback below that identifies "which row" takes a leading `userId`
+  // param, purely so its signature matches useReportGrid's — both get passed into
+  // the exact same TimesheetDesktopGrid/TimesheetMobileView props. This hook is
+  // still one-owner-per-instance (My Timesheet/Validation), so the passed userId
+  // always equals `rowOwnerId` here; it's accepted and ignored rather than
+  // threaded through, since this hook already has its own closed-over id.
   const hasEntriesInPeriod = useCallback(
-    (serviceLineId: string) =>
-      days.some((day) => entries[cellKey(serviceLineId, toDayKey(day))] !== undefined),
-    [days, entries],
+    (_userId: string, serviceLineId: string) =>
+      days.some((day) => entries[cellKey(rowOwnerId, serviceLineId, toDayKey(day))] !== undefined),
+    [days, entries, rowOwnerId],
   );
 
   const hasLockedEntriesInPeriod = useCallback(
-    (serviceLineId: string) =>
-      days.some((day) => entries[cellKey(serviceLineId, toDayKey(day))]?.is_locked === true),
-    [days, entries],
+    (_userId: string, serviceLineId: string) =>
+      days.some(
+        (day) => entries[cellKey(rowOwnerId, serviceLineId, toDayKey(day))]?.is_locked === true,
+      ),
+    [days, entries, rowOwnerId],
   );
 
   // Every day in the period is locked for this line — the icon/action semantics
   // this drives (Lock shown unless *every* day is locked) live in
   // LockServiceLineControl; this is just the underlying fact.
   const isFullyLockedInPeriod = useCallback(
-    (serviceLineId: string) =>
-      days.every((day) => entries[cellKey(serviceLineId, toDayKey(day))]?.is_locked === true),
-    [days, entries],
+    (_userId: string, serviceLineId: string) =>
+      days.every(
+        (day) => entries[cellKey(rowOwnerId, serviceLineId, toDayKey(day))]?.is_locked === true,
+      ),
+    [days, entries, rowOwnerId],
   );
 
   // The entry's owner is no longer currently assigned to this service line —
   // read-only regardless of `is_locked`, on both My Timesheet (viewing one's own
   // historical data) and Validation (a consultant's since-unassigned line) alike.
   const isUnassignedInPeriod = useCallback(
-    (serviceLineId: string) =>
+    (_userId: string, serviceLineId: string) =>
       !eligibleLines.some((line) => line.service_line_id === serviceLineId),
     [eligibleLines],
   );
@@ -127,7 +158,9 @@ export function useTimesheetGrid({ days, initialEntries, eligibleLines, ownerUse
     // historicalServiceLines directly — see its own comment above). No separate
     // suppression/removed state needed.
     const visible = merged.filter(
-      (line) => addedIds.has(line.service_line_id) || hasEntriesInPeriod(line.service_line_id),
+      (line) =>
+        addedIds.has(line.service_line_id) ||
+        hasEntriesInPeriod(line.user_id, line.service_line_id),
     );
     // Ascending by project name, then service line name — a stable order
     // independent of add/discovery order or which period's date window was last
@@ -146,19 +179,27 @@ export function useTimesheetGrid({ days, initialEntries, eligibleLines, ownerUse
   const dayTotal = useCallback(
     (dayKey: string) =>
       sumHours(
-        serviceLines.map((line) => entries[cellKey(line.service_line_id, dayKey)]?.hours),
+        serviceLines.map(
+          (line) => entries[cellKey(rowOwnerId, line.service_line_id, dayKey)]?.hours,
+        ),
       ),
-    [serviceLines, entries],
+    [serviceLines, entries, rowOwnerId],
   );
 
   const serviceLineTotal = useCallback(
-    (serviceLineId: string) =>
-      sumHours(days.map((day) => entries[cellKey(serviceLineId, toDayKey(day))]?.hours)),
-    [days, entries],
+    (_userId: string, serviceLineId: string) =>
+      sumHours(
+        days.map((day) => entries[cellKey(rowOwnerId, serviceLineId, toDayKey(day))]?.hours),
+      ),
+    [days, entries, rowOwnerId],
   );
 
   const periodTotal = useMemo(
-    () => serviceLines.reduce((sum, line) => sum + serviceLineTotal(line.service_line_id), 0),
+    () =>
+      serviceLines.reduce(
+        (sum, line) => sum + serviceLineTotal(line.user_id, line.service_line_id),
+        0,
+      ),
     [serviceLines, serviceLineTotal],
   );
 
@@ -166,14 +207,16 @@ export function useTimesheetGrid({ days, initialEntries, eligibleLines, ownerUse
     const line = eligibleLines.find((option) => option.service_line_id === serviceLineId);
     if (!line) return;
     setAddedServiceLines((prev) =>
-      prev.some((l) => l.service_line_id === serviceLineId) ? prev : [...prev, line],
+      prev.some((l) => l.service_line_id === serviceLineId)
+        ? prev
+        : [...prev, { ...line, user_id: rowOwnerId }],
     );
   }
 
   // No-data branch — a line can only be visible with nothing logged this period
   // because it's in this period's `addedServiceLines`, so removing it here is
   // just undoing that add. No separate "removed" state to track.
-  function handleRemoveServiceLine(serviceLineId: string) {
+  function handleRemoveServiceLine(_userId: string, serviceLineId: string) {
     setAddedServiceLines((prev) => prev.filter((l) => l.service_line_id !== serviceLineId));
   }
 
@@ -182,10 +225,10 @@ export function useTimesheetGrid({ days, initialEntries, eligibleLines, ownerUse
   // with logged, unlocked time this period. Clears every day in the current
   // period that has an entry for this line, in one bulk call — never one request
   // per day.
-  async function handleClearAndRemoveServiceLine(serviceLineId: string) {
+  async function handleClearAndRemoveServiceLine(_userId: string, serviceLineId: string) {
     const targetDayKeys = days
       .map((day) => toDayKey(day))
-      .filter((dayKey) => entries[cellKey(serviceLineId, dayKey)] !== undefined);
+      .filter((dayKey) => entries[cellKey(rowOwnerId, serviceLineId, dayKey)] !== undefined);
 
     if (targetDayKeys.length === 0) {
       // Nothing to clear — shouldn't normally happen (the confirm dialog only opens
@@ -207,7 +250,7 @@ export function useTimesheetGrid({ days, initialEntries, eligibleLines, ownerUse
       setEntries((prev) => {
         const next = { ...prev };
         for (const result of results) {
-          const key = cellKey(serviceLineId, result.date);
+          const key = cellKey(rowOwnerId, serviceLineId, result.date);
           if (result.ok) {
             delete next[key];
           } else {
@@ -247,16 +290,21 @@ export function useTimesheetGrid({ days, initialEntries, eligibleLines, ownerUse
     }
   }
 
-  function handleCellChange(serviceLineId: string, dayKey: string, value: string) {
-    const key = cellKey(serviceLineId, dayKey);
+  function handleCellChange(
+    _userId: string,
+    serviceLineId: string,
+    dayKey: string,
+    value: string,
+  ) {
+    const key = cellKey(rowOwnerId, serviceLineId, dayKey);
     setEntries((prev) => ({
       ...prev,
       [key]: { hours: value, is_locked: prev[key]?.is_locked ?? false },
     }));
   }
 
-  async function handleCellBlur(serviceLineId: string, dayKey: string) {
-    const key = cellKey(serviceLineId, dayKey);
+  async function handleCellBlur(_userId: string, serviceLineId: string, dayKey: string) {
+    const key = cellKey(rowOwnerId, serviceLineId, dayKey);
     const previous = entries[key]?.hours ?? "";
     const corrected = normalizeHours(entries[key]?.hours ?? "", previous || "0");
 
@@ -326,7 +374,7 @@ export function useTimesheetGrid({ days, initialEntries, eligibleLines, ownerUse
       const updatedByDate = new Map(updated.map((entry) => [entry.date, entry]));
       for (const day of days) {
         const dayKey = toDayKey(day);
-        const key = cellKey(serviceLineId, dayKey);
+        const key = cellKey(rowOwnerId, serviceLineId, dayKey);
         const entry = updatedByDate.get(dayKey);
         if (entry) {
           next[key] = { hours: formatHours(Number(entry.hours)), is_locked: entry.is_locked };

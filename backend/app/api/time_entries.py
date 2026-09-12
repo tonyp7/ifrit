@@ -1,6 +1,7 @@
+import uuid
 from datetime import date
 
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import get_current_user, require_roles
@@ -14,6 +15,8 @@ from app.schemas.time_entry import (
     TimeEntryOut,
     TimeEntryUpsert,
     TimeEntryUpsertResult,
+    TimesheetReportFiltersOut,
+    TimesheetReportResponse,
 )
 from app.services import time_entry_service
 from app.services.time_entry_service import NotAuthorizedError
@@ -90,6 +93,45 @@ async def list_managed_time_entries(
         db, user, start_date, end_date
     )
     return ManagedTimeEntriesResponse(consultants=consultants)
+
+
+@router.get("/report/filters", response_model=TimesheetReportFiltersOut)
+async def get_report_filters(
+    user: User = Depends(require_roles("project_manager")),  # noqa: B008
+    db: AsyncSession = Depends(get_db),
+) -> TimesheetReportFiltersOut:
+    """Reporting screen's filter dropdowns — static, not period-scoped, one fetch
+    on mount. Covers every project status (unlike /eligible-service-lines), since
+    Reporting needs closed-project/inactive-line history reachable too."""
+    return await time_entry_service.list_report_filters(db, user)
+
+
+@router.get("/report", response_model=TimesheetReportResponse)
+async def get_time_entries_report(
+    start_date: date,
+    end_date: date,
+    project_ids: list[uuid.UUID] | None = Query(default=None),
+    service_line_ids: list[uuid.UUID] | None = Query(default=None),
+    consultant_ids: list[uuid.UUID] | None = Query(default=None),
+    statuses: list[str] | None = Query(default=None),
+    user: User = Depends(require_roles("project_manager")),  # noqa: B008
+    db: AsyncSession = Depends(get_db),
+) -> TimesheetReportResponse:
+    """Reporting screen's row data — a flat, pre-sorted (consultant, service_line)
+    list, not grouped by consultant like /managed. All four filter params are
+    optional; omitted means no restriction on that dimension. Any id outside the
+    caller's own project_manager scope is silently dropped, never a 403."""
+    rows = await time_entry_service.list_time_entries_report(
+        db,
+        user,
+        start_date,
+        end_date,
+        project_ids,
+        service_line_ids,
+        consultant_ids,
+        statuses,
+    )
+    return TimesheetReportResponse(items=rows)
 
 
 @router.put("/lock", response_model=list[TimeEntryOut])

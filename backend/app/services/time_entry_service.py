@@ -18,11 +18,18 @@ from app.models.user import User
 from app.schemas.time_entry import (
     EligibleServiceLineOut,
     ManagedConsultantOut,
+    ReportFilterConsultantOut,
+    ReportFilterProjectOut,
+    ReportFilterServiceLineOut,
     TimeEntryLockRequest,
     TimeEntryOut,
     TimeEntryUpsert,
     TimeEntryUpsertResult,
+    TimesheetReportFiltersOut,
+    TimesheetReportRowOut,
 )
+
+REPORT_PROJECT_STATUSES = {"draft", "active", "closed"}
 
 
 class NotAuthorizedError(Exception):
@@ -511,3 +518,239 @@ async def _is_eligible_ignoring_active_status(
         )
     )
     return result.first() is not None
+
+
+async def list_report_filters(
+    db: AsyncSession, project_manager: User
+) -> TimesheetReportFiltersOut:
+    """GET /time-entries/report/filters. Not period-scoped — one fetch on mount,
+    covering every project status (unlike list_eligible_service_lines, which is
+    restricted to active projects/lines via _eligibility_filters())."""
+    pm_project_ids = await _pm_project_ids(db, project_manager.id)
+    if not pm_project_ids:
+        return TimesheetReportFiltersOut(projects=[], service_lines=[], consultants=[])
+
+    projects = (
+        (
+            await db.execute(
+                select(Project).where(Project.id.in_(pm_project_ids)).order_by(Project.name)
+            )
+        )
+        .scalars()
+        .all()
+    )
+
+    service_line_rows = (
+        await db.execute(
+            select(ServiceLine, Project)
+            .join(Project, ServiceLine.project_id == Project.id)
+            .where(Project.id.in_(pm_project_ids))
+            .order_by(Project.name, ServiceLine.name)
+        )
+    ).all()
+
+    # Same two-part roster union list_managed_time_entries computes ("Roster part 1
+    # / part 2"), minus that function's restriction to active projects/lines.
+    eligible_ids_stmt = (
+        select(service_line_consultants.c.user_id)
+        .join(ServiceLine, ServiceLine.id == service_line_consultants.c.service_line_id)
+        .where(ServiceLine.project_id.in_(pm_project_ids))
+        .distinct()
+    )
+    eligible_ids = {row[0] for row in (await db.execute(eligible_ids_stmt)).all()}
+
+    historical_ids_stmt = (
+        select(TimeEntry.user_id)
+        .join(ServiceLine, ServiceLine.id == TimeEntry.service_line_id)
+        .where(ServiceLine.project_id.in_(pm_project_ids))
+        .distinct()
+    )
+    historical_ids = {row[0] for row in (await db.execute(historical_ids_stmt)).all()}
+
+    consultant_ids = eligible_ids | historical_ids
+    consultants: list[User] = []
+    if consultant_ids:
+        consultants = list(
+            (
+                await db.execute(
+                    select(User).where(User.id.in_(consultant_ids)).order_by(User.full_name)
+                )
+            )
+            .scalars()
+            .all()
+        )
+
+    return TimesheetReportFiltersOut(
+        projects=[
+            ReportFilterProjectOut(project_id=p.id, name=p.name, status=p.status)
+            for p in projects
+        ],
+        service_lines=[
+            ReportFilterServiceLineOut(
+                service_line_id=line.id,
+                service_line_name=line.name,
+                project_id=project.id,
+                project_name=project.name,
+            )
+            for line, project in service_line_rows
+        ],
+        consultants=[
+            ReportFilterConsultantOut(user_id=c.id, full_name=c.full_name) for c in consultants
+        ],
+    )
+
+
+async def list_time_entries_report(
+    db: AsyncSession,
+    project_manager: User,
+    start_date: date,
+    end_date: date,
+    project_ids: list[uuid.UUID] | None,
+    service_line_ids: list[uuid.UUID] | None,
+    consultant_ids: list[uuid.UUID] | None,
+    statuses: list[str] | None,
+) -> list[TimesheetReportRowOut]:
+    """GET /time-entries/report. Row membership: a (consultant, service_line) pair
+    shows if the consultant is currently assigned to the line (regardless of active
+    status — the same relationship _is_eligible_ignoring_active_status checks) or
+    has a time_entries row on it in the requested period, even if no longer
+    assigned at all — the same union list_report_filters' consultant roster already
+    computes, applied one level down to the pair, so a currently-assigned-but-
+    zero-data-this-period pairing still gets a row. Every filter param narrows this
+    set further; an id outside the caller's own pm_project_ids scope contributes
+    nothing — never a 403, a GET shouldn't hard-fail on a stale/tampered filter id."""
+    pm_project_ids = await _pm_project_ids(db, project_manager.id)
+    if project_ids:
+        pm_project_ids &= set(project_ids)
+    if not pm_project_ids:
+        return []
+
+    effective_statuses = set(statuses) if statuses else REPORT_PROJECT_STATUSES
+
+    project_rows = (
+        (
+            await db.execute(
+                select(Project).where(
+                    Project.id.in_(pm_project_ids), Project.status.in_(effective_statuses)
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    projects_by_id = {p.id: p for p in project_rows}
+    if not projects_by_id:
+        return []
+
+    service_line_stmt = select(ServiceLine).where(
+        ServiceLine.project_id.in_(projects_by_id.keys())
+    )
+    if service_line_ids:
+        service_line_stmt = service_line_stmt.where(ServiceLine.id.in_(service_line_ids))
+    service_lines = (await db.execute(service_line_stmt)).scalars().all()
+    service_lines_by_id = {line.id: line for line in service_lines}
+    if not service_lines_by_id:
+        return []
+
+    # Pair membership part 1: current assignment, regardless of active status,
+    # scoped to the candidate service lines above.
+    assignment_stmt = select(
+        service_line_consultants.c.user_id, service_line_consultants.c.service_line_id
+    ).where(service_line_consultants.c.service_line_id.in_(service_lines_by_id.keys()))
+    if consultant_ids:
+        assignment_stmt = assignment_stmt.where(
+            service_line_consultants.c.user_id.in_(consultant_ids)
+        )
+    assigned_pairs = {(row[0], row[1]) for row in (await db.execute(assignment_stmt)).all()}
+
+    # Pair membership part 2: historical entries in the requested period, whether or
+    # not currently assigned — same "history stays visible" principle applied one
+    # level down from list_report_filters' consultant roster.
+    historical_stmt = (
+        select(TimeEntry.user_id, TimeEntry.service_line_id)
+        .where(
+            TimeEntry.service_line_id.in_(service_lines_by_id.keys()),
+            TimeEntry.date >= start_date,
+            TimeEntry.date <= end_date,
+        )
+        .distinct()
+    )
+    if consultant_ids:
+        historical_stmt = historical_stmt.where(TimeEntry.user_id.in_(consultant_ids))
+    historical_pairs = {(row[0], row[1]) for row in (await db.execute(historical_stmt)).all()}
+
+    pairs = assigned_pairs | historical_pairs
+    if not pairs:
+        return []
+
+    pair_user_ids = {p[0] for p in pairs}
+    consultants_by_id = {
+        c.id: c
+        for c in (
+            await db.execute(select(User).where(User.id.in_(pair_user_ids)))
+        )
+        .scalars()
+        .all()
+    }
+
+    # All in-scope entries for the whole pair set, in one query — same "one indexed
+    # query beats N round trips" reasoning list_managed_time_entries already uses.
+    entries_stmt = (
+        select(TimeEntry, ServiceLine, Project)
+        .join(ServiceLine, TimeEntry.service_line_id == ServiceLine.id)
+        .join(Project, ServiceLine.project_id == Project.id)
+        .where(
+            TimeEntry.service_line_id.in_(service_lines_by_id.keys()),
+            TimeEntry.user_id.in_(pair_user_ids),
+            TimeEntry.date >= start_date,
+            TimeEntry.date <= end_date,
+        )
+        .order_by(TimeEntry.date)
+    )
+    entries_by_pair: dict[tuple[uuid.UUID, uuid.UUID], list[TimeEntryOut]] = defaultdict(list)
+    for entry, line, project in (await db.execute(entries_stmt)).all():
+        entries_by_pair[(entry.user_id, entry.service_line_id)].append(
+            to_time_entry_out(entry, line, project)
+        )
+
+    # is_assigned: the narrower, existing eligibility rule — see TimesheetReportRowOut's
+    # own docstring for why this is deliberately _eligibility_filters()-restricted,
+    # unlike the broader membership rule above.
+    assigned_eligible_stmt = (
+        select(service_line_consultants.c.user_id, service_line_consultants.c.service_line_id)
+        .join(ServiceLine, ServiceLine.id == service_line_consultants.c.service_line_id)
+        .join(Project, Project.id == ServiceLine.project_id)
+        .where(
+            ServiceLine.id.in_(service_lines_by_id.keys()),
+            *_eligibility_filters(),
+        )
+    )
+    eligible_pairs = {
+        (row[0], row[1]) for row in (await db.execute(assigned_eligible_stmt)).all()
+    }
+
+    rows = []
+    for user_id, service_line_id in pairs:
+        consultant = consultants_by_id.get(user_id)
+        line = service_lines_by_id.get(service_line_id)
+        project = projects_by_id.get(line.project_id) if line else None
+        if consultant is None or line is None or project is None:
+            continue
+        rows.append(
+            TimesheetReportRowOut(
+                user_id=consultant.id,
+                full_name=consultant.full_name,
+                project_id=project.id,
+                project_name=project.name,
+                project_status=project.status,
+                service_line_id=line.id,
+                service_line_name=line.name,
+                entries=entries_by_pair.get((user_id, service_line_id), []),
+                is_assigned=(user_id, service_line_id) in eligible_pairs,
+            )
+        )
+
+    rows.sort(
+        key=lambda r: (r.full_name, r.project_name, r.service_line_name or "", str(r.service_line_id))
+    )
+    return rows

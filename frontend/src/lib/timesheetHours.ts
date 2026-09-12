@@ -1,5 +1,10 @@
-export function cellKey(serviceLineId: string, dayKey: string): string {
-  return `${serviceLineId}__${dayKey}`;
+// Widened to include the row's owner — My Timesheet/Validation each still hold
+// exactly one owner's rows per grid instance (so every call within one of those
+// passes the same userId), but Reporting mixes many different consultants' rows
+// in a single flat grid, so the local `entries` map needs a composite key to
+// avoid two different consultants' cells on the same service line/day colliding.
+export function cellKey(userId: string, serviceLineId: string, dayKey: string): string {
+  return `${userId}__${serviceLineId}__${dayKey}`;
 }
 
 // Renders a stored/edited hours value in its shortest form (e.g. "1.50" -> "1.5",
