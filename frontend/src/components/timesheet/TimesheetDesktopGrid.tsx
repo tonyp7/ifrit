@@ -114,7 +114,7 @@ export function TimesheetDesktopGrid({
                   firstColWidth,
                 )}
               >
-                {t("Service line")}
+                {t("Timesheet")}
               </th>
               {days.map((day) => {
                 const dayKey = toDayKey(day);
