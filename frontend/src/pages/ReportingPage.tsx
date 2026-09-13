@@ -4,15 +4,33 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { ApiError } from "@/api/client";
-import { getReportFilters, getTimesheetReport } from "@/api/timeEntries";
+import {
+  exportTimesheetReport,
+  getReportFilters,
+  getTimesheetReport,
+  type TimesheetReportExportFormat,
+} from "@/api/timeEntries";
+import {
+  FiletypeCsvIcon,
+  FiletypePdfIcon,
+  FiletypeXlsxIcon,
+} from "@/components/reporting/ExportFormatIcons";
 import { ProjectStatusFilterDropdown } from "@/components/reporting/ProjectStatusFilterDropdown";
 import { ReportFilterDropdown } from "@/components/reporting/ReportFilterDropdown";
 import { TimesheetDesktopGrid } from "@/components/timesheet/TimesheetDesktopGrid";
 import { TimesheetHeader } from "@/components/timesheet/TimesheetHeader";
 import { TimesheetMobileView } from "@/components/timesheet/TimesheetMobileView";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
+import { Spinner } from "@/components/ui/spinner";
 import { useReportGrid } from "@/hooks/useReportGrid";
+import { downloadBlob } from "@/lib/download";
 import {
   defaultPeriodDate,
   defaultPeriodType,
@@ -30,9 +48,7 @@ import type { PeriodType, TimesheetReportFilters, TimesheetReportRow } from "@/t
 // Reporting screen — a project_manager's cross-consultant view over timesheets,
 // filterable by Consultants/Projects/Service Lines/Project Status, built on the
 // exact same shared grid mechanism My Timesheet/Validation use (see
-// useReportGrid's own comment for how it differs from useTimesheetGrid). Export
-// is out of scope for this pass — the button renders, disabled, per its own
-// still-open spec question.
+// useReportGrid's own comment for how it differs from useTimesheetGrid).
 export function ReportingPage() {
   const { t } = useTranslation(["timesheet"]);
 
@@ -115,6 +131,36 @@ export function ReportingPage() {
     setSelectedKey(toDayKey(boundary));
   }
 
+  const [exportingFormat, setExportingFormat] = useState<TimesheetReportExportFormat | null>(
+    null,
+  );
+
+  // Excel and CSV have no action behind them yet — their own content/format
+  // isn't specified (see reporting.md's Open Questions) — only PDF actually
+  // does anything. Always re-queries fresh server-side with the exact same
+  // filters this screen is currently showing, so the export can never diverge
+  // from the on-screen view.
+  async function handleExport(format: TimesheetReportExportFormat) {
+    if (format !== "pdf") return;
+    setExportingFormat(format);
+    try {
+      const { blob, filename } = await exportTimesheetReport(format, {
+        startDate: toDayKey(days[0]),
+        endDate: toDayKey(days[days.length - 1]),
+        periodType,
+        projectIds,
+        serviceLineIds,
+        consultantIds,
+        statuses,
+      });
+      downloadBlob(blob, filename ?? `timesheet-report.${format}`);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : t("Failed to export."));
+    } finally {
+      setExportingFormat(null);
+    }
+  }
+
   return (
     <div className="flex flex-col">
       <TimesheetHeader
@@ -163,12 +209,37 @@ export function ReportingPage() {
           <ProjectStatusFilterDropdown selected={statuses} onChange={setStatuses} />
         </div>
 
-        {/* Export's format/content is still an open question (see reporting.md) —
-            the button renders per spec, disabled, rather than left out entirely. */}
-        <Button type="button" variant="outline" className="gap-2" disabled>
-          <Download className="h-4 w-4" aria-hidden="true" />
-          {t("Export")}
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              type="button"
+              variant="outline"
+              className="gap-2"
+              disabled={exportingFormat !== null}
+            >
+              {exportingFormat ? (
+                <Spinner className="h-4 w-4" />
+              ) : (
+                <Download className="h-4 w-4" aria-hidden="true" />
+              )}
+              {exportingFormat ? t("Exporting…") : t("Export")}
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => void handleExport("pdf")}>
+              <FiletypePdfIcon className="mr-2 h-4 w-4" />
+              {t("Export as PDF")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => void handleExport("xlsx")}>
+              <FiletypeXlsxIcon className="mr-2 h-4 w-4" />
+              {t("Export as Excel")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => void handleExport("csv")}>
+              <FiletypeCsvIcon className="mr-2 h-4 w-4" />
+              {t("Export as CSV")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <Separator />

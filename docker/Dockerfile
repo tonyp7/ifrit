@@ -73,8 +73,10 @@ FROM python:3.12-slim-trixie AS final
 # still installs nginx fine, but debconf wastes time/noise cascading through
 # Dialog -> Readline -> Teletype frontends (none usable in a build layer with
 # no TTY) before landing on Noninteractive anyway.
+# fonts-liberation: the Reporting screen's PDF export (fpdf2) renders in
+# Liberation Sans — this slim base image has no fonts installed at all otherwise.
 RUN DEBIAN_FRONTEND=noninteractive apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends nginx \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends nginx fonts-liberation \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

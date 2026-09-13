@@ -43,5 +43,10 @@
   "Active": "Active",
   "Closed": "Closed",
   "This service line is read-only because the project is still in Draft.": "This service line is read-only because the project is still in Draft.",
-  "This service line is read-only because the project has been closed.": "This service line is read-only because the project has been closed."
+  "This service line is read-only because the project has been closed.": "This service line is read-only because the project has been closed.",
+  "Exporting…": "Exporting…",
+  "Export as PDF": "Export as PDF",
+  "Export as Excel": "Export as Excel",
+  "Export as CSV": "Export as CSV",
+  "Failed to export.": "Failed to export."
 }

@@ -73,3 +73,31 @@ export function getTimesheetReport(params: TimesheetReportParams) {
   for (const status of params.statuses ?? []) query.append("statuses", status);
   return apiClient.get<TimesheetReportResponse>(`/time-entries/report?${query.toString()}`);
 }
+
+export type TimesheetReportExportFormat = "pdf" | "xlsx" | "csv";
+
+export interface TimesheetReportExportParams extends TimesheetReportParams {
+  periodType: "week" | "month";
+}
+
+// Reporting screen's export — deliberately the exact same filter params as
+// getTimesheetReport above, plus format/periodType, which that endpoint has no
+// use for. Returns the raw Blob and the server-built filename (from
+// Content-Disposition) — see lib/download.ts for turning that into an actual
+// browser download.
+export function exportTimesheetReport(
+  format: TimesheetReportExportFormat,
+  params: TimesheetReportExportParams,
+) {
+  const query = new URLSearchParams({
+    format,
+    period_type: params.periodType,
+    start_date: params.startDate,
+    end_date: params.endDate,
+  });
+  for (const id of params.projectIds ?? []) query.append("project_ids", id);
+  for (const id of params.serviceLineIds ?? []) query.append("service_line_ids", id);
+  for (const id of params.consultantIds ?? []) query.append("consultant_ids", id);
+  for (const status of params.statuses ?? []) query.append("statuses", status);
+  return apiClient.getBlob(`/time-entries/report/export?${query.toString()}`);
+}

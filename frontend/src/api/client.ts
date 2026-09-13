@@ -101,8 +101,44 @@ async function request<T>(path: string, init?: RequestInit, isRetry = false): Pr
   return (await response.json()) as T;
 }
 
+// filename is parsed from Content-Disposition here (built server-side — see
+// reporting.md's export API contract) rather than recomputed by the caller.
+function parseFilename(disposition: string | null): string | null {
+  if (!disposition) return null;
+  const match = /filename="?([^";]+)"?/.exec(disposition);
+  return match ? match[1] : null;
+}
+
+async function requestBlob(
+  path: string,
+  isRetry = false,
+): Promise<{ blob: Blob; filename: string | null }> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: "GET",
+    credentials: "include",
+  });
+
+  if (!response.ok) {
+    if (response.status === 401 && !isRetry && !AUTH_EXEMPT_PATHS.includes(path)) {
+      const refreshed = await attemptRefresh();
+      if (refreshed) {
+        return requestBlob(path, true);
+      }
+      notifySessionExpired();
+    }
+    await throwApiError(response);
+  }
+
+  const blob = await response.blob();
+  return { blob, filename: parseFilename(response.headers.get("Content-Disposition")) };
+}
+
 export const apiClient = {
   get: <T>(path: string) => request<T>(path, { method: "GET" }),
+  // For endpoints that return a file rather than JSON (e.g. Reporting's export)
+  // — same auth/401-refresh handling as `get`, but reads the response as a Blob
+  // and surfaces the server-built filename instead of parsing a JSON body.
+  getBlob: (path: string) => requestBlob(path),
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, {
       method: "POST",

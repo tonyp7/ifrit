@@ -1,5 +1,6 @@
 import uuid
 from datetime import date
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,7 +19,8 @@ from app.schemas.time_entry import (
     TimesheetReportFiltersOut,
     TimesheetReportResponse,
 )
-from app.services import time_entry_service
+from app.services import report_export_service, time_entry_service
+from app.services.report_export_service import UnsupportedExportFormatError
 from app.services.time_entry_service import NotAuthorizedError
 
 router = APIRouter(
@@ -132,6 +134,56 @@ async def get_time_entries_report(
         statuses,
     )
     return TimesheetReportResponse(items=rows)
+
+
+@router.get("/report/export")
+async def export_time_entries_report(
+    format: Literal["pdf", "xlsx", "csv"],
+    period_type: Literal["week", "month"],
+    start_date: date,
+    end_date: date,
+    project_ids: list[uuid.UUID] | None = Query(default=None),
+    service_line_ids: list[uuid.UUID] | None = Query(default=None),
+    consultant_ids: list[uuid.UUID] | None = Query(default=None),
+    statuses: list[str] | None = Query(default=None),
+    user: User = Depends(require_roles("project_manager")),  # noqa: B008
+    db: AsyncSession = Depends(get_db),
+) -> Response:
+    """Reporting screen's export — deliberately the exact same filter params as
+    GET /time-entries/report (plus format/period_type, which that endpoint has no
+    use for), so an export always matches whatever the screen is currently
+    showing. Always re-queries fresh server-side; never a client-supplied payload
+    of already-rendered rows, so an unblurred, not-yet-saved cell edit can never
+    appear in an export."""
+    try:
+        file_bytes, filename, content_type = await report_export_service.build_report_export(
+            db,
+            user,
+            export_format=format,
+            period_type=period_type,
+            start_date=start_date,
+            end_date=end_date,
+            project_ids=project_ids,
+            service_line_ids=service_line_ids,
+            consultant_ids=consultant_ids,
+            statuses=statuses,
+        )
+    except UnsupportedExportFormatError as err:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Export format {str(err)!r} is not yet supported",
+        ) from err
+
+    return Response(
+        content=file_bytes,
+        media_type=content_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+            # Same forced-download hardening fileupload.md already establishes
+            # for every other download in this app.
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
 
 
 @router.put("/lock", response_model=list[TimeEntryOut])

@@ -1212,3 +1212,165 @@ async def test_report_sort_order(client, db_session) -> None:
     )
     rows = response.json()["items"]
     assert [r["user_id"] for r in rows] == [str(alice.id), str(zack.id)]
+
+
+# --- Reporting screen: GET /time-entries/report/export -----------------------
+
+
+async def test_export_requires_project_manager_role(client, db_session) -> None:
+    await _login_manager_first(client, db_session)
+    await _setup_project_with_consultant_and_pm(
+        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+    )
+    await _login_as(client, "project_admin@example.com", "project_admin-pw")
+    response = await client.get(
+        "/api/time-entries/report/export",
+        params={
+            "format": "pdf",
+            "period_type": "month",
+            "start_date": "2026-08-01",
+            "end_date": "2026-08-31",
+        },
+    )
+    assert response.status_code == 403
+
+
+async def test_export_pdf_returns_pdf_with_expected_headers(client, db_session) -> None:
+    await _login_manager_first(client, db_session)
+    _project_id, service_line_id, _consultant_id, _pm_id = (
+        await _setup_project_with_consultant_and_pm(
+            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        )
+    )
+    await _login_as(client, "c@example.com")
+    await client.put(
+        "/api/time-entries",
+        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "3"}],
+    )
+
+    await _login_as(client, "pm@example.com")
+    response = await client.get(
+        "/api/time-entries/report/export",
+        params={
+            "format": "pdf",
+            "period_type": "month",
+            "start_date": "2026-08-01",
+            "end_date": "2026-08-31",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert 'attachment; filename="august-2026.pdf"' == response.headers["content-disposition"]
+    assert response.content.startswith(b"%PDF")
+
+
+async def test_export_unsupported_format_returns_400(client, db_session) -> None:
+    await _login_manager_first(client, db_session)
+    await _setup_project_with_consultant_and_pm(
+        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+    )
+    await _login_as(client, "pm@example.com")
+    response = await client.get(
+        "/api/time-entries/report/export",
+        params={
+            "format": "xlsx",
+            "period_type": "month",
+            "start_date": "2026-08-01",
+            "end_date": "2026-08-31",
+        },
+    )
+    assert response.status_code == 400
+
+
+async def test_export_filename_single_project_and_consultant(client, db_session) -> None:
+    await _login_manager_first(client, db_session)
+    project_id, _service_line_id, consultant_id, _pm_id = (
+        await _setup_project_with_consultant_and_pm(
+            client,
+            db_session,
+            consultant_name_id="c@example.com",
+            pm_name_id="pm@example.com",
+            project_name="Meridian Web App",
+        )
+    )
+    await _login_as(client, "pm@example.com")
+    response = await client.get(
+        "/api/time-entries/report/export",
+        params={
+            "format": "pdf",
+            "period_type": "month",
+            "start_date": "2026-08-01",
+            "end_date": "2026-08-31",
+            "project_ids": [project_id],
+            "consultant_ids": [consultant_id],
+        },
+    )
+    assert response.status_code == 200
+    # create_user's default full_name (tests/factories.py) is "Jane Doe" for every
+    # user unless given explicitly.
+    assert (
+        response.headers["content-disposition"]
+        == 'attachment; filename="august-2026_meridian-web-app_jane-doe.pdf"'
+    )
+
+
+async def test_export_filename_ignores_out_of_scope_project(client, db_session) -> None:
+    await _login_manager_first(client, db_session)
+    await _setup_project_with_consultant_and_pm(
+        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+    )
+    # A second project this pm is NOT assigned to.
+    await _login_as(client, "project_admin@example.com", "project_admin-pw")
+    vendor = await create_company(db_session, legal_name="Other Vendor 2", is_vendor=True)
+    client_company = await create_company(db_session, legal_name="Other Client 2")
+    currency = (await client.get("/api/currencies")).json()
+    other_project = await client.post(
+        "/api/projects",
+        json={
+            "name": "Outside Scope Project",
+            "vendor_company_id": str(vendor.id),
+            "client_company_id": str(client_company.id),
+            "invoicing_currency": currency[0]["alpha_code"],
+            "project_type": "time_and_material",
+            "status": "active",
+        },
+    )
+    other_project_id = other_project.json()["id"]
+
+    await _login_as(client, "pm@example.com")
+    response = await client.get(
+        "/api/time-entries/report/export",
+        params={
+            "format": "pdf",
+            "period_type": "month",
+            "start_date": "2026-08-01",
+            "end_date": "2026-08-31",
+            "project_ids": [other_project_id],
+        },
+    )
+    assert response.status_code == 200
+    # Out-of-scope project id contributes nothing to the filename — falls back
+    # to period-only, same as no project selected at all.
+    assert response.headers["content-disposition"] == 'attachment; filename="august-2026.pdf"'
+
+
+async def test_export_week_period_filename_includes_iso_year(client, db_session) -> None:
+    await _login_manager_first(client, db_session)
+    await _setup_project_with_consultant_and_pm(
+        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+    )
+    await _login_as(client, "pm@example.com")
+    response = await client.get(
+        "/api/time-entries/report/export",
+        params={
+            "format": "pdf",
+            "period_type": "week",
+            "start_date": "2026-08-03",  # a Monday, ISO week 32 of 2026
+            "end_date": "2026-08-09",
+        },
+    )
+    assert response.status_code == 200
+    assert (
+        response.headers["content-disposition"] == 'attachment; filename="2026-week-32.pdf"'
+    )

@@ -12,6 +12,7 @@ dependencies = [
     "pydantic-settings>=2.6",
     "pyjwt>=2.9",
     "argon2-cffi>=25.1.0",
+    "fpdf2>=2.8.8",
 ]
 
 [dependency-groups]
