@@ -31,6 +31,15 @@ This builds one combined image (nginx + the built SPA + FastAPI/uvicorn — `doc
 alongside a stock `postgres:18` container. Unlike the native-dev flow above, nothing seeds a
 default admin automatically — see `docker/Dockerfile`'s header comment for why.
 
+**`COOKIE_SECURE` is on you to verify.** It defaults to `false` in `Settings`
+(`backend/app/core/config.py`) with no startup check forcing it otherwise — the app will happily
+boot and serve auth cookies without the `Secure` flag if this is left unset or wrong. The
+production `.env.example` above already sets `COOKIE_SECURE=true` as its example value, but
+nothing enforces that once you copy and edit it. Before any real deployment, confirm `.env` has
+`COOKIE_SECURE=true` and that TLS is actually terminated in front of this container (see
+`docker/nginx.conf`) — this is a manual check on the deployer, not something the app fails fast
+on.
+
 
 uv run alembic stamp base   # reset bookkeeping only, no DDL
 uv run alembic upgrade head # recreates tables fresh

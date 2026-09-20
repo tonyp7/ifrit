@@ -1,3 +1,4 @@
+import csv
 import io
 from datetime import date
 
@@ -1286,6 +1287,95 @@ async def test_export_details_omits_rows_with_no_entries_in_period(client, db_se
     assert response.status_code == 200
     lines = response.content.decode("utf-8").splitlines()
     assert lines == ["Project Name,Service Line,Consultant,Date,Hours"]
+
+
+async def test_export_escapes_formula_injection_in_project_service_line_consultant_names(
+    client, db_session
+) -> None:
+    """A project/service-line/consultant name starting with =/+/-/@ is legal
+    input (none of those fields restrict characters) and would otherwise open
+    as a live formula in Excel/LibreOffice on export - CWE-1236. Covers all
+    three name fields, and both the XLSX Report/Details sheets and CSV."""
+    await _login_manager_first(client, db_session)
+    consultant = await create_user(
+        db_session,
+        name_id="c@example.com",
+        password="pw",
+        role_name="consultant",
+        full_name='=HYPERLINK("http://evil.example","click")',
+    )
+    pm = await create_user(
+        db_session, name_id="pm@example.com", password="pw", role_name="project_manager"
+    )
+    await _login_as(client, "project_admin@example.com", "project_admin-pw")
+    vendor = await create_company(db_session, legal_name="Acme Vendor", is_vendor=True)
+    client_company = await create_company(db_session, legal_name="Beta Client")
+    currency = await create_currency(db_session, alpha_code="USD", numeric_code="840")
+
+    project = await client.post(
+        "/api/projects",
+        json={
+            "name": "=cmd|'/c calc'!A1",
+            "vendor_company_id": str(vendor.id),
+            "client_company_id": str(client_company.id),
+            "invoicing_currency": currency.alpha_code,
+            "project_type": "time_and_material",
+            "status": "active",
+            "project_manager_ids": [str(pm.id)],
+        },
+    )
+    project_id = project.json()["id"]
+    line = await client.post(
+        f"/api/projects/{project_id}/service-lines",
+        json={
+            "name": "+SUM(1,1)",
+            "quantity": "10",
+            "uom": "hours",
+            "unit_price": "100.00",
+            "user_ids": [str(consultant.id)],
+        },
+    )
+    service_line_id = line.json()["id"]
+
+    await _login_as(client, "c@example.com")
+    await client.put(
+        "/api/time-entries",
+        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "3"}],
+    )
+
+    await _login_as(client, "pm@example.com")
+    export_params = {
+        "period_type": "month",
+        "start_date": "2026-08-01",
+        "end_date": "2026-08-31",
+    }
+
+    csv_response = await client.get(
+        "/api/time-entries/report/export", params={"format": "csv", **export_params}
+    )
+    assert csv_response.status_code == 200
+    csv_row = list(csv.reader(io.StringIO(csv_response.content.decode("utf-8"))))[1]
+    assert csv_row[:3] == [
+        "'=cmd|'/c calc'!A1",
+        "'+SUM(1,1)",
+        '\'=HYPERLINK("http://evil.example","click")',
+    ]
+
+    xlsx_response = await client.get(
+        "/api/time-entries/report/export", params={"format": "xlsx", **export_params}
+    )
+    assert xlsx_response.status_code == 200
+    workbook = openpyxl.load_workbook(io.BytesIO(xlsx_response.content))
+
+    report_ws = workbook["Report"]
+    assert report_ws.cell(row=2, column=1).value == "'=cmd|'/c calc'!A1"
+    assert report_ws.cell(row=2, column=2).value == "'+SUM(1,1)"
+    assert report_ws.cell(row=2, column=3).value == "'=HYPERLINK(\"http://evil.example\",\"click\")"
+
+    details_ws = workbook["Details"]
+    assert details_ws.cell(row=2, column=1).value == "'=cmd|'/c calc'!A1"
+    assert details_ws.cell(row=2, column=2).value == "'+SUM(1,1)"
+    assert details_ws.cell(row=2, column=3).value == "'=HYPERLINK(\"http://evil.example\",\"click\")"
 
 
 async def test_export_filename_single_project_and_consultant(client, db_session) -> None:

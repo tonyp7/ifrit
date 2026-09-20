@@ -346,6 +346,24 @@ def _entries_by_row(
     }
 
 
+# CSV/Excel formula injection (CWE-1236): a cell whose text starts with one of
+# these opens it as a formula in Excel/LibreOffice rather than literal text
+# (e.g. a project/service-line/consultant name of `=HYPERLINK(...)`). None of
+# project_name/service_line_name/full_name have a character restriction, and
+# all three are written verbatim into cells below, so every one of them has to
+# go through _escape_formula_prefix first, in both the XLSX and CSV builders.
+_FORMULA_TRIGGER_CHARS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _escape_formula_prefix(text: str) -> str:
+    # A leading apostrophe forces Excel/LibreOffice to treat the rest of the
+    # cell as literal text, never a formula, and the apostrophe itself is
+    # never displayed or exported back out, unlike quoting the whole value.
+    if text.startswith(_FORMULA_TRIGGER_CHARS):
+        return "'" + text
+    return text
+
+
 _DETAILS_COLUMNS = ["Project Name", "Service Line", "Consultant", "Date", "Hours"]
 
 
@@ -354,9 +372,9 @@ def _build_details_dataframe(rows: list[TimesheetReportRowOut]) -> pd.DataFrame:
     requested period contributes nothing (see reporting.md's Details section)."""
     records = [
         {
-            "Project Name": row.project_name,
-            "Service Line": row.service_line_name or "",
-            "Consultant": row.full_name,
+            "Project Name": _escape_formula_prefix(row.project_name),
+            "Service Line": _escape_formula_prefix(row.service_line_name or ""),
+            "Consultant": _escape_formula_prefix(row.full_name),
             "Date": entry.date,
             "Hours": float(entry.hours),
         }
@@ -403,9 +421,9 @@ def _build_report_dataframe(
     for row in rows:
         entries = entries_by_row.get((row.user_id, row.service_line_id), {})
         record: dict[str, object] = {
-            "Project": row.project_name,
-            "Service Line": row.service_line_name or "",
-            "Consultant": row.full_name,
+            "Project": _escape_formula_prefix(row.project_name),
+            "Service Line": _escape_formula_prefix(row.service_line_name or ""),
+            "Consultant": _escape_formula_prefix(row.full_name),
         }
         period_total = Decimal(0)
         for day, header in zip(days, day_headers, strict=True):
