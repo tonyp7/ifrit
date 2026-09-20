@@ -31,7 +31,9 @@ _BOOTSTRAP_ROLE_NAMES = ["administrator", "project_admin", "project_manager"]
 async def seed_admin() -> None:
     async with async_session_factory() as db:
         existing = await db.execute(
-            select(User).where(User.name_id == settings.seed_admin_email)
+            select(User).where(
+                User.name_id == settings.seed_admin_email, User.is_active.is_(True)
+            )
         )
         if existing.scalar_one_or_none() is not None:
             print(f"Admin user {settings.seed_admin_email} already exists, skipping.")

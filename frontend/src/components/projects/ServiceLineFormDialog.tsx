@@ -36,6 +36,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
+import { ConsultantName } from "@/components/projects/ConsultantName";
 import { formatMoney, formatQuantity, stripGrouping } from "@/lib/format";
 import { type ServiceLineConsultant, UOM_LABELS, type Uom } from "@/types/project";
 import type { User } from "@/types/user";
@@ -165,7 +166,6 @@ export function ServiceLineFormDialog({
         listUsers({
           role: "consultant",
           search: consultantSearch || undefined,
-          is_active: true,
         })
           .then((response) => {
             if (!cancelled) setConsultantResults(response.items);
@@ -197,8 +197,12 @@ export function ServiceLineFormDialog({
     });
   }
 
+  // A since-deleted user is still shown (history) but can't be saved back onto the line.
+  const hasDeletedConsultant = selectedConsultants.some((c) => !c.is_active);
+
   async function onSubmit(values: FormValues) {
     setFormError(null);
+    if (hasDeletedConsultant) return;
     const payload = {
       ...values,
       name: values.name.trim() || null,
@@ -310,7 +314,7 @@ export function ServiceLineFormDialog({
               <div className="flex flex-wrap gap-2">
                 {selectedConsultants.map((consultant) => (
                   <Badge key={consultant.id} variant="secondary" className="gap-1 pr-1">
-                    {consultant.full_name}
+                    <ConsultantName consultant={consultant} />
                     <button
                       type="button"
                       onClick={() => toggleConsultant(consultant)}
@@ -324,6 +328,11 @@ export function ServiceLineFormDialog({
                   </Badge>
                 ))}
               </div>
+            )}
+            {hasDeletedConsultant && (
+              <p className="text-sm text-destructive">
+                {t("Remove deleted consultants before saving.")}
+              </p>
             )}
           </div>
 

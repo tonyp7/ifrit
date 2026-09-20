@@ -170,16 +170,6 @@ export function UsersTable() {
       cell: ({ row }) => (row.original.is_sso ? t("SSO") : t("Local")),
     },
     {
-      accessorKey: "is_active",
-      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Status")} />,
-      enableHiding: false,
-      cell: ({ row }) => (
-        <Badge variant={row.original.is_active ? "default" : "secondary"}>
-          {row.original.is_active ? t("Active", { ns: "common" }) : t("Inactive", { ns: "common" })}
-        </Badge>
-      ),
-    },
-    {
       id: "actions",
       header: "",
       enableHiding: false,
@@ -282,7 +272,7 @@ export function UsersTable() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {t(
-                "This deactivates the user (it can't be reactivated from the UI currently). They will no longer be able to log in.",
+                "This removes the user from this list and they can no longer log in. They are also removed as project manager from every project. Their history (timesheets, service line assignments) is kept. This can't be undone from the app.",
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>

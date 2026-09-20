@@ -9,7 +9,6 @@ export function listUsers(params: {
   role?: string;
   search?: string;
   page?: number;
-  is_active?: boolean;
   sort_by?: string;
   sort_dir?: "asc" | "desc";
 } = {}) {
@@ -17,7 +16,6 @@ export function listUsers(params: {
   if (params.role) query.set("role", params.role);
   if (params.search) query.set("search", params.search);
   query.set("page", String(params.page ?? 1));
-  if (params.is_active !== undefined) query.set("is_active", String(params.is_active));
   if (params.sort_by) query.set("sort_by", params.sort_by);
   if (params.sort_dir) query.set("sort_dir", params.sort_dir);
   return apiClient.get<UserListResponse>(`/users?${query.toString()}`);

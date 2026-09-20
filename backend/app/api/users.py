@@ -45,18 +45,17 @@ async def list_users_endpoint(
     role: str | None = None,
     search: str | None = None,
     page: int = Query(default=1, ge=1),
-    is_active: bool | None = None,
     sort_by: str | None = None,
     sort_dir: str | None = None,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_roles("project_admin", "administrator")),  # noqa: B008
 ) -> UserListResponse:
     """Users, optionally filtered by role and/or a `full_name`/`name_id` substring
-    (`search`) — used by both the Service Line consultant picker (`is_active=true`,
-    page 1 is always enough since `search` already narrows it) and the Users List
-    Screen (no `is_active` filter so both active and inactive users show)."""
+    (`search`) — used by both the Service Line consultant picker (page 1 is always
+    enough since `search` already narrows it) and the Users List Screen. Deactivated
+    users are never returned."""
     users, total = await list_users(
-        db, role, search, page, is_active, sort_by=sort_by, sort_dir=sort_dir
+        db, role, search, page, sort_by=sort_by, sort_dir=sort_dir
     )
     return UserListResponse(
         items=[to_user_out(u) for u in users],

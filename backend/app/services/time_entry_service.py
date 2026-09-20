@@ -80,9 +80,14 @@ async def _is_eligible(
             service_line_consultants,
             service_line_consultants.c.service_line_id == ServiceLine.id,
         )
+        .join(User, User.id == service_line_consultants.c.user_id)
         .where(
             ServiceLine.id == service_line_id,
             service_line_consultants.c.user_id == user_id,
+            # A deleted user can't accrue new/edited time, even while they remain on
+            # the line (history) — see _is_eligible_ignoring_active_status for the
+            # lock/unlock path, which deliberately still works for them.
+            User.is_active.is_(True),
             *_eligibility_filters(),
         )
     )

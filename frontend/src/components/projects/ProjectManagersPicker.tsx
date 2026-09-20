@@ -47,7 +47,7 @@ export function ProjectManagersPicker({
     let cancelled = false;
     const handle = setTimeout(
       () => {
-        listUsers({ role: "project_manager", search: search || undefined, is_active: true })
+        listUsers({ role: "project_manager", search: search || undefined })
           .then((response) => {
             if (!cancelled) setResults(response.items);
           })

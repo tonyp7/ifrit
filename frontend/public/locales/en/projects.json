@@ -36,6 +36,8 @@
   "New Project": "New Project",
   "Edit Project": "Edit Project",
   "Select a vendor…": "Select a vendor…",
+  "This user no longer exists": "This user no longer exists",
+  "Remove deleted consultants before saving.": "Remove deleted consultants before saving.",
   "{{name}} (inactive)": "{{name}} (inactive)",
   "This vendor is no longer active. Select another one.": "This vendor is no longer active. Select another one.",
   "This client is no longer active. Select another one.": "This client is no longer active. Select another one.",

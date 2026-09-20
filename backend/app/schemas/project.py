@@ -63,6 +63,9 @@ class ServiceLineWrite(BaseModel):
 class ServiceLineConsultantOut(BaseModel):
     id: uuid.UUID
     full_name: str
+    # False for a since-deleted user who is still on the line (history): shown in red
+    # and removable, but can't be saved back onto a line.
+    is_active: bool
 
 
 class ProjectManagerOut(BaseModel):

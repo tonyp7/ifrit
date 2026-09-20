@@ -1,3 +1,4 @@
+import { ConsultantName } from "@/components/projects/ConsultantName";
 import { MoreHorizontal, Plus } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -142,7 +143,11 @@ export function ServiceLinesTable({
                   <TableCell>{formatMoney(line.value, minorUnit)}</TableCell>
                   <TableCell>
                     {line.users.length > 0
-                      ? line.users.map((u) => <div key={u.id}>{u.full_name}</div>)
+                      ? line.users.map((u) => (
+                          <div key={u.id}>
+                            <ConsultantName consultant={u} />
+                          </div>
+                        ))
                       : "—"}
                   </TableCell>
                   {!readOnly && (

@@ -19,6 +19,7 @@ import sqlalchemy as sa
 from sqlalchemy.dialects import postgresql
 
 from alembic import op
+from app.models import triggers
 
 revision: str = "0001"
 down_revision: str | None = None
@@ -228,11 +229,20 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("now()"),
         ),
-        sa.UniqueConstraint("name_id", name="uq_users_name_id"),
         sa.CheckConstraint(
             "theme_preference IN ('light', 'dark', 'system')",
             name="ck_users_theme_preference",
         ),
+    )
+
+    # Unique among active users only — a deactivated user keeps their name_id (history)
+    # and a new user may reuse it. See app/models/user.py.
+    op.create_index(
+        "uq_users_name_id_active",
+        "users",
+        ["name_id"],
+        unique=True,
+        postgresql_where=sa.text("is_active IS true"),
     )
 
     op.create_table(
@@ -468,6 +478,11 @@ def upgrade() -> None:
         ),
     )
 
+    for statement in triggers.USERS_TRIGGER_STATEMENTS:
+        op.execute(statement)
+    for statement in triggers.PROJECT_MANAGERS_TRIGGER_STATEMENTS:
+        op.execute(statement)
+
     op.create_table(
         "service_lines",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
@@ -575,6 +590,8 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    for statement in triggers.DROP_STATEMENTS:
+        op.execute(statement)
     op.drop_table("time_entries")
     op.drop_table("service_line_consultants")
     op.drop_table("service_lines")

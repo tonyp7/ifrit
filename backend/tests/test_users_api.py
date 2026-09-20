@@ -1,3 +1,5 @@
+import uuid
+
 from tests.factories import create_user, ensure_role
 
 
@@ -457,8 +459,98 @@ async def test_admin_can_deactivate_another_user(client, db_session) -> None:
     response = await client.post(f"/api/users/{target.id}/deactivate")
     assert response.status_code == 204
 
-    listing = await client.get("/api/users", params={"is_active": "false"})
-    assert [u["id"] for u in listing.json()["items"]] == [str(target.id)]
+    # A deactivated user disappears from the list entirely.
+    listing = await client.get("/api/users")
+    assert target.id not in {uuid.UUID(u["id"]) for u in listing.json()["items"]}
+
+
+async def test_deactivated_user_is_not_found_on_every_route(client, db_session) -> None:
+    await _login_admin(client, db_session)
+    target = await create_user(
+        db_session, name_id="jane@example.com", password="pw", role_name="consultant"
+    )
+    assert (await client.post(f"/api/users/{target.id}/deactivate")).status_code == 204
+
+    base = f"/api/users/{target.id}"
+    payload = {
+        "full_name": "Jane",
+        "name_id": "jane@example.com",
+        "is_sso": False,
+        "roles": ["consultant"],
+    }
+    responses = [
+        await client.get(base),
+        await client.patch(base, json=payload),
+        await client.post(f"{base}/deactivate"),
+        await client.post(f"{base}/reset-password", json={"new_password": "a-new-password-1"}),
+    ]
+    assert [r.status_code for r in responses] == [404] * len(responses)
+
+
+async def test_deactivated_user_cannot_log_in(client, db_session) -> None:
+    await _login_admin(client, db_session)
+    target = await create_user(
+        db_session, name_id="jane@example.com", password="pw", role_name="consultant"
+    )
+    await client.post(f"/api/users/{target.id}/deactivate")
+
+    login = await client.post(
+        "/api/auth/login", json={"email": "jane@example.com", "password": "pw"}
+    )
+    assert login.status_code == 401
+
+
+async def test_name_id_can_be_reused_after_deactivation(client, db_session) -> None:
+    await _login_admin(client, db_session)
+    old = await create_user(
+        db_session, name_id="jane@example.com", password="old-password", role_name="consultant"
+    )
+    await client.post(f"/api/users/{old.id}/deactivate")
+
+    created = await client.post(
+        "/api/users",
+        json={
+            "full_name": "Jane Again",
+            "name_id": "jane@example.com",
+            "is_sso": False,
+            "roles": ["consultant"],
+            "password": "a-brand-new-password",
+        },
+    )
+    assert created.status_code == 201
+    assert created.json()["id"] != str(old.id)
+
+    # Only the new identity can log in.
+    await client.post("/api/auth/logout")
+    assert (
+        await client.post(
+            "/api/auth/login", json={"email": "jane@example.com", "password": "old-password"}
+        )
+    ).status_code == 401
+    assert (
+        await client.post(
+            "/api/auth/login",
+            json={"email": "jane@example.com", "password": "a-brand-new-password"},
+        )
+    ).status_code == 200
+
+
+async def test_name_id_still_unique_among_active_users(client, db_session) -> None:
+    await _login_admin(client, db_session)
+    await create_user(
+        db_session, name_id="jane@example.com", password="pw", role_name="consultant"
+    )
+    duplicate = await client.post(
+        "/api/users",
+        json={
+            "full_name": "Jane Two",
+            "name_id": "jane@example.com",
+            "is_sso": False,
+            "roles": ["consultant"],
+            "password": "a-brand-new-password",
+        },
+    )
+    assert duplicate.status_code == 409
 
 
 async def test_switching_local_user_to_sso_clears_password(client, db_session) -> None:

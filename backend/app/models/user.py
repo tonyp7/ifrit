@@ -2,7 +2,15 @@ import uuid
 from datetime import UTC, datetime
 from typing import Literal
 
-from sqlalchemy import CheckConstraint, Column, DateTime, ForeignKey, String, Table
+from sqlalchemy import (
+    CheckConstraint,
+    Column,
+    DateTime,
+    ForeignKey,
+    Index,
+    String,
+    Table,
+)
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -42,7 +50,10 @@ class User(Base):
     # Identity used to match a login: for a local user this is their email; for an SSO
     # user this is the SAML NameID asserted by the IdP, which is conventionally
     # email-shaped but not guaranteed to be a valid email.
-    name_id: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
+    # Unique only among *active* users (see the partial index below): a deactivated
+    # user keeps their name_id so history stays accurate, and a new user may reuse it.
+    # Every lookup by name_id must therefore filter `is_active`.
+    name_id: Mapped[str] = mapped_column(String(255), nullable=False)
     # Null for SSO users — an is_sso account has no local password and cannot log in
     # via email/password.
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -62,6 +73,12 @@ class User(Base):
     roles: Mapped[list[Role]] = relationship(secondary=user_roles, back_populates="users")
 
     __table_args__ = (
+        Index(
+            "uq_users_name_id_active",
+            "name_id",
+            unique=True,
+            postgresql_where=is_active.is_(True),
+        ),
         CheckConstraint(
             "theme_preference IN ('light', 'dark', 'system')",
             name="ck_users_theme_preference",

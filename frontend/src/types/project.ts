@@ -26,12 +26,18 @@ export const UOM_LABELS: Record<Uom, string> = {
 export interface ServiceLineConsultant {
   id: string;
   full_name: string;
+  // False for a since-deleted user who is still on the line (history): shown in red
+  // and removable, but can't be saved back onto a line.
+  is_active: boolean;
 }
 
-// Same shape as ServiceLineConsultant — kept as a distinct name since it's a
-// conceptually separate assignment (project-level authority, not a service line's
-// billable-time consultant).
-export type ProjectManager = ServiceLineConsultant;
+// A conceptually separate assignment from a consultant (project-level authority, not a
+// service line's billable-time consultant). No is_active: a deleted user is removed as
+// project manager everywhere at deletion time.
+export interface ProjectManager {
+  id: string;
+  full_name: string;
+}
 
 export interface ServiceLine {
   id: string;

@@ -11,7 +11,7 @@
   "userCount_one": "{{count}} user",
   "userCount_other": "{{count}} users",
   "Delete {{name}}?": "Delete {{name}}?",
-  "This deactivates the user (it can't be reactivated from the UI currently). They will no longer be able to log in.": "This deactivates the user (it can't be reactivated from the UI currently). They will no longer be able to log in.",
+  "This removes the user from this list and they can no longer log in. They are also removed as project manager from every project. Their history (timesheets, service line assignments) is kept. This can't be undone from the app.": "This removes the user from this list and they can no longer log in. They are also removed as project manager from every project. Their history (timesheets, service line assignments) is kept. This can't be undone from the app.",
   "{{name}} deleted.": "{{name}} deleted.",
   "Failed to load users.": "Failed to load users.",
   "Failed to load user.": "Failed to load user.",

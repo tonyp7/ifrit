@@ -1,10 +1,11 @@
 import uuid
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import delete, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth.security import hash_password, verify_password
+from app.models.project import project_manager_assignments
 from app.models.user import Role, ThemePreference, User
 from app.schemas.user import UserCreate, UserOut, UserUpdate
 from app.services.sorting import resolve_sort
@@ -18,7 +19,6 @@ _SORTABLE_COLUMNS = {
     "full_name": User.full_name,
     "name_id": User.name_id,
     "is_sso": User.is_sso,
-    "is_active": User.is_active,
 }
 
 
@@ -29,15 +29,23 @@ class SelfLockoutError(Exception):
 
 
 async def get_user_by_name_id(db: AsyncSession, name_id: str) -> User | None:
+    # Active only: name_id is unique among active users, so a deactivated user's
+    # (kept) name_id may also belong to a newer active one.
     result = await db.execute(
-        select(User).options(selectinload(User.roles)).where(User.name_id == name_id)
+        select(User)
+        .options(selectinload(User.roles))
+        .where(User.name_id == name_id, User.is_active.is_(True))
     )
     return result.scalar_one_or_none()
 
 
 async def get_user_by_id(db: AsyncSession, user_id: uuid.UUID) -> User | None:
+    # Active only: a deactivated user is treated as not existing by every caller
+    # (users routes -> 404, get_current_user -> 401).
     result = await db.execute(
-        select(User).options(selectinload(User.roles)).where(User.id == user_id)
+        select(User)
+        .options(selectinload(User.roles))
+        .where(User.id == user_id, User.is_active.is_(True))
     )
     return result.scalar_one_or_none()
 
@@ -47,7 +55,6 @@ async def list_users(
     role: str | None = None,
     search: str | None = None,
     page: int = 1,
-    is_active: bool | None = None,
     sort_by: str | None = None,
     sort_dir: str | None = None,
 ) -> tuple[list[User], int]:
@@ -60,8 +67,10 @@ async def list_users(
     and never passes `sort_by`/`sort_dir` — it has no sortable-header UI, so the
     default (`full_name` ascending) always applies there.
     """
-    stmt = select(User).options(selectinload(User.roles))
-    count_stmt = select(func.count()).select_from(User)
+    # Deactivated users are never listed — no way to see or reactivate one through the
+    # API.
+    stmt = select(User).options(selectinload(User.roles)).where(User.is_active.is_(True))
+    count_stmt = select(func.count()).select_from(User).where(User.is_active.is_(True))
 
     if role:
         stmt = stmt.join(User.roles).where(Role.name == role)
@@ -71,10 +80,6 @@ async def list_users(
         condition = or_(User.full_name.ilike(pattern), User.name_id.ilike(pattern))
         stmt = stmt.where(condition)
         count_stmt = count_stmt.where(condition)
-    if is_active is not None:
-        stmt = stmt.where(User.is_active.is_(is_active))
-        count_stmt = count_stmt.where(User.is_active.is_(is_active))
-
     total = (await db.execute(count_stmt)).scalar_one()
 
     order = resolve_sort(_SORTABLE_COLUMNS, sort_by, sort_dir, default=User.full_name.asc())
@@ -140,6 +145,12 @@ async def update_user(
             raise ValueError("password is required when switching an SSO user to local")
         user.hashed_password = hash_password(data.password)
 
+    if "project_manager" not in data.roles and any(
+        role.name == "project_manager" for role in user.roles
+    ):
+        # Same invariant as deactivation: only holders of the role can be assigned.
+        await _clear_project_manager_assignments(db, user.id)
+
     user.full_name = data.full_name
     user.name_id = data.name_id
     user.is_sso = data.is_sso
@@ -150,11 +161,23 @@ async def update_user(
     return persisted
 
 
+async def _clear_project_manager_assignments(db: AsyncSession, user_id: uuid.UUID) -> None:
+    await db.execute(
+        delete(project_manager_assignments).where(
+            project_manager_assignments.c.user_id == user_id
+        )
+    )
+
+
 async def deactivate_user(db: AsyncSession, user: User, current_user: User) -> None:
     is_self = user.id == current_user.id
     is_administrator = any(role.name == "administrator" for role in user.roles)
     if is_self and is_administrator:
         raise SelfLockoutError("You can't remove your own administrator access.")
+    # A deactivated user can't stay a project manager: drop their assignments in the same
+    # transaction (a DB trigger backs this up — see app/models/triggers.py). Deliberately
+    # bypasses a closed project's read-only rule; this is a system change, not an edit.
+    await _clear_project_manager_assignments(db, user.id)
     user.is_active = False
     await db.commit()
 

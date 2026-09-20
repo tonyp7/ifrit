@@ -235,7 +235,9 @@ async def duplicate_project(db: AsyncSession, source: Project) -> Project:
                 quantity=line.quantity,
                 uom=line.uom,
                 unit_price=line.unit_price,
-                users=list(line.users),
+                # A deleted user stays on the source line (history) but isn't carried
+                # over: the copy is a fresh start, and only active users can be saved.
+                users=[u for u in line.users if u.is_active],
             )
         )
     db.add(new_project)
@@ -262,7 +264,11 @@ async def _resolve_consultants(
         )
     for user in users:
         role_names = {role.name for role in user.roles}
-        if not user.is_active or "consultant" not in role_names:
+        if not user.is_active:
+            raise InvalidReferenceError(
+                f"User {user.id} no longer exists; remove them from the service line"
+            )
+        if "consultant" not in role_names:
             raise InvalidReferenceError(f"User {user.id} is not an active consultant")
     return users
 
@@ -395,7 +401,9 @@ async def delete_service_line(
 
 
 def to_consultant_out(user: User) -> ServiceLineConsultantOut:
-    return ServiceLineConsultantOut(id=user.id, full_name=user.full_name)
+    return ServiceLineConsultantOut(
+        id=user.id, full_name=user.full_name, is_active=user.is_active
+    )
 
 
 def to_project_manager_out(user: User) -> ProjectManagerOut:
