@@ -13,7 +13,6 @@ import { ReportingPage } from "@/pages/ReportingPage";
 import { TimesheetPage } from "@/pages/TimesheetPage";
 import { UserFormPage } from "@/pages/UserFormPage";
 import { UsersPage } from "@/pages/UsersPage";
-import { ValidationPage } from "@/pages/ValidationPage";
 
 export default function App() {
   return (
@@ -24,7 +23,6 @@ export default function App() {
           <Route path="/" element={<HomePage />} />
           <Route path="/timesheet" element={<TimesheetPage />} />
           <Route element={<RequireRoles roles={["project_manager"]} />}>
-            <Route path="/validation" element={<ValidationPage />} />
             <Route path="/reporting" element={<ReportingPage />} />
           </Route>
           <Route element={<RequireRoles roles={["project_admin"]} />}>

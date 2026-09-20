@@ -1,6 +1,5 @@
-// Widened to include the row's owner — My Timesheet/Validation each still hold
-// exactly one owner's rows per grid instance (so every call within one of those
-// passes the same userId), but Reporting mixes many different consultants' rows
+// Widened to include the row's owner — My Timesheet holds exactly one owner's rows
+// per grid instance (so every call within it passes the same userId), but Reporting mixes many different consultants' rows
 // in a single flat grid, so the local `entries` map needs a composite key to
 // avoid two different consultants' cells on the same service line/day colliding.
 export function cellKey(userId: string, serviceLineId: string, dayKey: string): string {

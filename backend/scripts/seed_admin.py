@@ -7,7 +7,7 @@ Assigned `administrator`, `project_admin`, and `project_manager` roles — `proj
 is granted by the literal `project_admin` role only, not inferred from `administrator`, so
 an administrator-only bootstrap account would have no way to reach `projects` to
 verify/manage anything there. `project_manager` is included for the same reason: it's the
-only way to reach the `Validation` sub-destination, and this bootstrap account is meant to
+only way to reach the `Reporting` sub-destination, and this bootstrap account is meant to
 be able to exercise every screen. Note `project_manager`'s actual authority is scoped to
 projects that user is assigned to — holding the role alone is what's needed to reach the
 nav entry point, not to see non-empty data there unless this account is also assigned as a

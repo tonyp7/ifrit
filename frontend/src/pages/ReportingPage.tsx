@@ -47,7 +47,7 @@ import type { PeriodType, TimesheetReportFilters, TimesheetReportRow } from "@/t
 
 // Reporting screen — a project_manager's cross-consultant view over timesheets,
 // filterable by Consultants/Projects/Service Lines/Project Status, built on the
-// exact same shared grid mechanism My Timesheet/Validation use (see
+// exact same shared grid mechanism My Timesheet uses (see
 // useReportGrid's own comment for how it differs from useTimesheetGrid).
 export function ReportingPage() {
   const { t } = useTranslation(["timesheet"]);

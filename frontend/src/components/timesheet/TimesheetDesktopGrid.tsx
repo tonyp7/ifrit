@@ -28,17 +28,17 @@ interface TimesheetDesktopGridProps {
   dayTotal: (dayKey: string) => number;
   // Every callback below that identifies "which row" takes a leading `userId` —
   // needed because Reporting's rows span many different consultants in one grid
-  // instance, unlike My Timesheet/Validation (whose hook ignores it, already
+  // instance, unlike My Timesheet (whose hook ignores it, already
   // knowing its own single owner) — see useTimesheetGrid's own comment on this.
   serviceLineTotal: (userId: string, serviceLineId: string) => number;
   periodTotal: number;
   periodLabel: string;
-  /** My Timesheet/Validation only — Reporting has no "Add service line" affordance
+  /** My Timesheet only — Reporting has no "Add service line" affordance
    * (its row set is entirely filter-driven), so these three are left undefined
    * there and the Add control simply isn't rendered. */
   addOptions?: EligibleServiceLine[];
   onAddServiceLine?: (serviceLineId: string) => void;
-  /** My Timesheet/Validation only, alongside the above — Reporting has "no X icon
+  /** My Timesheet only, alongside the above — Reporting has "no X icon
    * to delete a line" per its own spec, so these two (and the row's remove
    * control) are left undefined there too. */
   hasEntriesInPeriod?: (userId: string, serviceLineId: string) => boolean;
@@ -52,7 +52,7 @@ interface TimesheetDesktopGridProps {
   /** Reporting only — overrides the tooltip shown on an unassigned cell with a
    * reason specific to *why* (the project's still in Draft, or closed), rather
    * than always claiming the consultant was personally removed, which often
-   * isn't the actual cause. My Timesheet/Validation leave this undefined and
+   * isn't the actual cause. My Timesheet leave this undefined and
    * keep the default generic message below. */
   unassignedTooltip?: (userId: string, serviceLineId: string) => string;
   onCellChange: (userId: string, serviceLineId: string, dayKey: string, value: string) => void;

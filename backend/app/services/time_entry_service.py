@@ -17,7 +17,6 @@ from app.models.time_entry import TimeEntry
 from app.models.user import User
 from app.schemas.time_entry import (
     EligibleServiceLineOut,
-    ManagedConsultantOut,
     ReportFilterConsultantOut,
     ReportFilterProjectOut,
     ReportFilterServiceLineOut,
@@ -310,106 +309,6 @@ def to_eligible_service_line_out(
     )
 
 
-async def list_managed_time_entries(
-    db: AsyncSession, project_manager: User, start_date: date, end_date: date
-) -> list[ManagedConsultantOut]:
-    """GET /time-entries/managed. One query for the roster, one for all entries
-    across that whole roster, one for all eligible-service-line sets across that
-    whole roster — never N round trips per consultant, which would scale linearly
-    with roster size instead of staying constant."""
-    pm_project_ids = await _pm_project_ids(db, project_manager.id)
-    if not pm_project_ids:
-        return []
-
-    # Roster part 1: consultants currently eligible on an in-scope service line.
-    eligible_ids_stmt = (
-        select(service_line_consultants.c.user_id)
-        .join(ServiceLine, ServiceLine.id == service_line_consultants.c.service_line_id)
-        .join(Project, Project.id == ServiceLine.project_id)
-        .where(Project.id.in_(pm_project_ids), *_eligibility_filters())
-        .distinct()
-    )
-    eligible_ids = {row[0] for row in (await db.execute(eligible_ids_stmt)).all()}
-
-    # Roster part 2: anyone with historical data on a line under one of these
-    # projects, regardless of current assignment/active status — same "history
-    # stays visible" principle as My Timesheet's own population rule, applied one
-    # level up.
-    historical_ids_stmt = (
-        select(TimeEntry.user_id)
-        .join(ServiceLine, ServiceLine.id == TimeEntry.service_line_id)
-        .where(ServiceLine.project_id.in_(pm_project_ids))
-        .distinct()
-    )
-    historical_ids = {row[0] for row in (await db.execute(historical_ids_stmt)).all()}
-
-    consultant_ids = eligible_ids | historical_ids
-    if not consultant_ids:
-        return []
-
-    consultants = list(
-        (
-            await db.execute(
-                select(User)
-                .where(User.id.in_(consultant_ids))
-                .order_by(User.full_name)
-            )
-        )
-        .scalars()
-        .all()
-    )
-
-    # All in-scope entries for the whole roster in one query — scoped to service
-    # lines under *this* project_manager's projects only, never a consultant's
-    # lines on projects this project_manager isn't assigned to.
-    entries_stmt = (
-        select(TimeEntry, ServiceLine, Project)
-        .join(ServiceLine, TimeEntry.service_line_id == ServiceLine.id)
-        .join(Project, ServiceLine.project_id == Project.id)
-        .where(
-            TimeEntry.user_id.in_(consultant_ids),
-            Project.id.in_(pm_project_ids),
-            TimeEntry.date >= start_date,
-            TimeEntry.date <= end_date,
-        )
-        .order_by(TimeEntry.date)
-    )
-    entries_by_user: dict[uuid.UUID, list[TimeEntryOut]] = defaultdict(list)
-    for entry, line, project in (await db.execute(entries_stmt)).all():
-        entries_by_user[entry.user_id].append(to_time_entry_out(entry, line, project))
-
-    # Every eligible-service-line row for the whole roster in one query too (see
-    # ManagedConsultantOut's own docstring for why this is the unfiltered set, not
-    # pre-filtered to "addable").
-    eligible_lines_stmt = (
-        select(ServiceLine, Project, service_line_consultants.c.user_id)
-        .join(Project, ServiceLine.project_id == Project.id)
-        .join(
-            service_line_consultants,
-            service_line_consultants.c.service_line_id == ServiceLine.id,
-        )
-        .where(
-            Project.id.in_(pm_project_ids),
-            service_line_consultants.c.user_id.in_(consultant_ids),
-            *_eligibility_filters(),
-        )
-        .order_by(Project.name, ServiceLine.name)
-    )
-    eligible_by_user: dict[uuid.UUID, list[EligibleServiceLineOut]] = defaultdict(list)
-    for line, project, consultant_id in (await db.execute(eligible_lines_stmt)).all():
-        eligible_by_user[consultant_id].append(to_eligible_service_line_out(line, project))
-
-    return [
-        ManagedConsultantOut(
-            user_id=consultant.id,
-            full_name=consultant.full_name,
-            entries=entries_by_user.get(consultant.id, []),
-            eligible_service_lines=eligible_by_user.get(consultant.id, []),
-        )
-        for consultant in consultants
-    ]
-
-
 async def set_service_line_lock(
     db: AsyncSession, caller: User, request: TimeEntryLockRequest
 ) -> list[TimeEntryOut]:
@@ -554,8 +453,9 @@ async def list_report_filters(
         )
     ).all()
 
-    # Same two-part roster union list_managed_time_entries computes ("Roster part 1
-    # / part 2"), minus that function's restriction to active projects/lines.
+    # Two-part consultant roster: anyone currently assigned to a line under one of
+    # these projects (regardless of active status), unioned with anyone holding
+    # historical entries on such a line.
     eligible_ids_stmt = (
         select(service_line_consultants.c.user_id)
         .join(ServiceLine, ServiceLine.id == service_line_consultants.c.service_line_id)
@@ -698,8 +598,8 @@ async def list_time_entries_report(
         .all()
     }
 
-    # All in-scope entries for the whole pair set, in one query — same "one indexed
-    # query beats N round trips" reasoning list_managed_time_entries already uses.
+    # All in-scope entries for the whole pair set, in one query — one indexed query
+    # beats N round trips.
     entries_stmt = (
         select(TimeEntry, ServiceLine, Project)
         .join(ServiceLine, TimeEntry.service_line_id == ServiceLine.id)

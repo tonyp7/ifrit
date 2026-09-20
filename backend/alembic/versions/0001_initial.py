@@ -271,7 +271,7 @@ def upgrade() -> None:
             {"id": "00000000-0000-0000-0000-000000000001", "name": "administrator"},
             # Renamed from "manager" specifically to avoid confusion with
             # "project_manager" below, a distinct role added at the same time
-            # (`Validation`/timesheet-locking authority, scoped per-project) that
+            # (`Reporting`/timesheet-locking authority, scoped per-project) that
             # is easily conflated with this one (`projects`-screen access) by name alone.
             {"id": "00000000-0000-0000-0000-000000000002", "name": "project_admin"},
             {"id": "00000000-0000-0000-0000-000000000003", "name": "consultant"},

@@ -10,7 +10,6 @@ from app.core.db import get_db
 from app.models.user import User
 from app.schemas.time_entry import (
     EligibleServiceLineListResponse,
-    ManagedTimeEntriesResponse,
     TimeEntryListResponse,
     TimeEntryLockRequest,
     TimeEntryOut,
@@ -80,23 +79,6 @@ async def upsert_time_entries(
     return results
 
 
-@router.get("/managed", response_model=ManagedTimeEntriesResponse)
-async def list_managed_time_entries(
-    start_date: date,
-    end_date: date,
-    user: User = Depends(require_roles("project_manager")),  # noqa: B008
-    db: AsyncSession = Depends(get_db),
-) -> ManagedTimeEntriesResponse:
-    """Validation screen's one-call-loads-everything endpoint — no identity
-    parameter, the caller's own project_manager assignments determine the whole
-    response. `GET /time-entries` and `GET /time-entries/eligible-service-lines`
-    are unrelated and unchanged; this is a separate, purpose-built read path."""
-    consultants = await time_entry_service.list_managed_time_entries(
-        db, user, start_date, end_date
-    )
-    return ManagedTimeEntriesResponse(consultants=consultants)
-
-
 @router.get("/report/filters", response_model=TimesheetReportFiltersOut)
 async def get_report_filters(
     user: User = Depends(require_roles("project_manager")),  # noqa: B008
@@ -120,7 +102,7 @@ async def get_time_entries_report(
     db: AsyncSession = Depends(get_db),
 ) -> TimesheetReportResponse:
     """Reporting screen's row data — a flat, pre-sorted (consultant, service_line)
-    list, not grouped by consultant like /managed. All four filter params are
+    list, not grouped by consultant. All four filter params are
     optional; omitted means no restriction on that dimension. Any id outside the
     caller's own project_manager scope is silently dropped, never a 403."""
     rows = await time_entry_service.list_time_entries_report(

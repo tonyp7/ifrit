@@ -31,7 +31,7 @@ export interface TimeEntryUpsertInput {
   date: string;
   hours: string;
   // Omitted (or undefined) means "the caller's own entry". Only ever set by the
-  // Validation screen, when a project_manager overrides a consultant's entry, to
+  // Reporting screen, when a project_manager overrides a consultant's entry, to
   // that consultant's id.
   user_id?: string;
 }
@@ -53,7 +53,7 @@ export interface TimeEntryUpsertResult {
 // Client-side row shown in `serviceLines` state — a subset of the fields
 // TimeEntry/EligibleServiceLine both already carry, common to whichever one a
 // row came from. `user_id` is always the row's owner (the caller's own id on My
-// Timesheet, a consultant's id on Validation/Reporting) — it's what cellKey uses
+// Timesheet, a consultant's id on Reporting) — it's what cellKey uses
 // to key local state, not just an API-payload concern. `consultant_name` is
 // Reporting-only: when set, TimesheetDesktopGrid/TimesheetMobileView render it as
 // a third line in the row label, since a Reporting row can belong to any
@@ -72,22 +72,6 @@ export interface ServiceLineRow {
 export interface EntryCell {
   hours: string;
   is_locked: boolean;
-}
-
-// One consultant's block on the Validation screen, as returned by
-// GET /time-entries/managed.
-export interface ManagedConsultant {
-  user_id: string;
-  full_name: string;
-  entries: TimeEntry[];
-  // Deliberately unfiltered — see ManagedConsultantOut on the backend. The
-  // frontend derives both the Add-dropdown options and each row's "still
-  // currently assigned" editability from this same set.
-  eligible_service_lines: EligibleServiceLine[];
-}
-
-export interface ManagedTimeEntriesResponse {
-  consultants: ManagedConsultant[];
 }
 
 // PUT /time-entries/lock. One (consultant, service line, period) action per
@@ -128,11 +112,10 @@ export interface TimesheetReportFilters {
 }
 
 // One row of GET /time-entries/report — a (consultant, service_line) pair, not
-// grouped by consultant the way ManagedConsultant is. `is_assigned` is
-// deliberately the *narrower* eligibility rule (see the backend's own docstring
-// on TimesheetReportRowOut) — it's what isUnassignedInPeriod is derived from on
-// this screen, since Reporting has no `eligible_service_lines` list to check a
-// row against the way Validation does.
+// grouped by consultant. `is_assigned` is deliberately the *narrower* eligibility
+// rule (see the backend's own docstring on TimesheetReportRowOut) — it's what
+// isUnassignedInPeriod is derived from on this screen, since Reporting has no
+// `eligible_service_lines` list to check a row against the way My Timesheet does.
 export interface TimesheetReportRow {
   user_id: string;
   full_name: string;

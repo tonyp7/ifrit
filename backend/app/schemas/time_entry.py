@@ -66,25 +66,6 @@ class EligibleServiceLineListResponse(BaseModel):
     items: list[EligibleServiceLineOut]
 
 
-class ManagedConsultantOut(BaseModel):
-    """One consultant's block on the Validation screen, as returned by
-    GET /time-entries/managed."""
-
-    user_id: uuid.UUID
-    full_name: str
-    entries: list[TimeEntryOut]
-    # Deliberately the same *unfiltered* eligibility shape as
-    # GET /time-entries/eligible-service-lines, not pre-filtered to "addable" —
-    # the frontend derives both the Add-dropdown options and each shown row's
-    # "still currently assigned" editability from this same set, mirroring how
-    # My Timesheet's own eligibleLines/addOptions split already works.
-    eligible_service_lines: list[EligibleServiceLineOut]
-
-
-class ManagedTimeEntriesResponse(BaseModel):
-    consultants: list[ManagedConsultantOut]
-
-
 class TimeEntryLockRequest(BaseModel):
     """PUT /time-entries/lock. One (consultant, service line, period) action per call,
     not a bulk array — unlike the entry-upsert endpoint above, there's no batch of
@@ -128,7 +109,7 @@ class TimesheetReportFiltersOut(BaseModel):
 
 class TimesheetReportRowOut(BaseModel):
     """One row of GET /time-entries/report — a (consultant, service_line) pair, not
-    grouped by consultant the way ManagedConsultantOut is. `is_assigned` is
+    grouped by consultant. `is_assigned` is
     deliberately the *narrower* existing eligibility rule (active project + active
     service line + current assignment) — the same one PUT /time-entries' per-item
     handler already enforces before accepting an hours > 0 write — reused here so

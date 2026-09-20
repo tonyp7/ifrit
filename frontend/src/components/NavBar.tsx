@@ -57,7 +57,7 @@ export function NavBar() {
 
   const items = NAV_ITEMS.filter((item) => canAccessNavItem(item, currentUser.roles));
 
-  // A child gated by its own `requiredRoles` (e.g. Validation, project_manager-only)
+  // A child gated by its own `requiredRoles` (e.g. Reporting, project_manager-only)
   // may not be visible to every user who can see the parent item at all —
   // Configuration's children have no such gate and are always both visible, same as
   // before this concept existed.

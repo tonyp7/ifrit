@@ -35,36 +35,21 @@ export interface UseTimesheetGridOptions {
   // callers should only produce a new one when they actually want a reset (a
   // period change, or an initial/refetched load) — never on every render.
   initialEntries: TimeEntry[];
-  // Unfiltered — see ManagedConsultantOut on the backend and EligibleServiceLine
-  // on My Timesheet's own fetch. Used both for the Add-dropdown and for the
+  // Unfiltered — see EligibleServiceLine, My Timesheet's own fetch. Used both for the
+  // Add-dropdown and for the
   // "still currently assigned" per-row check (isUnassignedInPeriod below).
   eligibleLines: EligibleServiceLine[];
-  // undefined = the caller's own entries (My Timesheet). Set to a consultant's id
-  // on the Validation screen, so cell edits are sent as a project_manager
-  // override instead. This is purely an *API-payload* concern — never touch it
-  // for local state keying, see rowOwnerId below for that.
-  ownerUserId?: string;
-  // Always a concrete id — the row's actual owner, used to key local `entries`
-  // state (see cellKey) and stamped onto every ServiceLineRow this hook builds.
-  // On My Timesheet this is the caller's own id (from useAuth()); on Validation
-  // it's the same value as ownerUserId above (the consultant being reviewed).
-  // Distinct from ownerUserId because that one's undefined-means-self semantics
-  // control the API payload, not local keying — a hook instance always has one
-  // real owner either way, this just says who.
+  // The caller's own id — used to key local `entries` state (see cellKey) and stamped
+  // onto every ServiceLineRow this hook builds.
   rowOwnerId: string;
 }
 
-// Shared state/logic behind both My Timesheet and each consultant block on the
-// Validation screen (one shared mechanism, not two) — entries, the per-period
-// "added service lines" set, the visible service-line list, and every
-// cell/add/remove handler. The two screens differ only in what they pass in
-// (initialEntries/eligibleLines/ownerUserId) and which extra chrome (lock
-// control, consultant header) they render around this.
+// Shared state/logic behind My Timesheet — entries, the per-period "added service
+// lines" set, the visible service-line list, and every cell/add/remove handler.
 export function useTimesheetGrid({
   days,
   initialEntries,
   eligibleLines,
-  ownerUserId,
   rowOwnerId,
 }: UseTimesheetGridOptions) {
   const { t } = useTranslation(["timesheet"]);
@@ -109,7 +94,7 @@ export function useTimesheetGrid({
   // Every callback below that identifies "which row" takes a leading `userId`
   // param, purely so its signature matches useReportGrid's — both get passed into
   // the exact same TimesheetDesktopGrid/TimesheetMobileView props. This hook is
-  // still one-owner-per-instance (My Timesheet/Validation), so the passed userId
+  // still one-owner-per-instance (My Timesheet), so the passed userId
   // always equals `rowOwnerId` here; it's accepted and ignored rather than
   // threaded through, since this hook already has its own closed-over id.
   const hasEntriesInPeriod = useCallback(
@@ -126,20 +111,9 @@ export function useTimesheetGrid({
     [days, entries, rowOwnerId],
   );
 
-  // Every day in the period is locked for this line — the icon/action semantics
-  // this drives (Lock shown unless *every* day is locked) live in
-  // LockServiceLineControl; this is just the underlying fact.
-  const isFullyLockedInPeriod = useCallback(
-    (_userId: string, serviceLineId: string) =>
-      days.every(
-        (day) => entries[cellKey(rowOwnerId, serviceLineId, toDayKey(day))]?.is_locked === true,
-      ),
-    [days, entries, rowOwnerId],
-  );
-
   // The entry's owner is no longer currently assigned to this service line —
-  // read-only regardless of `is_locked`, on both My Timesheet (viewing one's own
-  // historical data) and Validation (a consultant's since-unassigned line) alike.
+  // read-only regardless of `is_locked` (viewing one's own historical data on a
+  // since-unassigned line).
   const isUnassignedInPeriod = useCallback(
     (_userId: string, serviceLineId: string) =>
       !eligibleLines.some((line) => line.service_line_id === serviceLineId),
@@ -243,7 +217,6 @@ export function useTimesheetGrid({
           service_line_id: serviceLineId,
           date: dayKey,
           hours: "0",
-          ...(ownerUserId ? { user_id: ownerUserId } : {}),
         })),
       );
 
@@ -338,7 +311,6 @@ export function useTimesheetGrid({
           service_line_id: serviceLineId,
           date: dayKey,
           hours: corrected,
-          ...(ownerUserId ? { user_id: ownerUserId } : {}),
         },
       ]);
       if (result.ok) {
@@ -364,37 +336,12 @@ export function useTimesheetGrid({
     }
   }
 
-  // Merges a PUT /time-entries/lock response (the whole period's rows for one
-  // service line) into local state. Locking can materialize new gap-day rows and
-  // unlocking can delete gap-day rows entirely, so this both upserts and deletes
-  // rather than only patching `is_locked` in place.
-  function applyLockResult(serviceLineId: string, updated: TimeEntry[], wasLockAction: boolean) {
-    setEntries((prev) => {
-      const next = { ...prev };
-      const updatedByDate = new Map(updated.map((entry) => [entry.date, entry]));
-      for (const day of days) {
-        const dayKey = toDayKey(day);
-        const key = cellKey(rowOwnerId, serviceLineId, dayKey);
-        const entry = updatedByDate.get(dayKey);
-        if (entry) {
-          next[key] = { hours: formatHours(Number(entry.hours)), is_locked: entry.is_locked };
-        } else if (!wasLockAction) {
-          // Unlock deleted this gap-day row (it had no real hours) — see
-          // set_service_line_lock's unlock branch on the backend.
-          delete next[key];
-        }
-      }
-      return next;
-    });
-  }
-
   return {
     entries,
     serviceLines,
     addOptions,
     hasEntriesInPeriod,
     hasLockedEntriesInPeriod,
-    isFullyLockedInPeriod,
     isUnassignedInPeriod,
     dayTotal,
     serviceLineTotal,
@@ -404,6 +351,5 @@ export function useTimesheetGrid({
     handleClearAndRemoveServiceLine,
     handleCellChange,
     handleCellBlur,
-    applyLockResult,
   };
 }

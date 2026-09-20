@@ -18,12 +18,11 @@ interface TimesheetMobileViewProps {
   entries: Record<string, EntryCell>;
   dayTotal: (dayKey: string) => number;
   monthToDateTotal?: number;
-  /** My Timesheet only (default true) — Validation stacks many consultant blocks,
-   * so a `fixed`-positioned summary footer per block would overlap; each block
-   * hides it and relies on the shared header's own period switching instead. */
+  /** My Timesheet only (default true) — Reporting hides it: it has no month-to-date
+   * figure of its own and relies on the shared header's period total instead. */
   showSummaryFooter?: boolean;
   periodLabel: string;
-  /** My Timesheet/Validation only — see TimesheetDesktopGrid's identical props for
+  /** My Timesheet only — see TimesheetDesktopGrid's identical props for
    * why these (and the two below) are optional here. */
   addOptions?: EligibleServiceLine[];
   onAddServiceLine?: (serviceLineId: string) => void;

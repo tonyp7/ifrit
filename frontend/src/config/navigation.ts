@@ -32,14 +32,13 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Timesheet",
     icon: CalendarClock,
     // Every role gets at least the own-timesheet screen. `project_manager`
-    // additionally gets the Validation sub-destination. Only a
+    // additionally gets the Reporting sub-destination. Only a
     // `child.requiredRoles`-visible count > 1 turns this into
     // an actual dropdown (see canAccessNavItem/NavBar) — everyone else falls through
-    // to a plain direct link to `to`, same as before this child existed.
+    // to a plain direct link to `to`.
     requiredRoles: ["consultant", "project_admin", "project_manager", "administrator"],
     children: [
       { to: "/timesheet", label: "My timesheet" },
-      { to: "/validation", label: "Validation", requiredRoles: ["project_manager"] },
       { to: "/reporting", label: "Reporting", requiredRoles: ["project_manager"] },
     ],
   },
