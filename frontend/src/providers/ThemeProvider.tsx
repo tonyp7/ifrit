@@ -32,7 +32,7 @@ function resolveTheme(preference: ThemePreference): ResolvedTheme {
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
 
-  // No authenticated user yet (e.g. the login screen) -> always System, no override —
+  // No authenticated user yet (e.g. the login screen) -> always System, no override:
   // there's nowhere to read/store a persisted preference from until logged in.
   const [themePreference, setThemePreferenceState] = useState<ThemePreference>(
     user?.theme_preference ?? "system",

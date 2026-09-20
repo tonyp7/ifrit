@@ -49,7 +49,7 @@ const STATUS_BADGE_VARIANT: Record<ProjectListItem["status"], BadgeProps["varian
   closed: "outline",
 };
 
-// Labels for the "Columns" visibility dropdown — keyed by column id, kept separate from
+// Labels for the "Columns" visibility dropdown: keyed by column id, kept separate from
 // the columns' own `header` (which is only rendered when the column is visible).
 const HIDEABLE_COLUMN_LABELS: Record<string, string> = {
   vendor_company_name: "Vendor",
@@ -69,12 +69,12 @@ export function ProjectsTable() {
   const [deleteTarget, setDeleteTarget] = useState<ProjectListItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
-  // vendor_company_name is opt-in via the "Columns" button — hidden by default.
+  // vendor_company_name is opt-in via the "Columns" button: hidden by default.
   const [columnVisibility, setColumnVisibility] = useState<ColumnVisibilityState>({
     vendor_company_name: false,
   });
   // Sorting is server-side (see the `manualSorting: true` below and
-  // components/data-table/sorting.ts) — this table is also server-paginated, so a
+  // components/data-table/sorting.ts): this table is also server-paginated, so a
   // client-side-only sort would only ever reorder whatever page is already in
   // memory, not the whole dataset.
   const [sorting, setSorting] = useState<SortingState>([]);
@@ -87,7 +87,7 @@ export function ProjectsTable() {
     return () => clearTimeout(handle);
   }, [searchInput]);
 
-  // A changed sort target/direction changes what "page 1" even means — same
+  // A changed sort target/direction changes what "page 1" even means: same
   // reasoning as the search-resets-page-to-1 effect above.
   useEffect(() => {
     setPage(1);
@@ -220,12 +220,12 @@ export function ProjectsTable() {
     features,
     data: items,
     columns,
-    // No columnFilteringFeature registered — search is entirely custom (a debounced
+    // No columnFilteringFeature registered: search is entirely custom (a debounced
     // server-side query, not TanStack's own filter row-model), so there's no
     // `manualFiltering` flag to set: that option only exists as part of
     // columnFilteringFeature, which this app never uses.
     manualPagination: true,
-    // `data` already arrives sorted from the server (see the fetch effect above) —
+    // `data` already arrives sorted from the server (see the fetch effect above):
     // no sortedRowModel slot on `features`, it would only ever reorder this one
     // page in memory.
     manualSorting: true,

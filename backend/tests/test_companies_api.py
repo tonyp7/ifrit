@@ -173,7 +173,7 @@ async def test_list_companies_sort_composes_with_pagination(client, db_session) 
     assert page1_names[0] == "Company 054"
     assert page1_names[-1] == "Company 005"
     assert page2_names == [f"Company {i:03d}" for i in range(4, -1, -1)]
-    # The two pages must be contiguous under the requested sort — no gap, no overlap.
+    # The two pages must be contiguous under the requested sort: no gap, no overlap.
     assert page1_names == sorted(page1_names, reverse=True)
     assert page2_names == sorted(page2_names, reverse=True)
 

@@ -2,7 +2,7 @@ import { useTranslation } from "react-i18next";
 
 import { useAuth } from "@/hooks/useAuth";
 
-// Post-login landing screen — first nav bar item, shown to every role regardless of
+// Post-login landing screen: first nav bar item, shown to every role regardless of
 // which other screens they can access. Currently an empty placeholder; will later
 // host generic information and/or widgets and/or a dashboard.
 export function HomePage() {

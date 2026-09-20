@@ -51,7 +51,7 @@ async def list_users_endpoint(
     current_user: User = Depends(require_roles("project_admin", "administrator")),  # noqa: B008
 ) -> UserListResponse:
     """Users, optionally filtered by role and/or a `full_name`/`name_id` substring
-    (`search`) — used by both the Service Line consultant picker (page 1 is always
+    (`search`): used by both the Service Line consultant picker (page 1 is always
     enough since `search` already narrows it) and the Users List Screen. Deactivated
     users are never returned."""
     users, total = await list_users(

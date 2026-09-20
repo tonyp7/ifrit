@@ -28,7 +28,7 @@ const SelectTrigger = React.forwardRef<
 SelectTrigger.displayName = SelectPrimitive.Trigger.displayName;
 
 // Radix scrolls its Viewport internally regardless, but with no visible affordance a
-// long list (e.g. hundreds of companies) can look like it simply ends at max-h-96 —
+// long list (e.g. hundreds of companies) can look like it simply ends at max-h-96:
 // these buttons are the "there's more, scroll" signal shadcn's canonical output has
 // and ours was missing.
 const SelectScrollUpButton = React.forwardRef<

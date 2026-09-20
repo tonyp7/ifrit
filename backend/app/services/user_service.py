@@ -12,7 +12,7 @@ from app.services.sorting import resolve_sort
 
 PAGE_SIZE = 50
 
-# Whitelist of client-sortable columns for the Users List Screen — `roles` is
+# Whitelist of client-sortable columns for the Users List Screen: `roles` is
 # deliberately excluded, a list of role chips has no meaningful single-column order.
 # Never resolve `sort_by` against the model dynamically (see app/services/sorting.py).
 _SORTABLE_COLUMNS = {
@@ -24,7 +24,7 @@ _SORTABLE_COLUMNS = {
 
 class SelfLockoutError(Exception):
     """Raised when an administrator attempts to deactivate their own account or
-    remove their own `administrator` role — without this, an administrator could
+    remove their own `administrator` role: without this, an administrator could
     accidentally lock every administrator out of the app with no way back in."""
 
 
@@ -58,16 +58,16 @@ async def list_users(
     sort_by: str | None = None,
     sort_dir: str | None = None,
 ) -> tuple[list[User], int]:
-    """Users, optionally filtered to a single role — e.g. `role=consultant` for the
-    Service Line consultant-assignment picker — and/or a `full_name`/`name_id`
+    """Users, optionally filtered to a single role: e.g. `role=consultant` for the
+    Service Line consultant-assignment picker, and/or a `full_name`/`name_id`
     substring match (that same picker's server-side search, and the Users List
     Screen's header search). Always paginated at `PAGE_SIZE`, matching
-    list_companies/list_projects — the
+    list_companies/list_projects: the
     picker only ever needs page 1 anyway, since it narrows via `role`/`search` first,
-    and never passes `sort_by`/`sort_dir` — it has no sortable-header UI, so the
+    and never passes `sort_by`/`sort_dir`: it has no sortable-header UI, so the
     default (`full_name` ascending) always applies there.
     """
-    # Deactivated users are never listed — no way to see or reactivate one through the
+    # Deactivated users are never listed: no way to see or reactivate one through the
     # API.
     stmt = select(User).options(selectinload(User.roles)).where(User.is_active.is_(True))
     count_stmt = select(func.count()).select_from(User).where(User.is_active.is_(True))
@@ -83,7 +83,7 @@ async def list_users(
     total = (await db.execute(count_stmt)).scalar_one()
 
     order = resolve_sort(_SORTABLE_COLUMNS, sort_by, sort_dir, default=User.full_name.asc())
-    # `User.id` is a stable tie-breaker — see app/services/sorting.py.
+    # `User.id` is a stable tie-breaker: see app/services/sorting.py.
     stmt = stmt.order_by(order, User.id).offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE)
 
     result = await db.execute(stmt)
@@ -95,7 +95,7 @@ async def _roles_by_name(db: AsyncSession, names: list[str]) -> list[Role]:
     roles = list(result.scalars().all())
     # Every name in `names` is already validated as one of VALID_ROLES by the
     # UserCreate/UserUpdate schema, so a mismatch here means a seeded Role row is
-    # genuinely missing (migration 0001 should have created it) — fail loudly rather
+    # genuinely missing (migration 0001 should have created it): fail loudly rather
     # than silently saving a user with fewer roles than the admin actually granted.
     found = {role.name for role in roles}
     missing = set(names) - found
@@ -136,7 +136,7 @@ async def update_user(
 
     if data.is_sso and not user.is_sso:
         # Local -> SSO: the password becomes permanently unrecoverable, not just
-        # hidden — hashed_password is cleared outright, not preserved for a
+        # hidden: hashed_password is cleared outright, not preserved for a
         # possible future switch back.
         user.hashed_password = None
     elif not data.is_sso and user.is_sso:
@@ -175,7 +175,7 @@ async def deactivate_user(db: AsyncSession, user: User, current_user: User) -> N
     if is_self and is_administrator:
         raise SelfLockoutError("You can't remove your own administrator access.")
     # A deactivated user can't stay a project manager: drop their assignments in the same
-    # transaction (a DB trigger backs this up — see app/models/triggers.py). Deliberately
+    # transaction (a DB trigger backs this up: see app/models/triggers.py). Deliberately
     # bypasses a closed project's read-only rule; this is a system change, not an edit.
     await _clear_project_manager_assignments(db, user.id)
     user.is_active = False

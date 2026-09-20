@@ -45,7 +45,7 @@ import {
 } from "@/lib/timesheetDates";
 import type { PeriodType, TimesheetReportFilters, TimesheetReportRow } from "@/types/timesheet";
 
-// Reporting screen — a project_manager's cross-consultant view over timesheets,
+// Reporting screen: a project_manager's cross-consultant view over timesheets,
 // filterable by Consultants/Projects/Service Lines/Project Status, built on the
 // exact same shared grid mechanism My Timesheet uses (see
 // useReportGrid's own comment for how it differs from useTimesheetGrid).
@@ -57,7 +57,7 @@ export function ReportingPage() {
   const [selectedKey, setSelectedKey] = useState<string>(() => toDayKey(defaultPeriodDate()));
 
   const [filterOptions, setFilterOptions] = useState<TimesheetReportFilters | null>(null);
-  // Every filter starts unchecked — unchecked/empty means unfiltered, not "show
+  // Every filter starts unchecked: unchecked/empty means unfiltered, not "show
   // nothing" (see reporting.md's Default state).
   const [projectIds, setProjectIds] = useState<string[]>([]);
   const [serviceLineIds, setServiceLineIds] = useState<string[]>([]);
@@ -68,7 +68,7 @@ export function ReportingPage() {
 
   const days = useMemo(() => getPeriodDays(periodType, periodDate), [periodType, periodDate]);
 
-  // Static, not period-scoped — one fetch on mount, never re-fetched on period or
+  // Static, not period-scoped: one fetch on mount, never re-fetched on period or
   // filter changes (see reporting.md's "Filters are independent, not cascading").
   useEffect(() => {
     getReportFilters()

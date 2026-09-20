@@ -18,26 +18,26 @@ interface TimesheetMobileViewProps {
   entries: Record<string, EntryCell>;
   dayTotal: (dayKey: string) => number;
   monthToDateTotal?: number;
-  /** My Timesheet only (default true) — Reporting hides it: it has no month-to-date
+  /** My Timesheet only (default true): Reporting hides it: it has no month-to-date
    * figure of its own and relies on the shared header's period total instead. */
   showSummaryFooter?: boolean;
   periodLabel: string;
-  /** My Timesheet only — see TimesheetDesktopGrid's identical props for
+  /** My Timesheet only: see TimesheetDesktopGrid's identical props for
    * why these (and the two below) are optional here. */
   addOptions?: EligibleServiceLine[];
   onAddServiceLine?: (serviceLineId: string) => void;
   hasEntriesInPeriod?: (userId: string, serviceLineId: string) => boolean;
   hasLockedEntriesInPeriod?: (userId: string, serviceLineId: string) => boolean;
-  /** The entry owner is no longer currently assigned to this service line —
+  /** The entry owner is no longer currently assigned to this service line:
    * read-only regardless of lock. */
   isUnassignedInPeriod: (userId: string, serviceLineId: string) => boolean;
-  /** Reporting only — see TimesheetDesktopGrid's identical prop. */
+  /** Reporting only: see TimesheetDesktopGrid's identical prop. */
   unassignedTooltip?: (userId: string, serviceLineId: string) => string;
   onRemoveServiceLine?: (userId: string, serviceLineId: string) => void;
   onClearAndRemoveServiceLine?: (userId: string, serviceLineId: string) => Promise<void>;
   onCellChange: (userId: string, serviceLineId: string, dayKey: string, value: string) => void;
   onCellBlur: (userId: string, serviceLineId: string, dayKey: string) => void;
-  /** My Timesheet never sets these — no lock control there. */
+  /** My Timesheet never sets these: no lock control there. */
   isFullyLockedInPeriod?: (userId: string, serviceLineId: string) => boolean;
   onToggleLock?: (userId: string, serviceLineId: string) => Promise<void>;
 }
@@ -141,7 +141,7 @@ export function TimesheetMobileView({
                   <p className="truncate text-xs text-muted-foreground">
                     {line.service_line_name ?? t("(unnamed service line)")}
                   </p>
-                  {/* Reporting only — see TimesheetDesktopGrid's identical addition. */}
+                  {/* Reporting only: see TimesheetDesktopGrid's identical addition. */}
                   {line.consultant_name && (
                     <p className="truncate text-xs text-muted-foreground">
                       {line.consultant_name}
@@ -159,7 +159,7 @@ export function TimesheetMobileView({
                     unassigned
                       ? (unassignedTooltip?.(line.user_id, line.service_line_id) ??
                         t(
-                          "This consultant is no longer assigned to this service line — read-only.",
+                          "This consultant is no longer assigned to this service line: read-only.",
                         ))
                       : undefined
                   }

@@ -9,7 +9,7 @@ export interface NavSubItem {
   requiredRoles?: Role[];
 }
 
-// Mirrors this app's role -> screen access rules — keep in sync with the actual
+// Mirrors this app's role -> screen access rules: keep in sync with the actual
 // role-gating logic (RequireRoles, backend endpoint role checks).
 export interface NavItem {
   to: string;
@@ -34,7 +34,7 @@ export const NAV_ITEMS: NavItem[] = [
     // Every role gets at least the own-timesheet screen. `project_manager`
     // additionally gets the Reporting sub-destination. Only a
     // `child.requiredRoles`-visible count > 1 turns this into
-    // an actual dropdown (see canAccessNavItem/NavBar) — everyone else falls through
+    // an actual dropdown (see canAccessNavItem/NavBar): everyone else falls through
     // to a plain direct link to `to`.
     requiredRoles: ["consultant", "project_admin", "project_manager", "administrator"],
     children: [

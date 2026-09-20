@@ -35,7 +35,7 @@ class NotAuthorizedError(Exception):
     """Raised by `set_service_line_lock` when the caller isn't a project_manager
     assigned to the target service line's project, or the target consultant isn't
     assigned to it. Unlike a bulk PUT /time-entries item's per-item {ok: false}, this
-    is a single-action endpoint — any failing check rejects the whole request, not a
+    is a single-action endpoint: any failing check rejects the whole request, not a
     partial success."""
 
 
@@ -84,7 +84,7 @@ async def _is_eligible(
             ServiceLine.id == service_line_id,
             service_line_consultants.c.user_id == user_id,
             # A deleted user can't accrue new/edited time, even while they remain on
-            # the line (history) — see _is_eligible_ignoring_active_status for the
+            # the line (history): see _is_eligible_ignoring_active_status for the
             # lock/unlock path, which deliberately still works for them.
             User.is_active.is_(True),
             *_eligibility_filters(),
@@ -171,22 +171,22 @@ async def _fetch_existing(
 async def _upsert_one(
     db: AsyncSession, user: User, item: TimeEntryUpsert
 ) -> TimeEntryUpsertResult:
-    """One item of the bulk `PUT /time-entries` request — this endpoint is always
+    """One item of the bulk `PUT /time-entries` request: this endpoint is always
     bulk, never a single-entry shape, even for a one-cell edit. hours == 0 deletes
     any existing row instead of saving a zero; hours > 0 upserts, always unlocked,
     only if the entry's owner is currently assigned to the service line. **Every path
-    here checks `is_locked` first, unconditionally** — locked rows are immutable
+    here checks `is_locked` first, unconditionally**: locked rows are immutable
     through this endpoint regardless of direction (delete or overwrite) or who's
     calling; unlocking is exclusively a `project_manager`'s action via
     PUT /time-entries/lock, never this one. This is enforced here, server-side,
-    independent of whatever the frontend believes the lock state is — a disabled
+    independent of whatever the frontend believes the lock state is: a disabled
     input is a UI courtesy, not a security boundary; nothing stops a direct API call
     from attempting the same write.
 
-    `item.user_id` is the entry's *owner* — `None` (the only value My Timesheet's
+    `item.user_id` is the entry's *owner*: `None` (the only value My Timesheet's
     own calls ever send) means the caller's own entry; a different id is a
     `project_manager`'s override of a consultant's entry. An override is authorized
-    per item, not once for the whole request — matching the "each item is processed
+    per item, not once for the whole request: matching the "each item is processed
     and persisted independently" rule this endpoint already follows for everything
     else."""
     owner_id = item.user_id if item.user_id is not None else user.id
@@ -274,10 +274,10 @@ async def _upsert_one(
 async def upsert_time_entries(
     db: AsyncSession, user: User, items: list[TimeEntryUpsert]
 ) -> list[TimeEntryUpsertResult]:
-    """Bulk blur-triggered save — a single cell edit sends a one-element list; the
+    """Bulk blur-triggered save, a single cell edit sends a one-element list; the
     clear-on-remove-service-line flow sends one list covering every day being
     cleared in the current period, in one call. Each item is processed and persisted
-    **independently** — one item's rejection (see _upsert_one above) never blocks or
+    **independently**, one item's rejection (see _upsert_one above) never blocks or
     rolls back any other item in this same list; that's the API layer's job to report
     (207 vs 200), not this function's."""
     return [await _upsert_one(db, user, item) for item in items]
@@ -313,7 +313,7 @@ async def set_service_line_lock(
     db: AsyncSession, caller: User, request: TimeEntryLockRequest
 ) -> list[TimeEntryOut]:
     """PUT /time-entries/lock. Locks or unlocks every day in
-    [start_date, end_date] for one (consultant, service line) pair — never per
+    [start_date, end_date] for one (consultant, service line) pair: never per
     cell, never per day as separate actions from the caller's perspective."""
     if not _is_project_manager(caller):
         raise NotAuthorizedError("Only a project_manager can lock or unlock a service line")
@@ -334,7 +334,7 @@ async def set_service_line_lock(
             "This consultant is not assigned to this service line"
         )
 
-    # An inverted range (end before start) just produces no days to act on — a
+    # An inverted range (end before start) just produces no days to act on: a
     # harmless no-op, not an authorization failure, so no error is raised for it.
     day_count = (request.end_date - request.start_date).days
     days = [request.start_date + timedelta(days=i) for i in range(day_count + 1)]
@@ -384,7 +384,7 @@ async def set_service_line_lock(
                 # A genuine consultant save of 0 hours is always translated to a
                 # delete instead (see _upsert_one above), so any row with
                 # time_entry == 0 that reaches this point must be one of lock's own
-                # gap-fill rows — safe to remove entirely, restoring the true gap,
+                # gap-fill rows: safe to remove entirely, restoring the true gap,
                 # rather than leaving a 0 row unlocked.
                 await db.delete(row)
             else:
@@ -411,7 +411,7 @@ async def _is_eligible_ignoring_active_status(
     db: AsyncSession, user_id: uuid.UUID, service_line_id: uuid.UUID
 ) -> bool:
     """Same consultant-assignment check `_is_eligible` makes, minus the active
-    project/service-line filters — locking/unlocking a *historical* assignment
+    project/service-line filters: locking/unlocking a *historical* assignment
     must keep working even after the project's since closed or the line
     deactivated: history stays visible and, by extension, lockable, regardless of
     current status."""
@@ -427,7 +427,7 @@ async def _is_eligible_ignoring_active_status(
 async def list_report_filters(
     db: AsyncSession, project_manager: User
 ) -> TimesheetReportFiltersOut:
-    """GET /time-entries/report/filters. Not period-scoped — one fetch on mount,
+    """GET /time-entries/report/filters. Not period-scoped: one fetch on mount,
     covering every project status (unlike list_eligible_service_lines, which is
     restricted to active projects/lines via _eligibility_filters())."""
     pm_project_ids = await _pm_project_ids(db, project_manager.id)
@@ -517,13 +517,13 @@ async def list_time_entries_report(
 ) -> list[TimesheetReportRowOut]:
     """GET /time-entries/report. Row membership: a (consultant, service_line) pair
     shows if the consultant is currently assigned to the line (regardless of active
-    status — the same relationship _is_eligible_ignoring_active_status checks) or
+    status: the same relationship _is_eligible_ignoring_active_status checks) or
     has a time_entries row on it in the requested period, even if no longer
-    assigned at all — the same union list_report_filters' consultant roster already
+    assigned at all: the same union list_report_filters' consultant roster already
     computes, applied one level down to the pair, so a currently-assigned-but-
     zero-data-this-period pairing still gets a row. Every filter param narrows this
     set further; an id outside the caller's own pm_project_ids scope contributes
-    nothing — never a 403, a GET shouldn't hard-fail on a stale/tampered filter id."""
+    nothing: never a 403, a GET shouldn't hard-fail on a stale/tampered filter id."""
     pm_project_ids = await _pm_project_ids(db, project_manager.id)
     if project_ids:
         pm_project_ids &= set(project_ids)
@@ -569,7 +569,7 @@ async def list_time_entries_report(
     assigned_pairs = {(row[0], row[1]) for row in (await db.execute(assignment_stmt)).all()}
 
     # Pair membership part 2: historical entries in the requested period, whether or
-    # not currently assigned — same "history stays visible" principle applied one
+    # not currently assigned: same "history stays visible" principle applied one
     # level down from list_report_filters' consultant roster.
     historical_stmt = (
         select(TimeEntry.user_id, TimeEntry.service_line_id)
@@ -598,7 +598,7 @@ async def list_time_entries_report(
         .all()
     }
 
-    # All in-scope entries for the whole pair set, in one query — one indexed query
+    # All in-scope entries for the whole pair set, in one query: one indexed query
     # beats N round trips.
     entries_stmt = (
         select(TimeEntry, ServiceLine, Project)
@@ -618,7 +618,7 @@ async def list_time_entries_report(
             to_time_entry_out(entry, line, project)
         )
 
-    # is_assigned: the narrower, existing eligibility rule — see TimesheetReportRowOut's
+    # is_assigned: the narrower, existing eligibility rule, see TimesheetReportRowOut's
     # own docstring for why this is deliberately _eligibility_filters()-restricted,
     # unlike the broader membership rule above.
     assigned_eligible_stmt = (

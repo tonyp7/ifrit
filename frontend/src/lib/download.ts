@@ -1,4 +1,4 @@
-// Triggers a browser download from an already-fetched Blob — used by the
+// Triggers a browser download from an already-fetched Blob: used by the
 // Reporting screen's export (see api/timeEntries.ts's exportTimesheetReport):
 // fetch + Blob, not a direct <a href>/window.location navigation, so a failed
 // request can surface through this app's normal ApiError -> toast.error()

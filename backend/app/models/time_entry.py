@@ -37,11 +37,11 @@ class TimeEntry(Base):
     date: Mapped[date] = mapped_column(Date, nullable=False)
     # Deliberately INTERVAL, not TIME: TIME's natural 24:00:00 ceiling looked like it
     # enforced the domain constraint for free, but asyncpg binds/decodes TIME exclusively
-    # via datetime.time (hour capped at 23) and can neither write nor read back 24:00:00 —
+    # via datetime.time (hour capped at 23) and can neither write nor read back 24:00:00:
     # confirmed against a live connection. The CHECK constraint below does that job
     # explicitly instead.
     time_entry: Mapped[timedelta] = mapped_column(Interval, nullable=False)
-    # Unused in the current UI — deliberate scope-fencing for a later iteration.
+    # Unused in the current UI: deliberate scope-fencing for a later iteration.
     comment: Mapped[str | None] = mapped_column(Text, nullable=True)
     # Deliberately not CASCADE, unlike user_id/service_line_id above: this just records
     # who last touched the row (e.g. a project_manager's lock/unlock), not whose data it is.

@@ -15,7 +15,7 @@ import type {
   TimeEntryUpsertResult,
 } from "@/types/timesheet";
 
-// Per-item error codes the bulk PUT /time-entries can report — see
+// Per-item error codes the bulk PUT /time-entries can report: see
 // TimeEntryUpsertResult. Exported for useReportGrid, which hits the exact same
 // error codes on its own per-row cell edits.
 export function errorMessage(
@@ -30,21 +30,21 @@ export function errorMessage(
 
 export interface UseTimesheetGridOptions {
   days: Date[];
-  // Raw entries for exactly this owner over some window covering `days` — a new
+  // Raw entries for exactly this owner over some window covering `days`, a new
   // array reference re-seeds all local state below (see the effect below), so
   // callers should only produce a new one when they actually want a reset (a
-  // period change, or an initial/refetched load) — never on every render.
+  // period change, or an initial/refetched load), never on every render.
   initialEntries: TimeEntry[];
-  // Unfiltered — see EligibleServiceLine, My Timesheet's own fetch. Used both for the
+  // Unfiltered: see EligibleServiceLine, My Timesheet's own fetch. Used both for the
   // Add-dropdown and for the
   // "still currently assigned" per-row check (isUnassignedInPeriod below).
   eligibleLines: EligibleServiceLine[];
-  // The caller's own id — used to key local `entries` state (see cellKey) and stamped
+  // The caller's own id: used to key local `entries` state (see cellKey) and stamped
   // onto every ServiceLineRow this hook builds.
   rowOwnerId: string;
 }
 
-// Shared state/logic behind My Timesheet — entries, the per-period "added service
+// Shared state/logic behind My Timesheet: entries, the per-period "added service
 // lines" set, the visible service-line list, and every cell/add/remove handler.
 export function useTimesheetGrid({
   days,
@@ -57,7 +57,7 @@ export function useTimesheetGrid({
   const [entries, setEntries] = useState<Record<string, EntryCell>>({});
   const [historicalServiceLines, setHistoricalServiceLines] = useState<ServiceLineRow[]>([]);
   // Lines added via "Add service line" while *this* period is the one being
-  // viewed — deliberately reset whenever `initialEntries` is re-seeded (a period
+  // viewed: deliberately reset whenever `initialEntries` is re-seeded (a period
   // change), not session-wide.
   const [addedServiceLines, setAddedServiceLines] = useState<ServiceLineRow[]>([]);
 
@@ -86,13 +86,13 @@ export function useTimesheetGrid({
     setAddedServiceLines([]);
   }, [initialEntries, rowOwnerId]);
 
-  // Checks live `entries` state directly — kept correctly in sync on every
-  // mutation (blur-save, blur-delete, and the clear-on-remove bulk call alike) —
+  // Checks live `entries` state directly: kept correctly in sync on every
+  // mutation (blur-save, blur-delete, and the clear-on-remove bulk call alike):
   // rather than `historicalServiceLines`, which is only a snapshot from the last
   // load and goes stale the moment a line's entries change locally without a
   // fresh fetch.
   // Every callback below that identifies "which row" takes a leading `userId`
-  // param, purely so its signature matches useReportGrid's — both get passed into
+  // param, purely so its signature matches useReportGrid's: both get passed into
   // the exact same TimesheetDesktopGrid/TimesheetMobileView props. This hook is
   // still one-owner-per-instance (My Timesheet), so the passed userId
   // always equals `rowOwnerId` here; it's accepted and ignored rather than
@@ -111,7 +111,7 @@ export function useTimesheetGrid({
     [days, entries, rowOwnerId],
   );
 
-  // The entry's owner is no longer currently assigned to this service line —
+  // The entry's owner is no longer currently assigned to this service line:
   // read-only regardless of `is_locked` (viewing one's own historical data on a
   // since-unassigned line).
   const isUnassignedInPeriod = useCallback(
@@ -126,17 +126,17 @@ export function useTimesheetGrid({
     for (const line of historicalServiceLines) {
       if (!addedIds.has(line.service_line_id)) merged.push(line);
     }
-    // A line shows if it's this period's "added" set (addedIds — unconditional,
+    // A line shows if it's this period's "added" set (addedIds, unconditional,
     // that's the whole point of adding it) or has any entry this period
     // (hasEntriesInPeriod, checked against live `entries` rather than
-    // historicalServiceLines directly — see its own comment above). No separate
+    // historicalServiceLines directly, see its own comment above). No separate
     // suppression/removed state needed.
     const visible = merged.filter(
       (line) =>
         addedIds.has(line.service_line_id) ||
         hasEntriesInPeriod(line.user_id, line.service_line_id),
     );
-    // Ascending by project name, then service line name — a stable order
+    // Ascending by project name, then service line name: a stable order
     // independent of add/discovery order or which period's date window was last
     // fetched.
     return sortServiceLines(visible);
@@ -187,17 +187,17 @@ export function useTimesheetGrid({
     );
   }
 
-  // No-data branch — a line can only be visible with nothing logged this period
+  // No-data branch: a line can only be visible with nothing logged this period
   // because it's in this period's `addedServiceLines`, so removing it here is
   // just undoing that add. No separate "removed" state to track.
   function handleRemoveServiceLine(_userId: string, serviceLineId: string) {
     setAddedServiceLines((prev) => prev.filter((l) => l.service_line_id !== serviceLineId));
   }
 
-  // Confirmed-destructive branch — this is only ever invoked once
+  // Confirmed-destructive branch, this is only ever invoked once
   // RemoveServiceLineControl has already confirmed via its dialog, for a line
   // with logged, unlocked time this period. Clears every day in the current
-  // period that has an entry for this line, in one bulk call — never one request
+  // period that has an entry for this line, in one bulk call, never one request
   // per day.
   async function handleClearAndRemoveServiceLine(_userId: string, serviceLineId: string) {
     const targetDayKeys = days
@@ -205,7 +205,7 @@ export function useTimesheetGrid({
       .filter((dayKey) => entries[cellKey(rowOwnerId, serviceLineId, dayKey)] !== undefined);
 
     if (targetDayKeys.length === 0) {
-      // Nothing to clear — shouldn't normally happen (the confirm dialog only opens
+      // Nothing to clear: shouldn't normally happen (the confirm dialog only opens
       // when hasEntriesInPeriod is true), but stay safe rather than no-op silently.
       setAddedServiceLines((prev) => prev.filter((l) => l.service_line_id !== serviceLineId));
       return;
@@ -228,12 +228,12 @@ export function useTimesheetGrid({
             delete next[key];
           } else {
             // The only rejection reason this flow can hit is "locked" (eligibility
-            // is never checked for an hours=0 item — see the backend's per-item
-            // logic) — most plausibly a day a project_manager locked between
+            // is never checked for an hours=0 item: see the backend's per-item
+            // logic): most plausibly a day a project_manager locked between
             // opening the confirmation dialog and clicking Confirm. The response
             // doesn't carry a fresh `entry` for a rejected item (only `ok`/`error`),
             // so patch `is_locked` in ourselves rather than leaving this cell's
-            // local state stale — otherwise RemoveServiceLineControl would keep
+            // local state stale: otherwise RemoveServiceLineControl would keep
             // seeing this line as freely removable until a full reload.
             next[key] = { hours: next[key]?.hours ?? "", is_locked: true };
           }
@@ -254,7 +254,7 @@ export function useTimesheetGrid({
         return;
       }
 
-      // Fully cleared — also drop it from this period's "added" set in case it
+      // Fully cleared: also drop it from this period's "added" set in case it
       // happened to be there too (added this period, then given data, then
       // removed); harmless no-op filter if it wasn't.
       setAddedServiceLines((prev) => prev.filter((l) => l.service_line_id !== serviceLineId));
@@ -304,7 +304,7 @@ export function useTimesheetGrid({
     }
 
     try {
-      // Always an array — a single cell blur sends a one-element request/response,
+      // Always an array: a single cell blur sends a one-element request/response,
       // never a bare object.
       const [result] = await upsertTimeEntries([
         {

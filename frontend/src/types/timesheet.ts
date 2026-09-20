@@ -36,12 +36,12 @@ export interface TimeEntryUpsertInput {
   user_id?: string;
 }
 
-// One request item's outcome from the bulk `PUT /time-entries` — the
+// One request item's outcome from the bulk `PUT /time-entries`: the
 // request/response are always arrays, even for a single cell edit.
 // `entry`/`error` are mutually exclusive:
-// `entry` is set (or `null` for a successful delete) when `ok` is `true`; `error` —
-// `"locked"`, `"not_eligible"`, or `"not_authorized"` (a rejected project_manager
-// override) — is set when `ok` is `false`.
+// `entry` is set (or `null` for a successful delete) when `ok` is `true`; `error`
+// (`"locked"`, `"not_eligible"`, or `"not_authorized"`, a rejected project_manager
+// override) is set when `ok` is `false`.
 export interface TimeEntryUpsertResult {
   service_line_id: string;
   date: string;
@@ -50,10 +50,10 @@ export interface TimeEntryUpsertResult {
   error: "locked" | "not_eligible" | "not_authorized" | null;
 }
 
-// Client-side row shown in `serviceLines` state — a subset of the fields
+// Client-side row shown in `serviceLines` state, a subset of the fields
 // TimeEntry/EligibleServiceLine both already carry, common to whichever one a
 // row came from. `user_id` is always the row's owner (the caller's own id on My
-// Timesheet, a consultant's id on Reporting) — it's what cellKey uses
+// Timesheet, a consultant's id on Reporting), it's what cellKey uses
 // to key local state, not just an API-payload concern. `consultant_name` is
 // Reporting-only: when set, TimesheetDesktopGrid/TimesheetMobileView render it as
 // a third line in the row label, since a Reporting row can belong to any
@@ -67,7 +67,7 @@ export interface ServiceLineRow {
   consultant_name?: string;
 }
 
-// A single cell's local, editable state — `hours` is the live-typed or
+// A single cell's local, editable state: `hours` is the live-typed or
 // last-saved value, never re-parsed until blur.
 export interface EntryCell {
   hours: string;
@@ -84,7 +84,7 @@ export interface ServiceLineLockRequest {
   locked: boolean;
 }
 
-// Reporting screen's four filter dropdowns — GET /time-entries/report/filters.
+// Reporting screen's four filter dropdowns: GET /time-entries/report/filters.
 // Static, not period-scoped: fetched once on mount, not re-fetched on period or
 // filter changes.
 export interface ReportFilterProject {
@@ -111,9 +111,9 @@ export interface TimesheetReportFilters {
   consultants: ReportFilterConsultant[];
 }
 
-// One row of GET /time-entries/report — a (consultant, service_line) pair, not
+// One row of GET /time-entries/report, a (consultant, service_line) pair, not
 // grouped by consultant. `is_assigned` is deliberately the *narrower* eligibility
-// rule (see the backend's own docstring on TimesheetReportRowOut) — it's what
+// rule (see the backend's own docstring on TimesheetReportRowOut), it's what
 // isUnassignedInPeriod is derived from on this screen, since Reporting has no
 // `eligible_service_lines` list to check a row against the way My Timesheet does.
 export interface TimesheetReportRow {

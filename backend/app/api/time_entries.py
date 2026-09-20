@@ -65,11 +65,11 @@ async def upsert_time_entries(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> list[TimeEntryUpsertResult]:
-    """Bulk, per-item-validated — a single cell blur sends a one-element `payload`,
+    """Bulk, per-item-validated, a single cell blur sends a one-element `payload`,
     the timesheet's clear-on-remove-service-line flow sends one covering every day
     being cleared.
     `200` only if every item succeeded; `207 Multi-Status` if any item was rejected
-    (locked, or not currently assigned to the service line) — whether that's one item
+    (locked, or not currently assigned to the service line), whether that's one item
     or all of them, the response array already carries the per-item detail a caller
     needs, so there's no separate all-rejected status."""
     results = await time_entry_service.upsert_time_entries(db, user, payload)
@@ -83,7 +83,7 @@ async def get_report_filters(
     user: User = Depends(require_roles("project_manager")),  # noqa: B008
     db: AsyncSession = Depends(get_db),
 ) -> TimesheetReportFiltersOut:
-    """Reporting screen's filter dropdowns — static, not period-scoped, one fetch
+    """Reporting screen's filter dropdowns: static, not period-scoped, one fetch
     on mount. Covers every project status (unlike /eligible-service-lines), since
     Reporting needs closed-project/inactive-line history reachable too."""
     return await time_entry_service.list_report_filters(db, user)
@@ -100,7 +100,7 @@ async def get_time_entries_report(
     user: User = Depends(require_roles("project_manager")),  # noqa: B008
     db: AsyncSession = Depends(get_db),
 ) -> TimesheetReportResponse:
-    """Reporting screen's row data — a flat, pre-sorted (consultant, service_line)
+    """Reporting screen's row data: a flat, pre-sorted (consultant, service_line)
     list, not grouped by consultant. All four filter params are
     optional; omitted means no restriction on that dimension. Any id outside the
     caller's own project_manager scope is silently dropped, never a 403."""
@@ -130,7 +130,7 @@ async def export_time_entries_report(
     user: User = Depends(require_roles("project_manager")),  # noqa: B008
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    """Reporting screen's export — deliberately the exact same filter params as
+    """Reporting screen's export: deliberately the exact same filter params as
     GET /time-entries/report (plus format/period_type, which that endpoint has no
     use for), so an export always matches whatever the screen is currently
     showing. Always re-queries fresh server-side; never a client-supplied payload

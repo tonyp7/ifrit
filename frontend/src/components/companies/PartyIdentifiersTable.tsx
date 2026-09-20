@@ -39,14 +39,14 @@ interface PartyIdentifiersTableProps {
   onChanged: () => void;
   /**
    * Validates + saves the parent Company form if it isn't saved yet, returning its
-   * id (or the existing id if already saved). Returns null if validation fails —
+   * id (or the existing id if already saved). Returns null if validation fails:
    * the form itself will already be showing the error.
    */
   ensureSaved: () => Promise<string | null>;
 }
 
 // PartyIdentifier's nullable fields (scheme_id) don't line up with the form's
-// string-or-undefined fields — map explicitly rather than spreading the entity.
+// string-or-undefined fields: map explicitly rather than spreading the entity.
 function toFormValues(identifier: PartyIdentifier) {
   return {
     id_type: identifier.id_type,

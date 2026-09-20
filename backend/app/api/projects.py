@@ -117,7 +117,7 @@ async def update_project(
 ) -> ProjectDetail:
     project = await _get_project_or_404(db, project_id)
     # A closed project only accepts a status change (update_project rejects anything
-    # else), so its references can't change here — skipping validation lets it be
+    # else), so its references can't change here: skipping validation lets it be
     # reopened even if its company was soft-deleted since.
     if project.status != "closed":
         await _validate_references_or_422(db, payload)

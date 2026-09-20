@@ -63,7 +63,7 @@ class PartyIdentifier(Base):
         UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
     )
     id_type: Mapped[IdentifierType] = mapped_column(String(20), nullable=False)
-    # Required (app-level) for legal_registration/peppol_participant — ISO 6523 ICD/EAS code.
+    # Required (app-level) for legal_registration/peppol_participant: ISO 6523 ICD/EAS code.
     scheme_id: Mapped[str | None] = mapped_column(String(10), nullable=True)
     id_value: Mapped[str] = mapped_column(String(255), nullable=False)
     is_primary: Mapped[bool] = mapped_column(default=False)

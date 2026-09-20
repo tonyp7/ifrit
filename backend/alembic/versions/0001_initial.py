@@ -4,8 +4,8 @@ Revision ID: 0001
 Revises:
 Create Date: 2026-08-05
 
-Single-file schema for the whole app. This project hasn't launched yet — there's no
-deployed database whose migration history needs to be preserved step-by-step — so what
+Single-file schema for the whole app. This project hasn't launched yet, there's no
+deployed database whose migration history needs to be preserved step-by-step, so what
 was previously five incremental revisions (0001 initial, 0002 currencies, 0003 projects,
 0004 service_line_name, 0005 time_entries) is squashed into one. Tracking a growing chain
 of migrations only starts to matter once a real environment has applied some prefix of
@@ -27,7 +27,7 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 # (alpha_code, numeric_code, name, minor_unit, symbol). Covers ISO 4217's active national
-# currencies plus the precious-metal codes (XAU/XAG/XPD/XPT, minor_unit NULL — bullion has
+# currencies plus the precious-metal codes (XAU/XAG/XPD/XPT, minor_unit NULL: bullion has
 # no minor unit). Symbol is only populated for widely-recognized currencies; NULL elsewhere
 # is fine (see the model/table's `symbol` column). Truly obscure
 # bond-market/testing codes (XDR, XTS, XXX, XBA-XBD, XSU, XUA) are intentionally not seeded.
@@ -193,7 +193,7 @@ _CURRENCIES: list[tuple[str, str, str, int | None, str | None]] = [
 ]
 
 # Restricts the full ISO 4217 list down to the subset actually selectable when
-# creating a project — the rest of the table exists for reference/lookup only.
+# creating a project: the rest of the table exists for reference/lookup only.
 _ENABLED = {"USD", "EUR", "JPY", "GBP", "CNY", "AUD", "CAD", "CHF", "HKD", "SGD"}
 
 
@@ -208,7 +208,7 @@ def upgrade() -> None:
     op.create_table(
         "users",
         sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
-        # Local user: their email. SSO user: the IdP's SAML NameID — not
+        # Local user: their email. SSO user: the IdP's SAML NameID: not
         # typed/validated as an email since that isn't guaranteed.
         sa.Column("name_id", sa.String(length=255), nullable=False),
         # Null for SSO users, who have no local password.
@@ -235,7 +235,7 @@ def upgrade() -> None:
         ),
     )
 
-    # Unique among active users only — a deactivated user keeps their name_id (history)
+    # Unique among active users only: a deactivated user keeps their name_id (history)
     # and a new user may reuse it. See app/models/user.py.
     op.create_index(
         "uq_users_name_id_active",
@@ -326,7 +326,7 @@ def upgrade() -> None:
     op.create_index(
         "ix_party_identifiers_company_id", "party_identifiers", ["company_id"]
     )
-    # COALESCE scheme_id to '' — a plain unique index on nullable scheme_id wouldn't catch
+    # COALESCE scheme_id to '': a plain unique index on nullable scheme_id wouldn't catch
     # duplicates, since SQL treats NULL as distinct from NULL (scheme_id is NULL for most
     # id_types, e.g. `vat`).
     op.create_index(
@@ -460,7 +460,7 @@ def upgrade() -> None:
 
     # Users (holding the project_manager role) assigned to review/lock a project's
     # timesheets. Same shape as service_line_consultants below: a plain
-    # composite-PK join table, no extra columns — this only ever reflects
+    # composite-PK join table, no extra columns: this only ever reflects
     # *current* assignment, not history.
     op.create_table(
         "project_managers",
@@ -492,7 +492,7 @@ def upgrade() -> None:
             sa.ForeignKey("projects.id", ondelete="CASCADE"),
             nullable=False,
         ),
-        # Free text, no uniqueness constraint, may be empty — exists purely so a
+        # Free text, no uniqueness constraint, may be empty: exists purely so a
         # consultant assigned to more than one service line on the same project
         # can tell them apart when picking which one to log time against.
         sa.Column("name", sa.String(length=255), nullable=True),
@@ -548,10 +548,10 @@ def upgrade() -> None:
         # Deliberately INTERVAL, not TIME: TIME's natural 24:00:00 ceiling looked like it
         # enforced the domain constraint for free, but asyncpg binds/decodes TIME
         # exclusively via datetime.time (hour capped at 23) and can neither write nor
-        # read back 24:00:00 — confirmed against a live connection. The CHECK constraint
+        # read back 24:00:00: confirmed against a live connection. The CHECK constraint
         # below does that job explicitly instead.
         sa.Column("time_entry", postgresql.INTERVAL(), nullable=False),
-        # Unused in the current UI — deliberate scope-fencing for a later iteration.
+        # Unused in the current UI: deliberate scope-fencing for a later iteration.
         sa.Column("comment", sa.Text(), nullable=True),
         # Deliberately not CASCADE, unlike user_id/service_line_id above: this just
         # records who last touched the row (e.g. a manager's lock/unlock), not whose

@@ -28,7 +28,7 @@ export function TimesheetPage() {
   const { t } = useTranslation(["timesheet"]);
   const { user } = useAuth();
 
-  // Week on mobile, Month on desktop/tablet — a one-time default computed at
+  // Week on mobile, Month on desktop/tablet: a one-time default computed at
   // mount from the same `md:` breakpoint the views themselves switch on, not a
   // live-synced setting.
   const [periodType, setPeriodType] = useState<PeriodType>(defaultPeriodType);
@@ -60,7 +60,7 @@ export function TimesheetPage() {
         toast.error(err instanceof ApiError ? err.message : t("Failed to load time entries."));
       });
     // `days` is derived from periodType/periodDate every render, but its identity
-    // changes each time too — depend on the primitives that actually drive it.
+    // changes each time too: depend on the primitives that actually drive it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [periodType, periodDate, t]);
 
@@ -70,7 +70,7 @@ export function TimesheetPage() {
     listTimeEntries(start, selectedKey)
       .then((res) => setMonthToDateTotal(sumHours(res.items.map((i) => i.hours))))
       .catch(() => {
-        // Non-critical summary figure — a failed fetch just leaves the last known total.
+        // Non-critical summary figure: a failed fetch just leaves the last known total.
       });
   }, [selectedKey]);
 
@@ -91,7 +91,7 @@ export function TimesheetPage() {
     handleCellBlur,
   } = useTimesheetGrid({ days, initialEntries, eligibleLines, rowOwnerId: user?.id ?? "" });
 
-  // Same label TimesheetHeader itself shows (e.g. "August 2026" / "Week 34") — used
+  // Same label TimesheetHeader itself shows (e.g. "August 2026" / "Week 34"): used
   // by the "Removing a service line" confirmation dialog to name exactly the range
   // about to be cleared.
   const periodLabel =

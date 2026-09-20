@@ -26,16 +26,16 @@ interface ReportFilterDropdownProps {
   options: ReportFilterOption[];
   selected: string[];
   onChange: (next: string[]) => void;
-  /** Project Status is exactly 3 fixed values — a search bar over 3 items is
+  /** Project Status is exactly 3 fixed values: a search bar over 3 items is
    * pointless UI (see reporting.md), so this defaults to true but that one
    * dropdown passes false. */
   searchable?: boolean;
 }
 
-// One of the Reporting screen's four filter dropdowns — a Popover+Command palette
+// One of the Reporting screen's four filter dropdowns, a Popover+Command palette
 // like the Project Managers/Consultants pickers elsewhere in this app, but
 // rendering an actual Checkbox per option (not just a check icon) and staying a
-// pure filter (no removable chips below the trigger — the dropdown's own checked
+// pure filter (no removable chips below the trigger, the dropdown's own checked
 // state already is the selection). Client-side search: unlike those other
 // pickers, this screen's option lists are small, static, and fetched once
 // up front (GET /time-entries/report/filters), so there's no server round trip

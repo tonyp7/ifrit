@@ -5,7 +5,7 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import type { features } from "@/components/data-table/features";
 
-// Fixed to this app's one shared `features` registration — see DataTable.tsx's own
+// Fixed to this app's one shared `features` registration: see DataTable.tsx's own
 // comment for why a second TFeatures generic isn't worth carrying here.
 interface DataTableColumnHeaderProps<TData extends RowData, TValue> {
   column: Column<typeof features, TData, TValue>;
@@ -14,8 +14,8 @@ interface DataTableColumnHeaderProps<TData extends RowData, TValue> {
 }
 
 // Reusable sortable-column-header cell, shared by every shadcn/ui Data Table in this
-// app. Clicking the header directly toggles ascending/descending — no intermediate
-// menu — matching the convention most data tables use (this app's own first pass
+// app. Clicking the header directly toggles ascending/descending, no intermediate
+// menu, matching the convention most data tables use (this app's own first pass
 // used a Asc/Desc/Hide dropdown per shadcn's template example, but that's not the
 // common pattern and added an unnecessary click; column-hiding, where a table has
 // any, stays reachable via that table's own toolbar "Columns" button instead). A

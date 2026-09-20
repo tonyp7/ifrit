@@ -1,7 +1,7 @@
 import type { PeriodType } from "@/types/timesheet";
 
 // Every function here works in the browser's local timezone (plain Date
-// getters/setters, never the UTC/ISO variants) — "today," day boundaries, and which
+// getters/setters, never the UTC/ISO variants): "today," day boundaries, and which
 // `date` an entry lands on are deliberately local, not server/UTC time, so a
 // consultant's day always matches their own clock regardless of server location.
 
@@ -93,7 +93,7 @@ export function formatWeekdayShort(d: Date): string {
   return new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(d).slice(0, 3);
 }
 
-// Single-letter weekday (M, T, W, ...) — desktop grid's Month view only (28-31
+// Single-letter weekday (M, T, W, ...): desktop grid's Month view only (28-31
 // columns need the narrower label; Week view's 7 columns use formatWeekdayShort
 // above instead).
 export function formatWeekdayNarrow(d: Date): string {

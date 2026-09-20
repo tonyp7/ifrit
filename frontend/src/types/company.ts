@@ -8,7 +8,7 @@ export type IdentifierType =
 
 export type AddressType = "registered" | "bill_to" | "ship_to" | "postal";
 
-// Single source of truth for value -> display label — raw enum values are never
+// Single source of truth for value -> display label: raw enum values are never
 // shown to the user; every table/select that renders one of these must go
 // through this map.
 export const ID_TYPE_LABELS: Record<IdentifierType, string> = {

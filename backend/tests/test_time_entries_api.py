@@ -66,7 +66,7 @@ async def _setup_project_with_consultant_and_pm(
     client, db_session, *, consultant_name_id: str, pm_name_id: str, project_name: str = "Acme Rollout"
 ):
     """Same as _setup_project_with_consultant, plus a project_manager assigned to
-    the project — needed for the project_manager endpoints (GET
+    the project: needed for the project_manager endpoints (GET
     /time-entries/report, PUT /time-entries/lock, and PUT /time-entries'
     override path)."""
     await create_user(
@@ -215,9 +215,9 @@ async def test_upsert_rejects_invalid_hours(client, db_session) -> None:
     await _login_as(client, "consultant@example.com")
 
     # Malformed hours (out of range / not a half-step) fail Pydantic validation on the
-    # request item itself — a 422 for the whole request, distinct from a per-item
+    # request item itself, a 422 for the whole request, distinct from a per-item
     # {ok: false} outcome (which is for otherwise-valid items rejected by business
-    # rules — locked, not eligible).
+    # rules, locked, not eligible).
     too_high = await client.put(
         "/api/time-entries",
         json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "25"}],
@@ -304,7 +304,7 @@ async def test_upsert_rejects_locked_entry_regardless_of_direction(
         }
     ]
 
-    # ...and so is attempting to delete (zero out) one — regardless of direction, a
+    # ...and so is attempting to delete (zero out) one: regardless of direction, a
     # locked row is immutable through this endpoint.
     delete_attempt = await client.put(
         "/api/time-entries",
@@ -349,7 +349,7 @@ async def test_bulk_upsert_processes_items_independently(client, db_session) -> 
     await db_session.commit()
 
     # A single bulk request: one item clears a locked day (must fail), one clears an
-    # untouched day (must succeed) — this is exactly the shape the clear-on-remove
+    # untouched day (must succeed): this is exactly the shape the clear-on-remove
     # flow sends. Neither item's outcome should affect the other.
     response = await client.put(
         "/api/time-entries",
@@ -742,7 +742,7 @@ async def test_override_respects_lock(client, db_session) -> None:
 
 
 async def _close_project(client, project_id: str, *, pm_id: str) -> None:
-    """PATCH a project to status="closed", keeping its project_manager assignment —
+    """PATCH a project to status="closed", keeping its project_manager assignment:
     used to exercise Reporting's "closed projects stay reachable" behavior."""
     current = (await client.get(f"/api/projects/{project_id}")).json()
     response = await client.patch(
@@ -859,7 +859,7 @@ async def test_report_requires_project_manager_role(client, db_session) -> None:
 
 
 async def test_report_default_includes_zero_data_assigned_row(client, db_session) -> None:
-    """No filters — the whole scope shows, including a currently-assigned pairing
+    """No filters: the whole scope shows, including a currently-assigned pairing
     with nothing logged this period (row membership's core resolved rule)."""
     await _login_manager_first(client, db_session)
     _project_id, service_line_id, consultant_id, _pm_id = (
@@ -914,7 +914,7 @@ async def test_report_includes_historical_row_after_unassignment(client, db_sess
     assert len(rows) == 1
     assert rows[0]["user_id"] == consultant_id
     assert len(rows[0]["entries"]) == 1
-    # No longer assigned at all — is_assigned tracks the narrower, edit-predicting
+    # No longer assigned at all: is_assigned tracks the narrower, edit-predicting
     # rule, not the broader membership rule that still surfaces the row.
     assert rows[0]["is_assigned"] is False
 
@@ -941,7 +941,7 @@ async def test_report_is_assigned_false_on_closed_project(client, db_session) ->
     )
     rows = response.json()["items"]
     assert len(rows) == 1
-    # Still visible with its real historical hours, but not "assigned" — an edit
+    # Still visible with its real historical hours, but not "assigned": an edit
     # attempt through PUT /time-entries would still be rejected as not_eligible on
     # a closed project, so the UI's read-only signal has to agree.
     assert rows[0]["entries"][0]["hours"] == "3.00"
@@ -1027,7 +1027,7 @@ async def test_report_filters_narrow_by_consultant_project_and_status(
     )
     assert {r["service_line_id"] for r in by_project.json()["items"]} == {other_line_id}
 
-    # A project_id outside this pm's scope is silently dropped, not a 403 — combine
+    # A project_id outside this pm's scope is silently dropped, not a 403: combine
     # with a genuine one to prove the request still succeeds and just ignores it.
     with_bogus_id = await client.get(
         "/api/time-entries/report",
@@ -1040,7 +1040,7 @@ async def test_report_filters_narrow_by_consultant_project_and_status(
     assert with_bogus_id.status_code == 200
     assert {r["service_line_id"] for r in with_bogus_id.json()["items"]} == {service_line_id}
 
-    # Filtered by status=draft — neither project is draft, so nothing shows.
+    # Filtered by status=draft: neither project is draft, so nothing shows.
     by_status = await client.get(
         "/api/time-entries/report",
         params={
@@ -1054,7 +1054,7 @@ async def test_report_filters_narrow_by_consultant_project_and_status(
 
 async def test_report_sort_order(client, db_session) -> None:
     # create_user's default full_name is "Jane Doe" for every user unless given
-    # explicitly — sort order needs two genuinely distinct names to be meaningful.
+    # explicitly: sort order needs two genuinely distinct names to be meaningful.
     await _login_manager_first(client, db_session)
     zack = await create_user(
         db_session,
@@ -1271,7 +1271,7 @@ async def test_export_details_omits_rows_with_no_entries_in_period(client, db_se
     await _setup_project_with_consultant_and_pm(
         client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
     )
-    # No time entries logged at all — the row still exists for Report (current
+    # No time entries logged at all: the row still exists for Report (current
     # assignment), but Details has nothing to flatten.
     await _login_as(client, "pm@example.com")
     response = await client.get(
@@ -1355,7 +1355,7 @@ async def test_export_filename_ignores_out_of_scope_project(client, db_session) 
         },
     )
     assert response.status_code == 200
-    # Out-of-scope project id contributes nothing to the filename — falls back
+    # Out-of-scope project id contributes nothing to the filename: falls back
     # to period-only, same as no project selected at all.
     assert response.headers["content-disposition"] == 'attachment; filename="august-2026.pdf"'
 

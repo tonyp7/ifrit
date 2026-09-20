@@ -62,7 +62,7 @@ export function ProjectFormPage() {
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
-  // Full manager objects, kept alongside the form's own project_manager_ids field —
+  // Full manager objects, kept alongside the form's own project_manager_ids field:
   // the field is the source of truth for submission, this is only so the picker's
   // chips can render a full_name without an extra fetch (same split as
   // ServiceLineFormDialog's selectedConsultants/user_ids).
@@ -174,7 +174,7 @@ export function ProjectFormPage() {
 
   /**
    * Validates and (if needed) saves the project before a Service Line can be attached
-   * to it — a row can only attach to a persisted project. Returns the project id, or
+   * to it: a row can only attach to a persisted project. Returns the project id, or
    * null if validation failed (the form's own error state is already showing why).
    */
   function ensureSaved(): Promise<string | null> {
@@ -198,7 +198,7 @@ export function ProjectFormPage() {
 
   /**
    * True while the form still holds the project's original company for `side` and that
-   * company has been soft-deleted since — the link is still valid on the project, but
+   * company has been soft-deleted since: the link is still valid on the project, but
    * saving needs a replacement (the backend rejects an inactive company on write).
    */
   function isInactiveLink(side: "vendor" | "client", selectedId: string): boolean {
@@ -214,7 +214,7 @@ export function ProjectFormPage() {
    * currency). Radix Select mirrors its value into a hidden native `<select>`; when the
    * options re-register (e.g. the async list arriving after `reset()` already set the
    * value), the native `<select>` briefly has no matching option, snaps to "" and fires a
-   * change event — which would otherwise clear the form value we just loaded. These
+   * change event: which would otherwise clear the form value we just loaded. These
    * selects have no "clear" option, so an empty value is never a real user choice.
    */
   function handleSelectChange(field: "vendor_company_id" | "client_company_id" | "invoicing_currency") {
@@ -386,7 +386,7 @@ export function ProjectFormPage() {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field>
-                  {/* status stays editable even when the rest of the form is read-only —
+                  {/* status stays editable even when the rest of the form is read-only:
                       otherwise a closed project could never be reopened. */}
                   <FieldLabel htmlFor="status">{t("Status")}</FieldLabel>
                   <Select

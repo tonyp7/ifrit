@@ -11,20 +11,20 @@ import type { EntryCell, ServiceLineRow, TimesheetReportRow } from "@/types/time
 
 export interface UseReportGridOptions {
   days: Date[];
-  // Reporting's row data — one row per (consultant, service_line) pair, already
+  // Reporting's row data, one row per (consultant, service_line) pair, already
   // sorted server-side (full_name, project_name, service_line_name,
   // service_line_id). A new array reference re-seeds all local state below (see
-  // the effect below) — produced on every period/filter change.
+  // the effect below), produced on every period/filter change.
   rows: TimesheetReportRow[];
 }
 
-// Reporting's counterpart to useTimesheetGrid — deliberately a separate, lighter
+// Reporting's counterpart to useTimesheetGrid: deliberately a separate, lighter
 // hook rather than forced through that one: Reporting's row set is entirely
 // filter-driven (no "Add service line"/"Remove" affordance, per its own spec), and
 // a single grid instance here spans many different consultants at once, unlike
 // useTimesheetGrid's one-owner-per-instance design. What IS shared: the same
 // cellKey/formatHours/normalizeHours utilities, the same bulk PUT /time-entries
-// and PUT /time-entries/lock endpoints, and — critically — the exact same
+// and PUT /time-entries/lock endpoints, and: critically: the exact same
 // TimesheetDesktopGrid/TimesheetMobileView components this hook's return value
 // feeds into, via the same widened (userId, serviceLineId, ...) callback shape
 // useTimesheetGrid's own handlers already use.
@@ -33,11 +33,11 @@ export function useReportGrid({ days, rows }: UseReportGridOptions) {
 
   const [entries, setEntries] = useState<Record<string, EntryCell>>({});
   // Whether each (user_id, service_line_id) pair is currently assigned, per the
-  // backend's narrower is_assigned rule (see TimesheetReportRowOut) — what
+  // backend's narrower is_assigned rule (see TimesheetReportRowOut): what
   // isUnassignedInPeriod below reads, instead of computing eligibility
   // client-side the way useTimesheetGrid does from a fetched eligible-lines list.
   const [assignedByPair, setAssignedByPair] = useState<Record<string, boolean>>({});
-  // The row's project_status, for unassignedTooltip below — already sent on
+  // The row's project_status, for unassignedTooltip below: already sent on
   // every row (TimesheetReportRowOut.project_status), so this needs no extra
   // fetch or backend change.
   const [projectStatusByPair, setProjectStatusByPair] = useState<Record<string, string>>({});
@@ -82,14 +82,14 @@ export function useReportGrid({ days, rows }: UseReportGridOptions) {
   );
 
   // Distinguishes *why* a cell is read-only, using only the project_status
-  // already sent on every row — not a full reason taxonomy (that would also
+  // already sent on every row, not a full reason taxonomy (that would also
   // need the service line's own active flag and a real "never assigned at all"
   // signal, neither of which is sent today): when the project itself isn't
   // active, that's almost certainly the actual cause, and saying so beats
   // always claiming the consultant was personally removed, which often isn't
   // true (e.g. a freshly Duplicated project, still Draft, with every
   // assignment copied over verbatim). Falls back to the original generic
-  // message when the project *is* active — that's the one case this can't
+  // message when the project *is* active, that's the one case this can't
   // disambiguate further without backend changes (service line deactivated vs.
   // genuinely never assigned).
   const unassignedTooltip = useCallback(
@@ -173,7 +173,7 @@ export function useReportGrid({ days, rows }: UseReportGridOptions) {
     }
 
     try {
-      // Always an array, per the bulk endpoint's contract — and always an
+      // Always an array, per the bulk endpoint's contract, and always an
       // explicit user_id here, never omitted: Reporting never edits an implicit
       // "caller's own" entry the way My Timesheet does, every row has a known
       // owner.
@@ -223,7 +223,7 @@ export function useReportGrid({ days, rows }: UseReportGridOptions) {
           if (entry) {
             next[key] = { hours: formatHours(Number(entry.hours)), is_locked: entry.is_locked };
           } else if (!nextLocked) {
-            // Unlock deleted this gap-day row (it had no real hours) — same as
+            // Unlock deleted this gap-day row (it had no real hours): same as
             // useTimesheetGrid's applyLockResult.
             delete next[key];
           }

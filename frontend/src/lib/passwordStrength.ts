@@ -1,7 +1,7 @@
 import type { ZxcvbnFactory as ZxcvbnFactoryType } from "@zxcvbn-ts/core";
 
 // @zxcvbn-ts/core + its English dictionaries (language-common/language-en) are ~1.15MB of the
-// production bundle on their own (measured: 2,355.85kB -> 1,200.55kB with this split out) — pure
+// production bundle on their own (measured: 2,355.85kB -> 1,200.55kB with this split out): pure
 // word-list/adjacency-graph data, not something that shrinks. They're only ever needed by
 // PasswordStrengthMeter, itself only ever rendered on the New/Edit User password field, so
 // dynamic-importing here keeps that weight off every other screen (including login, which never
@@ -17,7 +17,7 @@ function loadZxcvbn(): Promise<Zxcvbn> {
       import("@zxcvbn-ts/language-en"),
     ]).then(([{ ZxcvbnFactory }, zxcvbnCommonPackage, zxcvbnEnPackage]) => {
       // @zxcvbn-ts/core is an actively-maintained fork of the original zxcvbn
-      // (which is no longer maintained) — same scoring algorithm and dictionary
+      // (which is no longer maintained): same scoring algorithm and dictionary
       // format, so this is a drop-in choice, not a behavior change.
       return new ZxcvbnFactory({
         translations: zxcvbnEnPackage.translations,
@@ -44,7 +44,7 @@ export async function getPasswordScore(password: string): Promise<0 | 1 | 2 | 3 
   return zxcvbn.check(password).score;
 }
 
-// Single source of truth for score -> display label — raw scores are never shown
+// Single source of truth for score -> display label: raw scores are never shown
 // alone.
 export const PASSWORD_SCORE_LABELS: Record<0 | 1 | 2 | 3 | 4, string> = {
   0: "Very Weak",

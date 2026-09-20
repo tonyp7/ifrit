@@ -42,10 +42,10 @@ import { type ServiceLineConsultant, UOM_LABELS, type Uom } from "@/types/projec
 import type { User } from "@/types/user";
 
 const UOM_VALUES = Object.keys(UOM_LABELS) as [Uom, ...Uom[]];
-// Values may be pre-filled already comma-grouped (see formatQuantity/formatMoney) —
+// Values may be pre-filled already comma-grouped (see formatQuantity/formatMoney):
 // strip that before checking shape, same as on submit.
 const DECIMAL_PATTERN = /^\d+(\.\d+)?$/;
-// Matches CompaniesTable's search debounce — same rationale, applied here to the
+// Matches CompaniesTable's search debounce: same rationale, applied here to the
 // consultant picker's server-side search.
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -73,7 +73,7 @@ interface ServiceLineFormDialogProps {
   /** Present when editing an existing row in place; absent for add/duplicate-as-new. */
   serviceLineId?: string;
   initialValues?: Partial<FormValues>;
-  /** Full consultant objects for `initialValues.user_ids` (Edit/Duplicate) — carried
+  /** Full consultant objects for `initialValues.user_ids` (Edit/Duplicate): carried
    * separately since the form field itself only needs bare ids, but the picker needs
    * `full_name` to render each pre-selected consultant's chip without an extra fetch. */
   initialConsultants?: ServiceLineConsultant[];
@@ -119,8 +119,8 @@ export function ServiceLineFormDialog({
   );
 
   // Pre-filled values (Edit/Duplicate) are formatted the same way the read-only
-  // Service Lines table displays them — trimmed decimals for quantity, fixed
-  // currency-precision grouping for unit price — so the modal doesn't show a
+  // Service Lines table displays them, trimmed decimals for quantity, fixed
+  // currency-precision grouping for unit price, so the modal doesn't show a
   // different, rawer number than what the user just saw in the table. Stripped back
   // to a plain decimal on submit (see onSubmit below).
   function formatInitialValues(values?: Partial<FormValues>): Partial<FormValues> {
@@ -156,7 +156,7 @@ export function ServiceLineFormDialog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  // Server-side search — only fetches while the picker is open. Instant on open
+  // Server-side search: only fetches while the picker is open. Instant on open
   // (empty query), debounced while typing.
   useEffect(() => {
     if (!consultantPopoverOpen) return;

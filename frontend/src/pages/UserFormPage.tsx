@@ -65,7 +65,7 @@ export function UserFormPage() {
   const isEditingSelf = !isNew && routeUserId === currentUser?.id;
 
   // The resolver reads `is_sso` from whatever values it's given at validation time
-  // (submit), not from `watch()` on this same form — a schema built from live
+  // (submit), not from `watch()` on this same form: a schema built from live
   // watched values would be circular (useForm needs the resolver, the resolver
   // would need useForm's watch). `isNew`/`originalIsSso` are plain state, not form
   // values, so this has no such cycle.
@@ -116,7 +116,7 @@ export function UserFormPage() {
   const watchedPassword = watch("password");
 
   // New + local: always needs a password. Edit + switching an SSO user back to
-  // local: also needs one (their old password is long gone). Otherwise hidden —
+  // local: also needs one (their old password is long gone). Otherwise hidden:
   // an already-local user's password changes via the Reset Password row action,
   // not this form.
   const showPasswordField = isNew ? !watchedIsSso : originalIsSso && !watchedIsSso;
@@ -252,7 +252,7 @@ export function UserFormPage() {
                     containment: we never use the "responsive" Field orientation that needs it,
                     and leaving it on triggers a real Chromium bug where this nested FieldGroup
                     (a container-query element inside another one) collapses to 0 height on the
-                    next re-render — reproduced live by unchecking a role checkbox. */}
+                    next re-render: reproduced live by unchecking a role checkbox. */}
                 <FieldGroup className="gap-3 [container-type:normal]">
                   {ALL_ROLES.map((role) => (
                     <Field orientation="horizontal" key={role}>

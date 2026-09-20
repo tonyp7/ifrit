@@ -25,7 +25,7 @@ export function PasswordStrengthMeter({ password }: PasswordStrengthMeterProps) 
   const [score, setScore] = useState<0 | 1 | 2 | 3 | 4>(0);
 
   // Kick off zxcvbn's (dynamically-imported, ~1.15MB) download as soon as this field is on
-  // screen, rather than waiting for the first keystroke — see passwordStrength.ts for why it's
+  // screen, rather than waiting for the first keystroke: see passwordStrength.ts for why it's
   // lazy at all.
   useEffect(() => {
     preloadZxcvbn();

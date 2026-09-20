@@ -7,8 +7,8 @@ end up in that state through any other path (raw SQL, a future code path, a race
 between "assign" and "deactivate").
 
 The statements are plain strings shared by the Alembic migration and by the SQLAlchemy
-`after_create` hooks below (which is how the test database — built with `create_all`,
-not migrations — gets them too). Deliberately free of `%` and `:` so they survive both
+`after_create` hooks below (which is how the test database, built with `create_all`,
+not migrations, gets them too). Deliberately free of `%` and `:` so they survive both
 `DDL()` and `op.execute()` unmodified. One statement per string: asyncpg can't run
 several commands in one prepared statement.
 """
@@ -35,7 +35,7 @@ USERS_TRIGGER_STATEMENTS = [
 
 PROJECT_MANAGERS_TRIGGER_STATEMENTS = [
     # FOR SHARE locks the user row until this transaction ends, so a concurrent
-    # deactivation waits for it and then clears the row this insert just made — an
+    # deactivation waits for it and then clears the row this insert just made: an
     # assignment racing a deletion can't leave a stale project manager behind.
     """
     CREATE OR REPLACE FUNCTION ifrit_require_active_project_manager() RETURNS trigger AS $$

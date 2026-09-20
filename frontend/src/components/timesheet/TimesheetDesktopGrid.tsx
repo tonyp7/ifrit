@@ -26,30 +26,30 @@ interface TimesheetDesktopGridProps {
   serviceLines: ServiceLineRow[];
   entries: Record<string, EntryCell>;
   dayTotal: (dayKey: string) => number;
-  // Every callback below that identifies "which row" takes a leading `userId` —
+  // Every callback below that identifies "which row" takes a leading `userId`,
   // needed because Reporting's rows span many different consultants in one grid
   // instance, unlike My Timesheet (whose hook ignores it, already
-  // knowing its own single owner) — see useTimesheetGrid's own comment on this.
+  // knowing its own single owner), see useTimesheetGrid's own comment on this.
   serviceLineTotal: (userId: string, serviceLineId: string) => number;
   periodTotal: number;
   periodLabel: string;
-  /** My Timesheet only — Reporting has no "Add service line" affordance
+  /** My Timesheet only: Reporting has no "Add service line" affordance
    * (its row set is entirely filter-driven), so these three are left undefined
    * there and the Add control simply isn't rendered. */
   addOptions?: EligibleServiceLine[];
   onAddServiceLine?: (serviceLineId: string) => void;
-  /** My Timesheet only, alongside the above — Reporting has "no X icon
+  /** My Timesheet only, alongside the above: Reporting has "no X icon
    * to delete a line" per its own spec, so these two (and the row's remove
    * control) are left undefined there too. */
   hasEntriesInPeriod?: (userId: string, serviceLineId: string) => boolean;
   hasLockedEntriesInPeriod?: (userId: string, serviceLineId: string) => boolean;
   onRemoveServiceLine?: (userId: string, serviceLineId: string) => void;
   onClearAndRemoveServiceLine?: (userId: string, serviceLineId: string) => Promise<void>;
-  /** The entry owner is no longer currently assigned to this service line —
+  /** The entry owner is no longer currently assigned to this service line:
    * read-only regardless of lock. Still required on every screen, including
    * Reporting (driven there by each row's own `is_assigned`). */
   isUnassignedInPeriod: (userId: string, serviceLineId: string) => boolean;
-  /** Reporting only — overrides the tooltip shown on an unassigned cell with a
+  /** Reporting only: overrides the tooltip shown on an unassigned cell with a
    * reason specific to *why* (the project's still in Draft, or closed), rather
    * than always claiming the consultant was personally removed, which often
    * isn't the actual cause. My Timesheet leave this undefined and
@@ -61,7 +61,7 @@ interface TimesheetDesktopGridProps {
   // desktop, so a later Week<->Month switch re-anchors on that day instead of a
   // stale value.
   onFocusDay: (dayKey: string) => void;
-  /** My Timesheet never sets these — no lock control there. */
+  /** My Timesheet never sets these: no lock control there. */
   isFullyLockedInPeriod?: (userId: string, serviceLineId: string) => boolean;
   onToggleLock?: (userId: string, serviceLineId: string) => Promise<void>;
 }
@@ -93,7 +93,7 @@ export function TimesheetDesktopGrid({
 
   // Month view crams up to 31 day columns into the same viewport Week view only needs
   // 7 for. Budget at a 1920px-wide window: 1830px available (56 nav rail, 32 padding,
-  // 2 border) vs 208 (first) + 64 (Total) + 31 x 48 (day floor) = 1760 — so it fits
+  // 2 border) vs 208 (first) + 64 (Total) + 31 x 48 (day floor) = 1760, so it fits
   // without scrolling. The first column MUST be capped (`max-w-*`): its `truncate`
   // lines do nothing in an auto-layout table cell otherwise, and the column grew to
   // fit the longest project/service line/consultant text (e.g. 356px on Reporting,
@@ -171,7 +171,7 @@ export function TimesheetDesktopGrid({
                       >
                         {line.service_line_name ?? t("(unnamed service line)")}
                       </p>
-                      {/* Reporting only — a row here can belong to any consultant,
+                      {/* Reporting only: a row here can belong to any consultant,
                           not just one implicit owner, so the label needs a third
                           line to disambiguate. */}
                       {line.consultant_name && (
@@ -218,7 +218,7 @@ export function TimesheetDesktopGrid({
                     !locked && isUnassignedInPeriod(line.user_id, line.service_line_id);
                   const weekend = isWeekend(day);
                   // Resolved to a single class, not left as several `cn()` entries that
-                  // could combine — `cn()`/`tailwind-merge` treats same-property
+                  // could combine: `cn()`/`tailwind-merge` treats same-property
                   // background-color utilities as conflicting and silently drops all but
                   // the last one, so e.g. `isWeekend && "bg-muted/40"` plus
                   // `locked && "bg-red-100"` on the same weekend+locked cell would only
@@ -252,7 +252,7 @@ export function TimesheetDesktopGrid({
                           unassigned
                             ? (unassignedTooltip?.(line.user_id, line.service_line_id) ??
                               t(
-                                "This consultant is no longer assigned to this service line — read-only.",
+                                "This consultant is no longer assigned to this service line: read-only.",
                               ))
                             : undefined
                         }
@@ -266,14 +266,14 @@ export function TimesheetDesktopGrid({
                         className={cn(
                           "w-full rounded border border-transparent bg-transparent p-1 text-center text-sm outline-none transition-colors",
                           // At-rest + hover affordance for editable cells only (see
-                          // conversation before this change) — reuses this project's
+                          // conversation before this change): reuses this project's
                           // own tokens: bg-muted is already used for weekend shading
                           // in this same grid, hover:bg-secondary/50 is the exact
                           // convention TableRow (ui/table.tsx) already uses elsewhere.
                           // `enabled:` scopes both so a locked cell stays visually
                           // flat, distinguishing editable from locked at a glance.
                           "enabled:bg-muted/20 enabled:hover:bg-secondary/50",
-                          // `!` (important) here isn't decorative — without it, focus
+                          // `!` (important) here isn't decorative: without it, focus
                           // loses to the enabled:* rules above on equal specificity
                           // (Tailwind sorts `enabled:` after `focus:` in its generated
                           // cascade), so a focused cell would silently keep showing

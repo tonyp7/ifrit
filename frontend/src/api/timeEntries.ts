@@ -21,10 +21,10 @@ export function listEligibleServiceLines() {
   );
 }
 
-// Always an array, request and response — a single cell blur sends a one-element
+// Always an array, request and response: a single cell blur sends a one-element
 // array (see handleCellBlur in TimesheetPage.tsx). apiClient's fetch
-// wrapper treats a 207 (partial success) as a normal, parsed response — same as a
-// 200 — since 207 is in fetch's `response.ok` range (200-299); callers must inspect
+// wrapper treats a 207 (partial success) as a normal, parsed response: same as a
+// 200, since 207 is in fetch's `response.ok` range (200-299); callers must inspect
 // each result's own `ok` field, not rely on the HTTP status to distinguish outcomes.
 export function upsertTimeEntries(payload: TimeEntryUpsertInput[]) {
   return apiClient.put<TimeEntryUpsertResult[]>("/time-entries", payload);
@@ -35,7 +35,7 @@ export function setServiceLineLock(payload: ServiceLineLockRequest) {
   return apiClient.put<TimeEntry[]>("/time-entries/lock", payload);
 }
 
-// Reporting screen's filter dropdowns — static, not period-scoped, one fetch on
+// Reporting screen's filter dropdowns: static, not period-scoped, one fetch on
 // mount.
 export function getReportFilters() {
   return apiClient.get<TimesheetReportFilters>("/time-entries/report/filters");
@@ -50,7 +50,7 @@ export interface TimesheetReportParams {
   statuses?: string[];
 }
 
-// Reporting screen's row data — a flat, pre-sorted (consultant, service_line)
+// Reporting screen's row data: a flat, pre-sorted (consultant, service_line)
 // list. All four filter arrays are optional; omitted/empty means no restriction
 // on that dimension.
 export function getTimesheetReport(params: TimesheetReportParams) {
@@ -71,10 +71,10 @@ export interface TimesheetReportExportParams extends TimesheetReportParams {
   periodType: "week" | "month";
 }
 
-// Reporting screen's export — deliberately the exact same filter params as
+// Reporting screen's export, deliberately the exact same filter params as
 // getTimesheetReport above, plus format/periodType, which that endpoint has no
 // use for. Returns the raw Blob and the server-built filename (from
-// Content-Disposition) — see lib/download.ts for turning that into an actual
+// Content-Disposition), see lib/download.ts for turning that into an actual
 // browser download.
 export function exportTimesheetReport(
   format: TimesheetReportExportFormat,

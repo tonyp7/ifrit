@@ -33,7 +33,7 @@ import { useTheme } from "@/hooks/useTheme";
 import { cn } from "@/lib/utils";
 import type { ThemePreference } from "@/types/user";
 
-// Single shared style for every nav bar icon button (screen icons + profile) — same
+// Single shared style for every nav bar icon button (screen icons + profile): same
 // resting/hover/active treatment for all of them. `aria-[current=page]` picks up the
 // `aria-current="page"` that NavLink sets on the active route automatically for plain
 // links; the Configuration menu trigger isn't a NavLink (it opens a dropdown instead
@@ -48,7 +48,7 @@ export function NavBar() {
   const navigate = useNavigate();
   const location = useLocation();
   // NAV_ITEMS' `label` is the English source string, used here as the translation
-  // key — it's defined at module scope in config/navigation.ts, outside any
+  // key: it's defined at module scope in config/navigation.ts, outside any
   // component, so it can't call useTranslation() itself.
   const { t } = useTranslation(["common"]);
 
@@ -58,7 +58,7 @@ export function NavBar() {
   const items = NAV_ITEMS.filter((item) => canAccessNavItem(item, currentUser.roles));
 
   // A child gated by its own `requiredRoles` (e.g. Reporting, project_manager-only)
-  // may not be visible to every user who can see the parent item at all —
+  // may not be visible to every user who can see the parent item at all:
   // Configuration's children have no such gate and are always both visible, same as
   // before this concept existed.
   function visibleChildren(item: (typeof items)[number]) {

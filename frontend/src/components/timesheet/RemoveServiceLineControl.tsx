@@ -19,15 +19,15 @@ interface RemoveServiceLineControlProps {
   hasEntries: boolean;
   /** Any *locked* entry for this line, for any day in the current period. */
   hasLockedEntries: boolean;
-  /** The entry owner is no longer currently assigned to this service line —
+  /** The entry owner is no longer currently assigned to this service line:
    * read-only, same as locked. */
   isUnassigned?: boolean;
-  /** e.g. "August 2026" or "Week 34" — same label the Shared Header shows. */
+  /** e.g. "August 2026" or "Week 34": same label the Shared Header shows. */
   periodLabel: string;
   /** No-dialog branch: no entries this period, purely a view-declutter action. */
   onRemove: () => void;
   /** Confirmed-destructive branch: clears every logged day this period, then
-   * removes the line from view — unless the bulk clear came back partially
+   * removes the line from view, unless the bulk clear came back partially
    * rejected (see TimesheetPage.tsx), in which case the line stays visible and
    * this component's own `hasLockedEntries` prop will reflect that on next render. */
   onConfirmedClear: () => Promise<void>;
@@ -75,7 +75,7 @@ export function RemoveServiceLineControl({
         size="icon"
         aria-label={t("Remove service line")}
         disabled={disabled}
-        // Native `title` rather than the Radix Tooltip component — this is the only
+        // Native `title` rather than the Radix Tooltip component: this is the only
         // disabled-with-explanation control in the timesheet, not worth wiring up a
         // TooltipProvider for one button.
         title={disabledReason}

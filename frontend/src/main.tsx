@@ -13,7 +13,7 @@ import "@/index.css";
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
-    {/* i18next-http-backend loads translation namespaces over HTTP — Suspense
+    {/* i18next-http-backend loads translation namespaces over HTTP: Suspense
         covers that async gap rather than assuming they're ready synchronously. */}
     <Suspense fallback={null}>
       <BrowserRouter>

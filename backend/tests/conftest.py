@@ -15,19 +15,19 @@ from app.main import app
 
 def _test_database_url() -> str:
     # Deliberately not a Settings field (app.core.config): nothing about the
-    # deployed app ever reads a test database URL, only this test suite does — a
+    # deployed app ever reads a test database URL, only this test suite does, a
     # test-only concept has no business living in the app's own runtime config.
     # Derived from `database_url` (e.g. .../ifrit -> .../ifrit_test) instead of a
     # separately configured value, so there's no second env var to set/forget and
     # no way for it to drift from whichever database the app itself is pointed
-    # at. This *must* never resolve to the same database as `database_url` —
+    # at. This *must* never resolve to the same database as `database_url`,
     # db_session below unconditionally drops every table on teardown, which would
     # be destructive against real dev/prod data (see the fixture's `drop_all`).
     url = make_url(settings.database_url)
     test_url = url.set(database=f"{url.database}_test")
     assert test_url.database != url.database
     # Not `str(test_url)`: SQLAlchemy's URL.__str__ deliberately masks the
-    # password (renders it as literal "***") for safe printing/logging — passing
+    # password (renders it as literal "***") for safe printing/logging: passing
     # that straight to asyncpg/create_async_engine would try to authenticate with
     # the string "***" as the password, not the real one. render_as_string with
     # hide_password=False is the actual connection string.
@@ -52,7 +52,7 @@ async def _ensure_test_database_exists() -> None:
 async def db_session() -> AsyncGenerator[AsyncSession, None]:
     # A fresh engine per test (rather than a module-level singleton): SQLAlchemy's
     # async engine binds its connection pool to the event loop active when it opens
-    # its first connection, and pytest-asyncio gives each test its own loop — a
+    # its first connection, and pytest-asyncio gives each test its own loop: a
     # shared engine would break on the second test ("attached to a different loop").
     test_engine = create_async_engine(_test_database_url())
     try:

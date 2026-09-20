@@ -11,7 +11,7 @@ import {
 import type { features } from "@/components/data-table/features";
 
 // Fixed to this app's one shared `features` registration (see features.ts) rather
-// than staying generic over an arbitrary TFeatures — there's only ever one
+// than staying generic over an arbitrary TFeatures: there's only ever one
 // instantiation in this codebase, so a second generic param here would be
 // complexity with no actual payoff.
 interface DataTableProps<TData extends RowData> {
@@ -22,7 +22,7 @@ interface DataTableProps<TData extends RowData> {
 }
 
 // Shared table-shell markup (header groups, body rows, empty state) for every
-// shadcn/ui Data Table in this app — the caller still owns its own `useTable()` call
+// shadcn/ui Data Table in this app: the caller still owns its own `useTable()` call
 // (column defs, sorting/visibility state) since that differs per table; this only
 // removes the ~25 duplicated lines of render JSX every list screen otherwise repeats
 // verbatim. See components/data-table/DataTableColumnHeader.tsx's own comment for why

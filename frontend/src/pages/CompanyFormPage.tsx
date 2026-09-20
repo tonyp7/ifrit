@@ -124,7 +124,7 @@ export function CompanyFormPage() {
 
   /**
    * Validates and (if needed) saves the company before a Party
-   * Identifier/Address can be attached to it — a row can only attach to a
+   * Identifier/Address can be attached to it: a row can only attach to a
    * persisted company. Returns the company id, or null if validation failed
    * (the form's own error state is already showing why).
    */
@@ -159,9 +159,9 @@ export function CompanyFormPage() {
         </CardHeader>
         <CardContent>
           {/* One form for the whole card: base fields, then Party Identifiers/Addresses
-              (their own dialogs render via a Portal, so nesting them here is safe — no
+              (their own dialogs render via a Portal, so nesting them here is safe: no
               actual nested <form> in the DOM), then the Save/Close footer at the very
-              bottom, in the conventional position — not sandwiched above the tables. */}
+              bottom, in the conventional position: not sandwiched above the tables. */}
           <form onSubmit={handleSubmit(onSubmit)}>
             <FieldGroup>
               <Field orientation="horizontal">

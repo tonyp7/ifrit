@@ -24,7 +24,7 @@ PAGE_SIZE = 50
 
 
 class ProjectReadOnlyError(Exception):
-    """Raised when an action is attempted on a `closed` project — the project itself,
+    """Raised when an action is attempted on a `closed` project: the project itself,
     or its service lines, are fully read-only in that state."""
 
 
@@ -35,11 +35,11 @@ class InvalidReferenceError(Exception):
 
 class ServiceLineHasLoggedTimeError(Exception):
     """Raised when deleting a service line on an `active` project is attempted
-    while time has already been logged against it — editing remains allowed,
+    while time has already been logged against it: editing remains allowed,
     only deletion is blocked."""
 
 
-# Quantized to unit_price's column scale (NUMERIC(14, 4) — see app/models/project.py) so
+# Quantized to unit_price's column scale (NUMERIC(14, 4): see app/models/project.py) so
 # `value`/`total_value` have a fixed, predictable decimal precision regardless of how many
 # decimal places `quantity`/`unit_price` happened to be given with (plain Decimal
 # multiplication otherwise sums the two operands' scales, e.g. 10 x 100.00 -> 2 decimals but
@@ -68,14 +68,14 @@ async def list_projects(
     sort_by: str | None = None,
     sort_dir: str | None = None,
 ) -> tuple[list[tuple[Project, str | None, str | None]], int]:
-    """Returns (project, vendor_company_name, client_company_name) tuples — the list
+    """Returns (project, vendor_company_name, client_company_name) tuples: the list
     screen shows company names, not raw ids. Names are None for a project with no
     company link (see Project.vendor_company_id)."""
     vendor = aliased(Company)
     client = aliased(Company)
 
     # Built here (not at module scope) since client_company_name/vendor_company_name
-    # sort by the aliased join columns above, not a plain Project attribute — those
+    # sort by the aliased join columns above, not a plain Project attribute: those
     # aliases only exist inside this function.
     sortable_columns = {
         "name": Project.name,
@@ -104,7 +104,7 @@ async def list_projects(
         stmt = stmt.where(Project.name.ilike(f"%{search}%"))
     order = resolve_sort(sortable_columns, sort_by, sort_dir, default=Project.created_at.desc())
     stmt = (
-        # `Project.id` is a stable tie-breaker — see app/services/sorting.py.
+        # `Project.id` is a stable tie-breaker: see app/services/sorting.py.
         stmt.order_by(order, Project.id)
         .offset((page - 1) * PAGE_SIZE)
         .limit(PAGE_SIZE)
@@ -175,7 +175,7 @@ async def create_project(db: AsyncSession, data: ProjectWrite) -> Project:
 async def update_project(
     db: AsyncSession, project: Project, data: ProjectWrite
 ) -> Project:
-    # `status` is the one field exempted from a `closed` project's read-only state —
+    # `status` is the one field exempted from a `closed` project's read-only state:
     # everything else, including `project_managers` (which is NOT exempted the way
     # `status` is), must be unchanged while closed.
     if project.status == "closed":
@@ -278,7 +278,7 @@ async def _resolve_project_managers(
 ) -> list[User]:
     """Same shape as _resolve_consultants above, checking `project_manager` instead
     of `consultant`. Holding the role is the only eligibility check; there is
-    deliberately no minimum-one or empty-assignment guard — a project with zero
+    deliberately no minimum-one or empty-assignment guard: a project with zero
     project managers is valid, it simply can't have its timesheets validated by
     anyone yet."""
     if not user_ids:
@@ -366,14 +366,14 @@ async def delete_service_line(
     if project.status == "closed":
         raise ProjectReadOnlyError("Cannot delete a service line on a closed project")
     # On an `active` project, a line with any time_entries row is edit-only, not
-    # deletable — deleting it would silently orphan the time entries already logged
+    # deletable, deleting it would silently orphan the time entries already logged
     # against it, with no cascade and no warning. `_has_logged_time` is an
     # existence check, not filtered by value: a locked 0-hour gap-fill row (see
     # set_service_line_lock) still counts, since it exists precisely because a
     # project_manager took a real, recorded action on it, not because anyone
     # actually logged zero hours.
     #
-    # `draft` isn't exempt from this check the way it used to be — a draft project
+    # `draft` isn't exempt from this check the way it used to be, a draft project
     # can carry real historical time from an earlier active -> draft transition
     # (status transitions are unrestricted), so "no time can be logged against a
     # non-active project" is true only for entries created *while* draft, not for
@@ -392,7 +392,7 @@ async def delete_service_line(
     else:
         # Nothing to preserve. A hard delete here (rather than the is_active=False
         # used when there IS history) avoids leaving a permanent, invisible,
-        # zero-purpose row behind forever — the DB's own ON DELETE CASCADE on
+        # zero-purpose row behind forever: the DB's own ON DELETE CASCADE on
         # service_line_consultants.service_line_id takes any now-stale consultant
         # assignments with it, rather than leaving them orphaned on a line nothing
         # can ever reach again.

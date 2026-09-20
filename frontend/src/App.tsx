@@ -31,7 +31,7 @@ export default function App() {
             <Route path="/projects/:projectId" element={<ProjectFormPage />} />
           </Route>
           <Route element={<RequireRoles roles={["administrator"]} />}>
-            {/* Bare /configuration has no page of its own — the Configuration nav
+            {/* Bare /configuration has no page of its own: the Configuration nav
                 icon opens a dropdown instead, so there's no single "right"
                 destination to redirect to. Deliberately no route for it here: it
                 falls through to the catch-all below, same as any other

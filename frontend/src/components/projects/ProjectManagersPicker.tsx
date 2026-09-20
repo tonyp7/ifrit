@@ -18,7 +18,7 @@ import type { ProjectManager } from "@/types/project";
 import type { User } from "@/types/user";
 
 // Matches the Service Line Consultants picker's debounce (see
-// ServiceLineFormDialog.tsx) — same rationale, applied to this search instead.
+// ServiceLineFormDialog.tsx): same rationale, applied to this search instead.
 const SEARCH_DEBOUNCE_MS = 300;
 
 interface ProjectManagersPickerProps {
@@ -27,8 +27,8 @@ interface ProjectManagersPickerProps {
   disabled?: boolean;
 }
 
-// Same design language as the Service Line Consultants picker — a Popover+Command
-// palette with server-side search and removable chips — but persisted differently:
+// Same design language as the Service Line Consultants picker, a Popover+Command
+// palette with server-side search and removable chips, but persisted differently:
 // this is a field on the Project itself, submitted with the rest of the Project
 // Form's fields on its own Save, not through a child-entity modal with its own
 // immediate save.

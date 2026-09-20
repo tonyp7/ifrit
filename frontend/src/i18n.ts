@@ -18,7 +18,7 @@ void i18n
   .use(HttpBackend)
   .use(initReactI18next)
   .init({
-    // English only for now — components are still written translation-ready via
+    // English only for now: components are still written translation-ready via
     // t(), so adding a language later is just new JSON files under public/locales,
     // not a component rewrite.
     lng: "en",

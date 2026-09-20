@@ -17,7 +17,7 @@ from app.services.sorting import resolve_sort
 
 PAGE_SIZE = 50
 
-# Whitelist of client-sortable columns for the Companies List Screen — never resolve
+# Whitelist of client-sortable columns for the Companies List Screen: never resolve
 # `sort_by` against the model dynamically (see app/services/sorting.py).
 _SORTABLE_COLUMNS = {
     "legal_name": Company.legal_name,
@@ -34,7 +34,7 @@ async def list_companies(
     sort_by: str | None = None,
     sort_dir: str | None = None,
 ) -> tuple[list[Company], int]:
-    # Deactivated companies are never listed — there is no way to see or reactivate
+    # Deactivated companies are never listed: there is no way to see or reactivate
     # one through the API.
     stmt = select(Company).where(Company.is_active.is_(True))
     count_stmt = (
@@ -55,7 +55,7 @@ async def list_companies(
 
     order = resolve_sort(_SORTABLE_COLUMNS, sort_by, sort_dir, default=Company.legal_name.asc())
     stmt = (
-        # `Company.id` is a stable tie-breaker — without it, rows with an equal
+        # `Company.id` is a stable tie-breaker: without it, rows with an equal
         # sort value could shift between pages across two paginated fetches (see
         # app/services/sorting.py).
         stmt.order_by(order, Company.id)
@@ -72,7 +72,7 @@ async def get_company(db: AsyncSession, company_id: uuid.UUID) -> Company | None
     # populate_existing=True: add_identifier/add_address insert child rows directly
     # rather than through company.identifiers.append(...), so if this company is
     # already in the session's identity map with those collections previously loaded,
-    # SQLAlchemy won't otherwise re-fetch them here — they'd stay stale for the rest
+    # SQLAlchemy won't otherwise re-fetch them here: they'd stay stale for the rest
     # of the session (matters most for multi-call flows within one session, e.g. add
     # an identifier then immediately duplicate the company).
     result = await db.execute(
@@ -90,7 +90,7 @@ async def create_company(db: AsyncSession, data: CompanyWrite) -> Company:
     await db.commit()
     # Re-fetch via get_company (selectinload) rather than db.refresh(): once an object
     # goes from pending to persistent, its never-touched relationship collections need
-    # an explicit load to be accessed safely — db.refresh() doesn't eager-load them, it
+    # an explicit load to be accessed safely: db.refresh() doesn't eager-load them, it
     # just expires them, so a later `company.identifiers` access would lazy-load outside
     # of an async-safe context and raise MissingGreenlet.
     persisted = await get_company(db, company.id)
@@ -146,7 +146,7 @@ async def duplicate_company(db: AsyncSession, source: Company) -> Company:
         )
     db.add(new_company)
     await db.commit()
-    # Re-fetch via get_company (selectinload) — see create_company for why db.refresh()
+    # Re-fetch via get_company (selectinload): see create_company for why db.refresh()
     # isn't the right tool here either.
     persisted = await get_company(db, new_company.id)
     assert persisted is not None
@@ -196,7 +196,7 @@ async def get_conflicting_primary_address(
     address_type: AddressType,
     exclude_address_id: uuid.UUID | None = None,
 ) -> Address | None:
-    """The existing primary Address of this type for this company, if any — used to
+    """The existing primary Address of this type for this company, if any: used to
     reject a second one."""
     stmt = select(Address).where(
         Address.company_id == company_id,

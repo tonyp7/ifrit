@@ -64,7 +64,7 @@ async def test_list_projects_rejects_consultant(client, db_session) -> None:
 async def test_list_projects_rejects_administrator_without_manager_role(
     client, db_session
 ) -> None:
-    # `projects` is granted by the literal `project_admin` role only — not inferred from
+    # `projects` is granted by the literal `project_admin` role only: not inferred from
     # `administrator`.
     await create_user(
         db_session,
@@ -104,7 +104,7 @@ async def test_create_and_list_project(client, db_session) -> None:
 
 
 async def test_list_projects_sort_composes_with_pagination(client, db_session) -> None:
-    # Sorting must happen server-side, before pagination splits rows into pages —
+    # Sorting must happen server-side, before pagination splits rows into pages:
     # a client-side-only sort only reorders whatever page is already in memory,
     # which silently breaks once there's more than one page, since the default
     # order (created_at desc) has no relation to name order.
@@ -159,7 +159,7 @@ async def test_list_projects_unknown_sort_by_falls_back_to_default(
 
     response = await client.get("/api/projects", params={"sort_by": "not_a_real_column"})
     assert response.status_code == 200
-    # Falls back to the existing default (created_at desc) — the more recently
+    # Falls back to the existing default (created_at desc): the more recently
     # created project comes first.
     names = [item["name"] for item in response.json()["items"]]
     assert names == ["Newer", "Older"]
@@ -555,7 +555,7 @@ async def test_active_project_blocks_service_line_delete_with_logged_time(
     )
     assert delete_line.status_code == 409
 
-    # Editing remains allowed — only deletion is blocked.
+    # Editing remains allowed: only deletion is blocked.
     update_line = await client.patch(
         f"/api/projects/{project_id}/service-lines/{line_id}",
         json={
@@ -602,7 +602,7 @@ async def test_active_project_allows_service_line_delete_without_logged_time(
     assert detail.json()["service_lines"] == []
 
     # A line with no time_entries row at all is a hard delete, not is_active=False
-    # — the row itself must be gone, not just filtered out of the API response.
+    # the row itself must be gone, not just filtered out of the API response.
     db_session.expire_all()
     assert (await db_session.get(ServiceLine, line_id)) is None
 
@@ -611,7 +611,7 @@ async def test_locked_zero_hour_entry_still_blocks_delete_on_active_project(
     client, db_session
 ) -> None:
     """A locked 0-hour gap-fill row (see timesheet.md's Lock/Unlock) exists because
-    a project_manager took a real, recorded action on it — the delete-blocking
+    a project_manager took a real, recorded action on it: the delete-blocking
     check must be an existence check, not filtered to hours > 0, or this history
     would be silently destroyed."""
     await _login_manager(client, db_session)
@@ -696,7 +696,7 @@ async def test_draft_project_delete_without_logged_time_is_hard_delete(
 
     db_session.expire_all()
     assert (await db_session.get(ServiceLine, line_id)) is None
-    # The consultant assignment cascades away with the hard-deleted line — no
+    # The consultant assignment cascades away with the hard-deleted line: no
     # orphaned, unreachable service_line_consultants row left behind.
     assignment = (
         await db_session.execute(
@@ -712,7 +712,7 @@ async def test_draft_project_delete_with_logged_time_is_soft_delete(
     client, db_session
 ) -> None:
     """A draft project can carry real history from an earlier active -> draft
-    transition — the existence check has to run regardless of the project's
+    transition: the existence check has to run regardless of the project's
     *current* status, not be skipped just because it isn't active right now."""
     await _login_manager(client, db_session)
     vendor, client_company, currency = await _setup_refs(db_session)

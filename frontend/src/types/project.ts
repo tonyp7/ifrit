@@ -2,7 +2,7 @@ export type ProjectType = "time_and_material" | "fixed_price" | "capped_tm";
 export type ProjectStatus = "draft" | "active" | "closed";
 export type Uom = "hours" | "days" | "ea";
 
-// Single source of truth for value -> display label — raw enum values are never
+// Single source of truth for value -> display label: raw enum values are never
 // shown to the user; every table/select that renders one of these must go
 // through this map (then t()).
 export const PROJECT_TYPE_LABELS: Record<ProjectType, string> = {

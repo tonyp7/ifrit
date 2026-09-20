@@ -34,7 +34,7 @@ import { ServiceLineFormDialog } from "@/components/projects/ServiceLineFormDial
 import { formatMoney, formatQuantity } from "@/lib/format";
 import { type ServiceLine, type ServiceLineConsultant, UOM_LABELS } from "@/types/project";
 
-// ServiceLine's users are ServiceLineConsultant objects — map to bare ids for the
+// ServiceLine's users are ServiceLineConsultant objects: map to bare ids for the
 // form's user_ids field rather than spreading the entity.
 function serviceLineToFormValues(line: ServiceLine) {
   return {
@@ -53,11 +53,11 @@ interface ServiceLinesTableProps {
   onChanged: () => void;
   /**
    * Validates + saves the parent Project form if it isn't saved yet, returning its
-   * id (or the existing id if already saved). Returns null if validation fails —
+   * id (or the existing id if already saved). Returns null if validation fails:
    * the form itself will already be showing the error.
    */
   ensureSaved: () => Promise<string | null>;
-  /** true when the parent Project is `closed` — fully read-only, no add/edit/delete. */
+  /** true when the parent Project is `closed`: fully read-only, no add/edit/delete. */
   readOnly: boolean;
   /** The project's invoicing currency's decimal precision, for display formatting
    * (e.g. 2 for USD, 0 for JPY). */

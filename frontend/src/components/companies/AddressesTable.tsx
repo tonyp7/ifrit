@@ -39,14 +39,14 @@ interface AddressesTableProps {
   onChanged: () => void;
   /**
    * Validates + saves the parent Company form if it isn't saved yet, returning its
-   * id (or the existing id if already saved). Returns null if validation fails —
+   * id (or the existing id if already saved). Returns null if validation fails:
    * the form itself will already be showing the error.
    */
   ensureSaved: () => Promise<string | null>;
 }
 
 // Address's nullable fields (line2/line3/postal_zone/country_subdivision) don't line
-// up with the form's string-or-undefined fields — map explicitly rather than
+// up with the form's string-or-undefined fields: map explicitly rather than
 // spreading the entity.
 function toFormValues(address: Address) {
   return {

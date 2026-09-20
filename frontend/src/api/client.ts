@@ -12,18 +12,18 @@ export class ApiError extends Error {
 }
 
 // Endpoints exempt from the 401 -> refresh-and-retry interceptor below:
-// - /auth/refresh's own 401 is the "give up" signal the interceptor produces —
+// - /auth/refresh's own 401 is the "give up" signal the interceptor produces,
 //   routing it back through the same logic would recurse forever.
 // - /auth/login's 401 (wrong credentials) is a normal, expected outcome of that
 //   specific call, not a session-expiry signal (the backend deliberately returns
 //   a generic error so a failed login never reveals whether an email is
-//   registered) — LoginPage handles it inline.
+//   registered), LoginPage handles it inline.
 // - /auth/logout has no reason to try to refresh-and-retry itself.
 const AUTH_EXEMPT_PATHS = ["/auth/refresh", "/auth/login", "/auth/logout"];
 
 // /auth/me is the one path that should still attempt a silent refresh (that's what
 // makes "remain active across reloads" actually work) but must NOT notify
-// sessionExpired if that refresh fails — AuthProvider's own mount-time catch
+// sessionExpired if that refresh fails: AuthProvider's own mount-time catch
 // already handles that outcome correctly (setUser(null), which ProtectedRoute
 // already turns into a redirect), so notifying too would just be a redundant
 // second redirect attempt.
@@ -78,7 +78,7 @@ async function request<T>(path: string, init?: RequestInit, isRetry = false): Pr
   });
 
   if (!response.ok) {
-    // Central 401 handling — a 401 means "you are not logged in," never a normal
+    // Central 401 handling: a 401 means "you are not logged in," never a normal
     // page-specific error, so this is handled once here instead of by each of the
     // app's screens independently.
     if (response.status === 401 && !isRetry && !AUTH_EXEMPT_PATHS.includes(path)) {
@@ -101,7 +101,7 @@ async function request<T>(path: string, init?: RequestInit, isRetry = false): Pr
   return (await response.json()) as T;
 }
 
-// filename is parsed from Content-Disposition here (built server-side — see
+// filename is parsed from Content-Disposition here (built server-side: see
 // reporting.md's export API contract) rather than recomputed by the caller.
 function parseFilename(disposition: string | null): string | null {
   if (!disposition) return null;
@@ -136,7 +136,7 @@ async function requestBlob(
 export const apiClient = {
   get: <T>(path: string) => request<T>(path, { method: "GET" }),
   // For endpoints that return a file rather than JSON (e.g. Reporting's export)
-  // — same auth/401-refresh handling as `get`, but reads the response as a Blob
+  // same auth/401-refresh handling as `get`, but reads the response as a Blob
   // and surfaces the server-built filename instead of parsing a JSON body.
   getBlob: (path: string) => requestBlob(path),
   post: <T>(path: string, body?: unknown) =>

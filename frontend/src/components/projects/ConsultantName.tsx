@@ -9,7 +9,7 @@ interface ConsultantNameProps {
 
 /**
  * A consultant's name. A since-deleted user (still on the service line as history) is
- * shown in red with a "no longer exists" tooltip — they can only be removed, never
+ * shown in red with a "no longer exists" tooltip: they can only be removed, never
  * saved back onto a line.
  */
 export function ConsultantName({ consultant }: ConsultantNameProps) {

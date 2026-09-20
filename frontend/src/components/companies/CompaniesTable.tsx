@@ -55,12 +55,12 @@ export function CompaniesTable() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [refreshToken, setRefreshToken] = useState(0);
   // Sorting is server-side (see the `manualSorting: true` below and
-  // components/data-table/sorting.ts) — this table is also server-paginated, so a
+  // components/data-table/sorting.ts): this table is also server-paginated, so a
   // client-side-only sort would only ever reorder whatever page is already in
   // memory, not the whole dataset.
   const [sorting, setSorting] = useState<SortingState>([]);
 
-  // Debounce the search input before it drives the actual (server-side) filter —
+  // Debounce the search input before it drives the actual (server-side) filter:
   // kept manual/server-driven rather than tanstack's client-side row filtering,
   // since results are paginated server-side.
   useEffect(() => {
@@ -71,7 +71,7 @@ export function CompaniesTable() {
     return () => clearTimeout(handle);
   }, [searchInput]);
 
-  // A changed sort target/direction changes what "page 1" even means — same
+  // A changed sort target/direction changes what "page 1" even means: same
   // reasoning as the search-resets-page-to-1 effect above.
   useEffect(() => {
     setPage(1);
@@ -181,12 +181,12 @@ export function CompaniesTable() {
     features,
     data: items,
     columns,
-    // No columnFilteringFeature registered — search is entirely custom (a debounced
+    // No columnFilteringFeature registered: search is entirely custom (a debounced
     // server-side query, not TanStack's own filter row-model), so there's no
     // `manualFiltering` flag to set: that option only exists as part of
     // columnFilteringFeature, which this app never uses.
     manualPagination: true,
-    // `data` already arrives sorted from the server (see the fetch effect above) —
+    // `data` already arrives sorted from the server (see the fetch effect above):
     // no sortedRowModel slot on `features`, it would only ever reorder this one
     // page in memory.
     manualSorting: true,

@@ -32,7 +32,7 @@ const ID_TYPE_VALUES = Object.keys(ID_TYPE_LABELS) as [IdentifierType, ...Identi
 
 const SCHEME_REQUIRED: IdentifierType[] = ["legal_registration", "peppol_participant"];
 
-// Shape-only, used purely for type inference — the validated instance (with
+// Shape-only, used purely for type inference: the validated instance (with
 // translated messages) is built inside the component via useMemo below, since
 // message strings need t(), which isn't available at module scope.
 const _shapeSchema = z.object({

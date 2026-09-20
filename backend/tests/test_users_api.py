@@ -649,7 +649,7 @@ async def test_list_users_paginated_response_shape(client, db_session) -> None:
 
 
 async def test_list_users_sort_composes_with_pagination(client, db_session) -> None:
-    # Sorting must happen server-side, before pagination splits rows into pages —
+    # Sorting must happen server-side, before pagination splits rows into pages:
     # a client-side-only sort only reorders whatever page is already in memory,
     # which silently breaks once there's more than one page.
     await _login_admin(client, db_session)
@@ -693,7 +693,7 @@ async def test_list_users_unknown_sort_by_falls_back_to_default(client, db_sessi
     response = await client.get("/api/users", params={"sort_by": "not_a_real_column"})
     assert response.status_code == 200
     names = [item["full_name"] for item in response.json()["items"]]
-    # Default order is full_name ascending — the seeded admin ("Jane Doe" via the
+    # Default order is full_name ascending: the seeded admin ("Jane Doe" via the
     # create_user factory default, or whatever _login_admin's own account is named)
     # sorts wherever it falls alphabetically; just check Amy comes before Zoe.
     assert names.index("Amy") < names.index("Zoe")

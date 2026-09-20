@@ -11,7 +11,7 @@ async def ensure_role(db_session: AsyncSession, name: str) -> Role:
     """Get-or-create a Role row. The test DB is set up via Base.metadata.create_all
     (see tests/conftest.py), not `alembic upgrade head`, so migration 0001's seeded
     administrator/project_admin/project_manager/consultant rows never exist unless a
-    test puts them there itself — this is that."""
+    test puts them there itself: this is that."""
     role = (
         await db_session.execute(select(Role).where(Role.name == name))
     ).scalar_one_or_none()

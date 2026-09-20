@@ -54,14 +54,14 @@ class User(Base):
     # user keeps their name_id so history stays accurate, and a new user may reuse it.
     # Every lookup by name_id must therefore filter `is_active`.
     name_id: Mapped[str] = mapped_column(String(255), nullable=False)
-    # Null for SSO users — an is_sso account has no local password and cannot log in
+    # Null for SSO users: an is_sso account has no local password and cannot log in
     # via email/password.
     hashed_password: Mapped[str | None] = mapped_column(String(255), nullable=True)
     is_sso: Mapped[bool] = mapped_column(default=False)
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     is_active: Mapped[bool] = mapped_column(default=True)
     # Set from the profile menu, persisted so it follows the user across devices/sessions
-    # rather than living in browser storage. Plain column, not a lookup table — a
+    # rather than living in browser storage. Plain column, not a lookup table: a
     # single-valued attribute fully dependent on the user's key, already in BCNF.
     theme_preference: Mapped[ThemePreference] = mapped_column(
         String(10), default="system", server_default="system"

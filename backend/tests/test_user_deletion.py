@@ -47,7 +47,7 @@ async def _project_with_pm(client, db_session, *, status: str = "draft"):
         },
     )
     assert response.status_code == 201
-    # Re-fetched with roles eagerly loaded — the service functions read `user.roles`,
+    # Re-fetched with roles eagerly loaded: the service functions read `user.roles`,
     # which would otherwise lazy-load outside an async-safe context.
     pm = await user_service.get_user_by_id(db_session, pm.id)
     admin = await user_service.get_user_by_id(db_session, admin.id)
@@ -103,7 +103,7 @@ async def test_trigger_clears_project_managers_when_is_active_flips(
 ) -> None:
     project_id, pm, _admin = await _project_with_pm(client, db_session)
 
-    # Bypasses the service layer entirely — the DB itself must keep the invariant.
+    # Bypasses the service layer entirely: the DB itself must keep the invariant.
     await db_session.execute(
         text("UPDATE users SET is_active = false WHERE id = :id"), {"id": pm.id}
     )

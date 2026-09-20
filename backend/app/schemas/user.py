@@ -13,7 +13,7 @@ def _check_password_value(password: str) -> None:
     if not password.isprintable():
         # str.isprintable() rejects Unicode control/format/separator characters
         # while still treating the ASCII space as printable (Python's own carve-out)
-        # — exactly this policy's "all printable characters, including spaces and
+        # exactly this policy's "all printable characters, including spaces and
         # Unicode/emoji" rule.
         raise ValueError("Password must only contain printable characters")
 
@@ -69,8 +69,8 @@ class UserUpdate(BaseModel):
     is_sso: bool
     roles: list[str] = Field(min_length=1)
     # Whether a password is required/allowed here depends on the transition
-    # relative to the user's CURRENT is_sso — not derivable from this payload alone
-    # (e.g. staying local doesn't require one; switching SSO -> local does) — see
+    # relative to the user's CURRENT is_sso, not derivable from this payload alone
+    # (e.g. staying local doesn't require one; switching SSO -> local does), see
     # update_user in app/services/user_service.py, which enforces this with the
     # prior state in hand, not this schema.
     password: str | None = Field(

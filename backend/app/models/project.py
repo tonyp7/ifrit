@@ -46,7 +46,7 @@ service_line_consultants = Table(
 # Users (holding the project_manager role) assigned to review/lock a project's
 # timesheets. Only reflects current assignment, not history. Named
 # `project_manager_assignments`, distinct from `Project.project_managers` below (the
-# relationship attribute) — same distinct-names precaution as
+# relationship attribute): same distinct-names precaution as
 # `service_line_consultants`/`ServiceLine.users` above, since `secondary=project_managers`
 # would otherwise shadow this Table with the class attribute being defined on the same line.
 project_manager_assignments = Table(
@@ -74,7 +74,7 @@ class Project(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    # Must reference an active company with is_vendor = true — a business rule on
+    # Must reference an active company with is_vendor = true: a business rule on
     # Company, not enforceable via a plain FK, so this is checked at the app level on
     # write. Nullable only because duplicating a project whose company was since
     # soft-deleted clears the link (the user must pick a valid one before saving); the
@@ -83,7 +83,7 @@ class Project(Base):
         UUID(as_uuid=True), ForeignKey("companies.id"), nullable=True
     )
     # Any active company, is_vendor or not. Can be the same company as vendor_company_id
-    # (inter-company/self-billing) — intentional. Nullable for the same reason as above.
+    # (inter-company/self-billing): intentional. Nullable for the same reason as above.
     client_company_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("companies.id"), nullable=True
     )
@@ -146,15 +146,15 @@ class ServiceLine(Base):
         ForeignKey("projects.id", ondelete="CASCADE"),
         nullable=False,
     )
-    # Free text, no uniqueness constraint, may be empty — exists purely so a consultant
+    # Free text, no uniqueness constraint, may be empty: exists purely so a consultant
     # assigned to more than one service line on the same project can tell them apart
     # when picking which one to log time against; not used in billing or calculations.
     name: Mapped[str | None] = mapped_column(String(255), nullable=True)
-    # Does not depend on uom — always the same decimal shape regardless of whether it's
+    # Does not depend on uom: always the same decimal shape regardless of whether it's
     # counting hours, days, or a fixed quantity.
     quantity: Mapped[Decimal] = mapped_column(Numeric(12, 5), nullable=False)
     uom: Mapped[Uom] = mapped_column(String(10), nullable=False)
-    # Denominated in the parent project's invoicing_currency — no separate per-line
+    # Denominated in the parent project's invoicing_currency: no separate per-line
     # currency field. Numeric(14, 4): more decimal places than any real-world minor
     # unit needs, headroom for currencies like BHD (3 decimals) without rounding loss.
     unit_price: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False)

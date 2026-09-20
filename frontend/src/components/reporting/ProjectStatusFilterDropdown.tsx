@@ -10,7 +10,7 @@ interface ProjectStatusFilterDropdownProps {
 
 // Thin wrapper around ReportFilterDropdown: same visual family as the other three
 // filters, but a fixed 3-value list (draft/active/closed, per project.md's Status
-// enum) with no search bar — a search input over 3 items is pointless UI (see
+// enum) with no search bar: a search input over 3 items is pointless UI (see
 // reporting.md).
 export function ProjectStatusFilterDropdown({
   selected,

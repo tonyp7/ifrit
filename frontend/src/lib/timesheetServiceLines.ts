@@ -1,6 +1,6 @@
 import type { ServiceLineRow } from "@/types/timesheet";
 
-// Ascending by project name, then service line name — a stable, identity-based
+// Ascending by project name, then service line name: a stable, identity-based
 // order applied to the whole `serviceLines` union regardless of how each line
 // entered it (manually added vs. discovered via time_entries history) or which
 // period's date window was last fetched. This replaces fetch-order (which

@@ -1,4 +1,4 @@
-"""Reporting screen's export — GET /time-entries/report/export. Three formats: pdf,
+"""Reporting screen's export: GET /time-entries/report/export. Three formats: pdf,
 xlsx, csv."""
 
 import io
@@ -39,7 +39,7 @@ def slugify(text: str) -> str:
 
 
 def _period_label_and_slug_source(period_type: str, start_date: date) -> tuple[str, str]:
-    """Returns (display label, the raw string to slugify for the filename) — the
+    """Returns (display label, the raw string to slugify for the filename): the
     same value for a month ("August 2026"), but a week's filename/title need the
     ISO year leading ("2026 Week 36") since "Week 36" alone is meaningless once
     it's a standalone document with no surrounding app context to supply the
@@ -65,7 +65,7 @@ async def _build_export_filename(
     parts = [slugify(slug_source)]
 
     # "Single Project selected" means the filter itself, not the query's actual
-    # result rows — but still checked against the caller's own scope, so a
+    # result rows, but still checked against the caller's own scope, so a
     # tampered/out-of-scope id can't leak a project name into the filename.
     if project_ids and len(project_ids) == 1:
         pm_project_ids = await _pm_project_ids(db, project_manager.id)
@@ -82,9 +82,9 @@ async def _build_export_filename(
     return f"{'_'.join(parts)}.{extension}"
 
 
-# fonts-liberation installs to a different parent directory depending on distro —
+# fonts-liberation installs to a different parent directory depending on distro,
 # Debian/Ubuntu (this app's actual container) vs. Arch and others (local dev
-# machines) — check both rather than hardcoding one.
+# machines), check both rather than hardcoding one.
 _LIBERATION_SANS_DIRS = [
     "/usr/share/fonts/truetype/liberation",
     "/usr/share/fonts/liberation",
@@ -97,22 +97,22 @@ def _liberation_font_path(filename: str) -> str:
         if os.path.exists(candidate):
             return candidate
     raise RuntimeError(
-        f"Liberation Sans font file {filename!r} not found in any of {_LIBERATION_SANS_DIRS} "
-        "— install the fonts-liberation (Debian/Ubuntu) or ttf-liberation (Arch) package."
+        f"Liberation Sans font file {filename!r} not found in any of {_LIBERATION_SANS_DIRS}"
+        ": install the fonts-liberation (Debian/Ubuntu) or ttf-liberation (Arch) package."
     )
 
 
-# "#446" (CSS 3-digit shorthand, each hex digit doubled) -> #444466 — used for
+# "#446" (CSS 3-digit shorthand, each hex digit doubled) -> #444466, used for
 # borders and the subtitle text only now (revised: no longer used as a cell fill
-# — see _WEEKEND_FILL below).
+# see _WEEKEND_FILL below).
 _ACCENT_COLOR = (0x44, 0x44, 0x66)
-_HEADER_FILL = (0xF0, 0xFF, 0xFF)  # Azure — header row and the bottom Total row
+_HEADER_FILL = (0xF0, 0xFF, 0xFF)  # Azure: header row and the bottom Total row
 _ROW_FILL_EVEN = (0xFF, 0xFF, 0xFF)  # white
 _ROW_FILL_ODD = (0xF8, 0xF8, 0xFF)  # GhostWhite
-_WEEKEND_FILL = (0xDC, 0xDC, 0xDC)  # Gainsboro — Saturday/Sunday override, data rows only
+_WEEKEND_FILL = (0xDC, 0xDC, 0xDC)  # Gainsboro: Saturday/Sunday override, data rows only
 _BLACK_TEXT = (0x00, 0x00, 0x00)
 _PAGE_BACKGROUND = (0xFF, 0xFF, 0xFF)
-_TABLE_CORNER_RADIUS = 1.5  # mm — small enough to stay inside a cell's own padding
+_TABLE_CORNER_RADIUS = 1.5  # mm: small enough to stay inside a cell's own padding
 
 _WEEKDAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"]  # Monday-first, per this app's ISO-8601 rule
 _WEEKEND_INDICES = {5, 6}  # Saturday, Sunday, per _WEEKDAY_LETTERS' Monday-first ordering
@@ -141,7 +141,7 @@ def _build_pdf(rows: list[TimesheetReportRowOut], days: list[date], period_label
     label_w = 45.0
     total_w = 14.0
     usable_w = pdf.w - pdf.l_margin - pdf.r_margin
-    # Split evenly across however many days this period actually has — a Week
+    # Split evenly across however many days this period actually has: a Week
     # export gets roomy columns, only a 31-day month hits the tightest (~7.2mm)
     # case the font size below was chosen for.
     day_w = (usable_w - label_w - total_w) / len(days)
@@ -149,11 +149,11 @@ def _build_pdf(rows: list[TimesheetReportRowOut], days: list[date], period_label
 
     # fpdf2's table() defaults line_height to 2x the font size, which produced a
     # very wide gap between a day header's weekday letter and day number, and
-    # between the label column's three stacked lines — set explicitly, from the
+    # between the label column's three stacked lines: set explicitly, from the
     # larger of the two font sizes in play (8pt), for single-line spacing on both.
     line_height = 8 * 1.1 / pdf.k
     # Half a line of top/bottom breathing room per cell, so rows don't look
-    # cramped against their own borders — left/right stay flush, only requested
+    # cramped against their own borders: left/right stay flush, only requested
     # for top/bottom.
     cell_padding = Padding(top=line_height / 2, right=0, bottom=line_height / 2, left=0)
 
@@ -206,7 +206,7 @@ def _build_pdf(rows: list[TimesheetReportRowOut], days: list[date], period_label
             for day in days:
                 hours = entries.get(day)
                 # Saturday/Sunday always override the row's own banding, on data
-                # rows only — never the header/Total rows, which keep their Azure
+                # rows only: never the header/Total rows, which keep their Azure
                 # fill regardless of which weekday a column falls on. Gainsboro is
                 # light enough that text stays plain black, unlike the earlier
                 # dark #446 version this replaced.
@@ -226,12 +226,12 @@ def _build_pdf(rows: list[TimesheetReportRowOut], days: list[date], period_label
                     grand_total += hours
             # Unlike a mid-grid cell (blank when there's nothing logged, matching
             # the live grid), the Total column always shows a value, "0h"
-            # included — same `formatHours(x) || "0"` convention the live grid's
+            # included: same `formatHours(x) || "0"` convention the live grid's
             # own total cells already use.
             data_row.cell(f"{_format_hours(period_total) or '0'}h", style=font(7, fill=row_fill))
 
         # Bottom Total row: per-day sums across every row shown, plus a grand
-        # total — same as the live grid's own bottom row. Same LightSteelBlue
+        # total: same as the live grid's own bottom row. Same LightSteelBlue
         # fill as the header, on every column, weekend columns included.
         total_row = table.row()
         total_row.cell("Total", style=font(7, bold=True, fill=_HEADER_FILL), align="LEFT")
@@ -250,7 +250,7 @@ def _build_pdf(rows: list[TimesheetReportRowOut], days: list[date], period_label
     # ALL-bordered rectangle on every page (always correct, including across a
     # page break). On top of that, when the whole table fits on one page, paint
     # small white squares over its 4 corner intersections (erasing the square
-    # artifact) and stroke a rounded rectangle over the same bounding box — the
+    # artifact) and stroke a rounded rectangle over the same bounding box: the
     # straight edges land exactly on the grid's own already-correct border, only
     # the corners actually change appearance. Skipped for a table spanning
     # multiple pages: there's no single closed rectangle to round in that case
@@ -269,24 +269,24 @@ def _build_pdf(rows: list[TimesheetReportRowOut], days: list[date], period_label
 
 def _round_table_corners(pdf: FPDF, *, x: float, y: float, w: float, h: float) -> None:
     r = _TABLE_CORNER_RADIUS
-    # Each corner's "sliver" — the bit of the old square corner that falls
-    # outside the rounded curve — is traced as its own single closed vector
+    # Each corner's "sliver", the bit of the old square corner that falls
+    # outside the rounded curve, is traced as its own single closed vector
     # path (corner point -> tangent point -> the real rounding arc, same
     # radius `r` the visible stroke below uses -> other tangent point ->
     # close) and filled with the page background. This only ever touches
-    # that sliver, never the curve's interior — important because the
+    # that sliver, never the curve's interior, important because the
     # interior can hold cell text close enough to the corner to matter (e.g.
     # the bottom row's "Total" label, right at the bottom-left corner): any
     # flat-color mask shaped as a plain square or circle instead of this
     # exact sliver either leaves the old square corner poking out past the
-    # curve, or paints over content — fill or text — that the rounded corner
+    # curve, or paints over content, fill or text, that the rounded corner
     # should never have touched. The straight legs extend a touch past the
     # table's nominal box (into the page margin, harmless) so the mask also
     # swallows the table border's own stroke-width bleed past (x, y, w, h)
-    # — fpdf2 centers stroke width on the path.
+    # fpdf2 centers stroke width on the path.
     pad = 0.15
     background = DeviceRGB(*(c / 255 for c in _PAGE_BACKGROUND))
-    # (corner point, inward-x sign, inward-y sign) — the sign pair points
+    # (corner point, inward-x sign, inward-y sign): the sign pair points
     # from the corner into the table, and the sliver's two straight legs and
     # arc are all derived from it.
     corners = (
@@ -300,7 +300,7 @@ def _round_table_corners(pdf: FPDF, *, x: float, y: float, w: float, h: float) -
         tangent1 = (px + dx * r, py)
         tangent2 = (px, py + dy * r)
         # The arc's sweep direction has to flip between diagonally-opposite
-        # corner pairs (top-left/bottom-right vs. top-right/bottom-left) —
+        # corner pairs (top-left/bottom-right vs. top-right/bottom-left):
         # mirroring the corner mirrors which of the two same-radius arcs
         # between the tangent points bulges toward the true corner, which is
         # the one that traces the actual sliver instead of a small stray
@@ -332,7 +332,7 @@ def _format_hours(value: Decimal) -> str:
         return ""
     normalized = value.normalize()
     # Decimal.normalize() can produce exponential notation for a whole number
-    # (e.g. Decimal("8.00").normalize() == Decimal("8E+0")) — str() on that isn't
+    # (e.g. Decimal("8.00").normalize() == Decimal("8E+0")): str() on that isn't
     # the plain "8" this needs, so go through a float for display formatting only.
     return f"{float(normalized):g}"
 
@@ -350,7 +350,7 @@ _DETAILS_COLUMNS = ["Project Name", "Service Line", "Consultant", "Date", "Hours
 
 
 def _build_details_dataframe(rows: list[TimesheetReportRowOut]) -> pd.DataFrame:
-    """Flattens each row's `entries` sub-array — a row with no entries in the
+    """Flattens each row's `entries` sub-array: a row with no entries in the
     requested period contributes nothing (see reporting.md's Details section)."""
     records = [
         {
@@ -368,16 +368,16 @@ def _build_details_dataframe(rows: list[TimesheetReportRowOut]) -> pd.DataFrame:
 
 def _build_csv(rows: list[TimesheetReportRowOut]) -> bytes:
     details_df = _build_details_dataframe(rows)
-    # Plain UTF-8, no BOM — matches this app's other text responses rather than
+    # Plain UTF-8, no BOM: matches this app's other text responses rather than
     # special-casing this one download (see reporting.md's CSV Export section).
     return details_df.to_csv(index=False, float_format="%.1f").encode("utf-8")
 
 
 _REPORT_LABEL_COLUMNS = ["Project", "Service Line", "Consultant"]
-_XLSX_HEADER_FILL = "F0FFFF"  # Azure — header row and the bottom Total row
+_XLSX_HEADER_FILL = "F0FFFF"  # Azure: header row and the bottom Total row
 _XLSX_ROW_FILL_EVEN = "FFFFFF"  # white
 _XLSX_ROW_FILL_ODD = "F8F8FF"  # GhostWhite
-_XLSX_WEEKEND_FILL = "DCDCDC"  # Gainsboro — Saturday/Sunday override, data rows only
+_XLSX_WEEKEND_FILL = "DCDCDC"  # Gainsboro: Saturday/Sunday override, data rows only
 _XLSX_WEEKEND_INDICES = {5, 6}  # Saturday, Sunday
 
 
@@ -388,11 +388,11 @@ def _fill(hex_color: str) -> PatternFill:
 def _build_report_dataframe(
     rows: list[TimesheetReportRowOut], days: list[date], day_headers: list[str]
 ) -> tuple[pd.DataFrame, list[str]]:
-    """A natural Excel layout — separate Project/Service Line/Consultant columns,
+    """A natural Excel layout, separate Project/Service Line/Consultant columns,
     not the PDF's single merged 3-line label column, since Excel has no printed
     page-width constraint forcing that (see reporting.md's XLSX Export section).
     Carries over only the PDF's *color* formatting rules, applied separately by
-    _style_report_sheet — this just builds the row data, including the bottom
+    _style_report_sheet, this just builds the row data, including the bottom
     Total row."""
     columns = [*_REPORT_LABEL_COLUMNS, *day_headers, "Total"]
     entries_by_row = _entries_by_row(rows)
@@ -411,7 +411,7 @@ def _build_report_dataframe(
         for day, header in zip(days, day_headers, strict=True):
             hours = entries.get(day)
             # Blank for a gap or an explicit zero entry, same as the PDF's
-            # _format_hours convention — but still counted into the totals below.
+            # _format_hours convention, but still counted into the totals below.
             record[header] = float(hours) if hours else float("nan")
             if hours is not None:
                 period_total += hours
@@ -452,7 +452,7 @@ def _style_report_sheet(
                 _XLSX_WEEKEND_FILL if is_weekend else row_fill
             )
 
-    # One decimal place throughout the day/Total columns, data and Total rows —
+    # One decimal place throughout the day/Total columns, data and Total rows:
     # matches hours' existing 0.5-increment convention (see reporting.md).
     for excel_row in [*range(header_row + 1, total_row), total_row]:
         for col_index in range(day_column_start, len(columns) + 1):
@@ -504,8 +504,8 @@ async def build_report_export(
     statuses: list[str] | None,
 ) -> tuple[bytes, str, str]:
     """Returns (file bytes, filename, content type). Always re-queries the
-    database fresh via list_time_entries_report — never a client-supplied
-    payload of already-rendered rows — so an unblurred, not-yet-saved cell edit
+    database fresh via list_time_entries_report, never a client-supplied
+    payload of already-rendered rows, so an unblurred, not-yet-saved cell edit
     in the browser can never appear in an export."""
     rows = await list_time_entries_report(
         db,
