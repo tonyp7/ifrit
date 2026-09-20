@@ -91,15 +91,17 @@ export function TimesheetDesktopGrid({
 }: TimesheetDesktopGridProps) {
   const { t } = useTranslation(["timesheet"]);
 
-  // Month view crams up to 31 day columns into the same viewport Week view only
-  // needs 7 for — at Week view's widths that overflows a maximized 1080p window
-  // by ~500px. Shrinking column floors only for Month (Week keeps its wider,
-  // more comfortable sizing) closes that gap; overflow-x-auto below stays as a
-  // fallback for anyone on a narrower window. See the design discussion in
-  // conversation before this change for the actual pixel math.
+  // Month view crams up to 31 day columns into the same viewport Week view only needs
+  // 7 for. Budget at a 1920px-wide window: 1830px available (56 nav rail, 32 padding,
+  // 2 border) vs 208 (first) + 64 (Total) + 31 x 48 (day floor) = 1760 — so it fits
+  // without scrolling. The first column MUST be capped (`max-w-*`): its `truncate`
+  // lines do nothing in an auto-layout table cell otherwise, and the column grew to
+  // fit the longest project/service line/consultant text (e.g. 356px on Reporting,
+  // overflowing by 80px). overflow-x-auto below stays as a fallback for narrower
+  // windows. Full text of a truncated name is on hover (`title`).
   const isMonth = periodType === "month";
   const dayColWidth = isMonth ? "min-w-12" : "min-w-16";
-  const firstColWidth = isMonth ? "min-w-48" : "min-w-56";
+  const firstColWidth = isMonth ? "w-52 min-w-52 max-w-52" : "w-60 min-w-60 max-w-60";
   const lastColWidth = isMonth ? "min-w-16" : "min-w-20";
 
   return (
@@ -160,15 +162,23 @@ export function TimesheetDesktopGrid({
                 >
                   <div className="flex items-center gap-2">
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{line.project_name}</p>
-                      <p className="truncate text-xs text-muted-foreground">
+                      <p className="truncate font-medium" title={line.project_name}>
+                        {line.project_name}
+                      </p>
+                      <p
+                        className="truncate text-xs text-muted-foreground"
+                        title={line.service_line_name ?? t("(unnamed service line)")}
+                      >
                         {line.service_line_name ?? t("(unnamed service line)")}
                       </p>
                       {/* Reporting only — a row here can belong to any consultant,
                           not just one implicit owner, so the label needs a third
                           line to disambiguate. */}
                       {line.consultant_name && (
-                        <p className="truncate text-xs text-muted-foreground">
+                        <p
+                          className="truncate text-xs text-muted-foreground"
+                          title={line.consultant_name}
+                        >
                           {line.consultant_name}
                         </p>
                       )}
