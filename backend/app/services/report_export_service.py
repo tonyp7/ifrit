@@ -1,17 +1,22 @@
-"""Reporting screen's export — GET /time-entries/report/export. PDF only for now;
-xlsx/csv raise UnsupportedExportFormatError until their own specs are written."""
+"""Reporting screen's export — GET /time-entries/report/export. Three formats: pdf,
+xlsx, csv."""
 
+import io
 import os
 import re
 import uuid
 from datetime import date, timedelta
 from decimal import Decimal
 
+import pandas as pd
 from fpdf import FPDF
 from fpdf.drawing_primitives import DeviceRGB
 from fpdf.enums import TableBordersLayout
 from fpdf.fonts import FontFace
 from fpdf.util import Padding
+from openpyxl.styles import PatternFill
+from openpyxl.utils import get_column_letter
+from openpyxl.worksheet.worksheet import Worksheet
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.project import Project
@@ -19,17 +24,11 @@ from app.models.user import User
 from app.schemas.time_entry import TimesheetReportRowOut
 from app.services.time_entry_service import _pm_project_ids, list_time_entries_report
 
-SUPPORTED_FORMATS = {"pdf": "application/pdf"}
-# Standard MIME types, decided even though the content behind them isn't written yet.
-PLANNED_FORMATS = {
+SUPPORTED_FORMATS = {
+    "pdf": "application/pdf",
     "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "csv": "text/csv",
 }
-
-
-class UnsupportedExportFormatError(Exception):
-    """`format` is a real, planned export (xlsx/csv) or an unrecognized value —
-    either way, this endpoint has nothing to generate for it yet."""
 
 
 def slugify(text: str) -> str:
@@ -166,11 +165,7 @@ def _build_pdf(rows: list[TimesheetReportRowOut], days: list[date], period_label
             fill_color=fill,
         )
 
-    entries_by_row: dict[tuple[uuid.UUID, uuid.UUID], dict[date, Decimal]] = {}
-    for row in rows:
-        entries_by_row[(row.user_id, row.service_line_id)] = {
-            entry.date: entry.hours for entry in row.entries
-        }
+    entries_by_row = _entries_by_row(rows)
 
     table_start_page = pdf.page_no()
     table_start_y = pdf.get_y()
@@ -342,6 +337,159 @@ def _format_hours(value: Decimal) -> str:
     return f"{float(normalized):g}"
 
 
+def _entries_by_row(
+    rows: list[TimesheetReportRowOut],
+) -> dict[tuple[uuid.UUID, uuid.UUID], dict[date, Decimal]]:
+    return {
+        (row.user_id, row.service_line_id): {entry.date: entry.hours for entry in row.entries}
+        for row in rows
+    }
+
+
+_DETAILS_COLUMNS = ["Project Name", "Service Line", "Consultant", "Date", "Hours"]
+
+
+def _build_details_dataframe(rows: list[TimesheetReportRowOut]) -> pd.DataFrame:
+    """Flattens each row's `entries` sub-array — a row with no entries in the
+    requested period contributes nothing (see reporting.md's Details section)."""
+    records = [
+        {
+            "Project Name": row.project_name,
+            "Service Line": row.service_line_name or "",
+            "Consultant": row.full_name,
+            "Date": entry.date,
+            "Hours": float(entry.hours),
+        }
+        for row in rows
+        for entry in row.entries
+    ]
+    return pd.DataFrame.from_records(records, columns=_DETAILS_COLUMNS)
+
+
+def _build_csv(rows: list[TimesheetReportRowOut]) -> bytes:
+    details_df = _build_details_dataframe(rows)
+    # Plain UTF-8, no BOM — matches this app's other text responses rather than
+    # special-casing this one download (see reporting.md's CSV Export section).
+    return details_df.to_csv(index=False, float_format="%.1f").encode("utf-8")
+
+
+_REPORT_LABEL_COLUMNS = ["Project", "Service Line", "Consultant"]
+_XLSX_HEADER_FILL = "F0FFFF"  # Azure — header row and the bottom Total row
+_XLSX_ROW_FILL_EVEN = "FFFFFF"  # white
+_XLSX_ROW_FILL_ODD = "F8F8FF"  # GhostWhite
+_XLSX_WEEKEND_FILL = "DCDCDC"  # Gainsboro — Saturday/Sunday override, data rows only
+_XLSX_WEEKEND_INDICES = {5, 6}  # Saturday, Sunday
+
+
+def _fill(hex_color: str) -> PatternFill:
+    return PatternFill(fill_type="solid", start_color=hex_color, end_color=hex_color)
+
+
+def _build_report_dataframe(
+    rows: list[TimesheetReportRowOut], days: list[date], day_headers: list[str]
+) -> tuple[pd.DataFrame, list[str]]:
+    """A natural Excel layout — separate Project/Service Line/Consultant columns,
+    not the PDF's single merged 3-line label column, since Excel has no printed
+    page-width constraint forcing that (see reporting.md's XLSX Export section).
+    Carries over only the PDF's *color* formatting rules, applied separately by
+    _style_report_sheet — this just builds the row data, including the bottom
+    Total row."""
+    columns = [*_REPORT_LABEL_COLUMNS, *day_headers, "Total"]
+    entries_by_row = _entries_by_row(rows)
+
+    day_totals = {day: Decimal(0) for day in days}
+    grand_total = Decimal(0)
+    records = []
+    for row in rows:
+        entries = entries_by_row.get((row.user_id, row.service_line_id), {})
+        record: dict[str, object] = {
+            "Project": row.project_name,
+            "Service Line": row.service_line_name or "",
+            "Consultant": row.full_name,
+        }
+        period_total = Decimal(0)
+        for day, header in zip(days, day_headers, strict=True):
+            hours = entries.get(day)
+            # Blank for a gap or an explicit zero entry, same as the PDF's
+            # _format_hours convention — but still counted into the totals below.
+            record[header] = float(hours) if hours else float("nan")
+            if hours is not None:
+                period_total += hours
+                day_totals[day] += hours
+                grand_total += hours
+        record["Total"] = float(period_total)
+        records.append(record)
+
+    total_record: dict[str, object] = {"Project": "Total", "Service Line": "", "Consultant": ""}
+    for day, header in zip(days, day_headers, strict=True):
+        total_record[header] = float(day_totals[day])
+    total_record["Total"] = float(grand_total)
+    records.append(total_record)
+
+    return pd.DataFrame.from_records(records, columns=columns), columns
+
+
+def _style_report_sheet(
+    ws: Worksheet, columns: list[str], num_data_rows: int, days: list[date]
+) -> None:
+    header_row = 1
+    total_row = num_data_rows + 2
+    day_column_start = len(_REPORT_LABEL_COLUMNS) + 1  # 1-indexed
+
+    for col_index in range(1, len(columns) + 1):
+        ws.cell(row=header_row, column=col_index).fill = _fill(_XLSX_HEADER_FILL)
+        ws.cell(row=total_row, column=col_index).fill = _fill(_XLSX_HEADER_FILL)
+
+    for data_offset in range(num_data_rows):
+        excel_row = header_row + 1 + data_offset
+        row_fill = _XLSX_ROW_FILL_EVEN if data_offset % 2 == 0 else _XLSX_ROW_FILL_ODD
+        for col_index in range(1, len(columns) + 1):
+            day_index = col_index - day_column_start
+            is_weekend = 0 <= day_index < len(days) and days[day_index].weekday() in (
+                _XLSX_WEEKEND_INDICES
+            )
+            ws.cell(row=excel_row, column=col_index).fill = _fill(
+                _XLSX_WEEKEND_FILL if is_weekend else row_fill
+            )
+
+    # One decimal place throughout the day/Total columns, data and Total rows —
+    # matches hours' existing 0.5-increment convention (see reporting.md).
+    for excel_row in [*range(header_row + 1, total_row), total_row]:
+        for col_index in range(day_column_start, len(columns) + 1):
+            ws.cell(row=excel_row, column=col_index).number_format = "0.0"
+
+
+def _autofit_columns(ws: Worksheet) -> None:
+    for col_index, column_cells in enumerate(ws.columns, start=1):
+        length = max(
+            (len(str(cell.value)) for cell in column_cells if cell.value is not None), default=0
+        )
+        ws.column_dimensions[get_column_letter(col_index)].width = length + 2
+
+
+def _build_xlsx(rows: list[TimesheetReportRowOut], days: list[date]) -> bytes:
+    day_headers = [day.strftime("%a %d") for day in days]
+    report_df, report_columns = _build_report_dataframe(rows, days, day_headers)
+    details_df = _build_details_dataframe(rows)
+
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        report_df.to_excel(writer, sheet_name="Report", index=False)
+        details_df.to_excel(writer, sheet_name="Details", index=False)
+
+        _style_report_sheet(writer.sheets["Report"], report_columns, len(rows), days)
+        _autofit_columns(writer.sheets["Report"])
+
+        hours_column = _DETAILS_COLUMNS.index("Hours") + 1
+        for excel_row in range(2, len(details_df) + 2):
+            writer.sheets["Details"].cell(row=excel_row, column=hours_column).number_format = (
+                "0.0"
+            )
+        _autofit_columns(writer.sheets["Details"])
+
+    return buffer.getvalue()
+
+
 async def build_report_export(
     db: AsyncSession,
     project_manager: User,
@@ -359,9 +507,6 @@ async def build_report_export(
     database fresh via list_time_entries_report — never a client-supplied
     payload of already-rendered rows — so an unblurred, not-yet-saved cell edit
     in the browser can never appear in an export."""
-    if export_format not in SUPPORTED_FORMATS:
-        raise UnsupportedExportFormatError(export_format)
-
     rows = await list_time_entries_report(
         db,
         project_manager,
@@ -380,5 +525,10 @@ async def build_report_export(
         db, project_manager, period_type, start_date, project_ids, consultant_ids, export_format
     )
 
-    file_bytes = _build_pdf(rows, days, period_label)
+    if export_format == "pdf":
+        file_bytes = _build_pdf(rows, days, period_label)
+    elif export_format == "xlsx":
+        file_bytes = _build_xlsx(rows, days)
+    else:
+        file_bytes = _build_csv(rows)
     return file_bytes, filename, SUPPORTED_FORMATS[export_format]

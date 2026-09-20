@@ -1,3 +1,8 @@
+import io
+from datetime import date
+
+import openpyxl
+
 from tests.factories import create_company, create_currency, create_user
 
 
@@ -1156,11 +1161,37 @@ async def test_export_pdf_returns_pdf_with_expected_headers(client, db_session) 
     assert response.content.startswith(b"%PDF")
 
 
-async def test_export_unsupported_format_returns_400(client, db_session) -> None:
+async def test_export_unrecognized_format_returns_422(client, db_session) -> None:
     await _login_manager_first(client, db_session)
     await _setup_project_with_consultant_and_pm(
         client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
     )
+    await _login_as(client, "pm@example.com")
+    response = await client.get(
+        "/api/time-entries/report/export",
+        params={
+            "format": "docx",
+            "period_type": "month",
+            "start_date": "2026-08-01",
+            "end_date": "2026-08-31",
+        },
+    )
+    assert response.status_code == 422
+
+
+async def test_export_xlsx_returns_workbook_with_expected_headers(client, db_session) -> None:
+    await _login_manager_first(client, db_session)
+    _project_id, service_line_id, _consultant_id, _pm_id = (
+        await _setup_project_with_consultant_and_pm(
+            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        )
+    )
+    await _login_as(client, "c@example.com")
+    await client.put(
+        "/api/time-entries",
+        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "3.5"}],
+    )
+
     await _login_as(client, "pm@example.com")
     response = await client.get(
         "/api/time-entries/report/export",
@@ -1171,7 +1202,90 @@ async def test_export_unsupported_format_returns_400(client, db_session) -> None
             "end_date": "2026-08-31",
         },
     )
-    assert response.status_code == 400
+    assert response.status_code == 200
+    assert (
+        response.headers["content-type"]
+        == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert 'attachment; filename="august-2026.xlsx"' == response.headers["content-disposition"]
+
+    workbook = openpyxl.load_workbook(io.BytesIO(response.content))
+    assert workbook.sheetnames == ["Report", "Details"]
+
+    report_ws = workbook["Report"]
+    assert [c.value for c in report_ws[1][:3]] == ["Project", "Service Line", "Consultant"]
+    assert report_ws.cell(row=1, column=1).fill.start_color.rgb == "00F0FFFF"
+
+    details_ws = workbook["Details"]
+    assert [c.value for c in details_ws[1]] == [
+        "Project Name",
+        "Service Line",
+        "Consultant",
+        "Date",
+        "Hours",
+    ]
+    assert details_ws.cell(row=2, column=1).value == "Acme Rollout"
+    assert details_ws.cell(row=2, column=3).value == "Jane Doe"
+    assert details_ws.cell(row=2, column=4).value.date() == date(2026, 8, 5)
+    assert details_ws.cell(row=2, column=5).value == 3.5
+
+
+async def test_export_csv_returns_details_rows(client, db_session) -> None:
+    await _login_manager_first(client, db_session)
+    _project_id, service_line_id, _consultant_id, _pm_id = (
+        await _setup_project_with_consultant_and_pm(
+            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        )
+    )
+    await _login_as(client, "c@example.com")
+    await client.put(
+        "/api/time-entries",
+        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "3.5"}],
+    )
+
+    await _login_as(client, "pm@example.com")
+    response = await client.get(
+        "/api/time-entries/report/export",
+        params={
+            "format": "csv",
+            "period_type": "month",
+            "start_date": "2026-08-01",
+            "end_date": "2026-08-31",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "text/csv; charset=utf-8"
+    assert response.headers["x-content-type-options"] == "nosniff"
+    assert 'attachment; filename="august-2026.csv"' == response.headers["content-disposition"]
+
+    # Plain UTF-8, no BOM.
+    assert not response.content.startswith(b"\xef\xbb\xbf")
+    lines = response.content.decode("utf-8").splitlines()
+    assert lines[0] == "Project Name,Service Line,Consultant,Date,Hours"
+    assert lines[1] == "Acme Rollout,Discovery,Jane Doe,2026-08-05,3.5"
+
+
+async def test_export_details_omits_rows_with_no_entries_in_period(client, db_session) -> None:
+    await _login_manager_first(client, db_session)
+    await _setup_project_with_consultant_and_pm(
+        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+    )
+    # No time entries logged at all — the row still exists for Report (current
+    # assignment), but Details has nothing to flatten.
+    await _login_as(client, "pm@example.com")
+    response = await client.get(
+        "/api/time-entries/report/export",
+        params={
+            "format": "csv",
+            "period_type": "month",
+            "start_date": "2026-08-01",
+            "end_date": "2026-08-31",
+        },
+    )
+    assert response.status_code == 200
+    lines = response.content.decode("utf-8").splitlines()
+    assert lines == ["Project Name,Service Line,Consultant,Date,Hours"]
 
 
 async def test_export_filename_single_project_and_consultant(client, db_session) -> None:

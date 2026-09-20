@@ -19,7 +19,6 @@ from app.schemas.time_entry import (
     TimesheetReportResponse,
 )
 from app.services import report_export_service, time_entry_service
-from app.services.report_export_service import UnsupportedExportFormatError
 from app.services.time_entry_service import NotAuthorizedError
 
 router = APIRouter(
@@ -137,24 +136,18 @@ async def export_time_entries_report(
     showing. Always re-queries fresh server-side; never a client-supplied payload
     of already-rendered rows, so an unblurred, not-yet-saved cell edit can never
     appear in an export."""
-    try:
-        file_bytes, filename, content_type = await report_export_service.build_report_export(
-            db,
-            user,
-            export_format=format,
-            period_type=period_type,
-            start_date=start_date,
-            end_date=end_date,
-            project_ids=project_ids,
-            service_line_ids=service_line_ids,
-            consultant_ids=consultant_ids,
-            statuses=statuses,
-        )
-    except UnsupportedExportFormatError as err:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Export format {str(err)!r} is not yet supported",
-        ) from err
+    file_bytes, filename, content_type = await report_export_service.build_report_export(
+        db,
+        user,
+        export_format=format,
+        period_type=period_type,
+        start_date=start_date,
+        end_date=end_date,
+        project_ids=project_ids,
+        service_line_ids=service_line_ids,
+        consultant_ids=consultant_ids,
+        statuses=statuses,
+    )
 
     return Response(
         content=file_bytes,

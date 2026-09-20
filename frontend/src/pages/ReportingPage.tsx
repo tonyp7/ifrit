@@ -135,13 +135,10 @@ export function ReportingPage() {
     null,
   );
 
-  // Excel and CSV have no action behind them yet — their own content/format
-  // isn't specified (see reporting.md's Open Questions) — only PDF actually
-  // does anything. Always re-queries fresh server-side with the exact same
-  // filters this screen is currently showing, so the export can never diverge
-  // from the on-screen view.
+  // Always re-queries fresh server-side with the exact same filters this
+  // screen is currently showing, so the export can never diverge from the
+  // on-screen view.
   async function handleExport(format: TimesheetReportExportFormat) {
-    if (format !== "pdf") return;
     setExportingFormat(format);
     try {
       const { blob, filename } = await exportTimesheetReport(format, {
