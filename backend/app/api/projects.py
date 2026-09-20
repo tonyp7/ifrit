@@ -116,7 +116,11 @@ async def update_project(
     project_id: uuid.UUID, payload: ProjectWrite, db: AsyncSession = Depends(get_db)
 ) -> ProjectDetail:
     project = await _get_project_or_404(db, project_id)
-    await _validate_references_or_422(db, payload)
+    # A closed project only accepts a status change (update_project rejects anything
+    # else), so its references can't change here — skipping validation lets it be
+    # reopened even if its company was soft-deleted since.
+    if project.status != "closed":
+        await _validate_references_or_422(db, payload)
     try:
         project = await project_service.update_project(db, project, payload)
     except ProjectReadOnlyError as err:

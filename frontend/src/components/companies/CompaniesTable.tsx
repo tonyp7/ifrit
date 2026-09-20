@@ -19,7 +19,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -129,19 +128,15 @@ export function CompaniesTable() {
       enableHiding: false,
     },
     {
+      accessorKey: "trading_name",
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Trading name")} />,
+      enableHiding: false,
+      cell: ({ row }) => row.original.trading_name ?? "—",
+    },
+    {
       accessorKey: "country_of_registration",
       header: ({ column }) => <DataTableColumnHeader column={column} title={t("Country")} />,
       enableHiding: false,
-    },
-    {
-      accessorKey: "is_active",
-      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Status")} />,
-      enableHiding: false,
-      cell: ({ row }) => (
-        <Badge variant={row.original.is_active ? "default" : "secondary"}>
-          {row.original.is_active ? t("Active", { ns: "common" }) : t("Inactive", { ns: "common" })}
-        </Badge>
-      ),
     },
     {
       id: "actions",
@@ -204,7 +199,7 @@ export function CompaniesTable() {
     <div className="flex flex-col gap-4">
       <div className="flex items-center justify-between gap-2">
         <Input
-          placeholder={t("Search by legal name…")}
+          placeholder={t("Search by legal or trading name…")}
           value={searchInput}
           onChange={(e) => setSearchInput(e.target.value)}
           className="max-w-sm"
@@ -242,7 +237,7 @@ export function CompaniesTable() {
             </AlertDialogTitle>
             <AlertDialogDescription>
               {t(
-                "This deactivates the company (it can't be reactivated from the UI currently). It will no longer be selectable for new projects.",
+                "This removes the company from this list and it can't be restored from the app. Projects already linked to it keep working, but will need another company the next time they're edited.",
               )}
             </AlertDialogDescription>
           </AlertDialogHeader>

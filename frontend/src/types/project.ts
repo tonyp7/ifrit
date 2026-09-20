@@ -58,10 +58,11 @@ export interface ProjectListItem {
   name: string;
   status: ProjectStatus;
   project_type: ProjectType;
-  client_company_id: string;
-  client_company_name: string;
-  vendor_company_id: string;
-  vendor_company_name: string;
+  // Null only on a duplicate whose source company was soft-deleted.
+  client_company_id: string | null;
+  client_company_name: string | null;
+  vendor_company_id: string | null;
+  vendor_company_name: string | null;
   created_at: string;
 }
 
@@ -75,8 +76,14 @@ export interface ProjectListResponse {
 export interface ProjectDetail {
   id: string;
   name: string;
-  vendor_company_id: string;
-  client_company_id: string;
+  // Null only on a duplicate whose source company was soft-deleted. A non-null company
+  // with *_is_active === false is still a valid link, but must be replaced on next edit.
+  vendor_company_id: string | null;
+  vendor_company_name: string | null;
+  vendor_company_is_active: boolean | null;
+  client_company_id: string | null;
+  client_company_name: string | null;
+  client_company_is_active: boolean | null;
   invoicing_currency: string;
   project_type: ProjectType;
   status: ProjectStatus;

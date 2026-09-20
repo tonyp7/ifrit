@@ -406,13 +406,13 @@ def upgrade() -> None:
             "vendor_company_id",
             postgresql.UUID(as_uuid=True),
             sa.ForeignKey("companies.id"),
-            nullable=False,
+            nullable=True,
         ),
         sa.Column(
             "client_company_id",
             postgresql.UUID(as_uuid=True),
             sa.ForeignKey("companies.id"),
-            nullable=False,
+            nullable=True,
         ),
         sa.Column(
             "invoicing_currency",

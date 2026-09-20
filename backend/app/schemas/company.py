@@ -27,8 +27,8 @@ class CompanyWrite(BaseModel):
 class CompanyListItem(BaseModel):
     id: uuid.UUID
     legal_name: str
+    trading_name: str | None
     country_of_registration: str
-    is_active: bool
 
 
 class CompanyListResponse(BaseModel):

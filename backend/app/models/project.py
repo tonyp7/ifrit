@@ -19,6 +19,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.db import Base
 
 if TYPE_CHECKING:
+    from app.models.company import Company
     from app.models.user import User
 
 ProjectType = Literal["time_and_material", "fixed_price", "capped_tm"]
@@ -73,15 +74,24 @@ class Project(Base):
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
     name: Mapped[str] = mapped_column(String(255), nullable=False)
-    # Must reference a company with is_vendor = true — a business rule on Company, not
-    # enforceable via a plain FK, so this is checked at the app level instead.
-    vendor_company_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("companies.id"), nullable=False
+    # Must reference an active company with is_vendor = true — a business rule on
+    # Company, not enforceable via a plain FK, so this is checked at the app level on
+    # write. Nullable only because duplicating a project whose company was since
+    # soft-deleted clears the link (the user must pick a valid one before saving); the
+    # write schema (ProjectWrite) still requires it.
+    vendor_company_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("companies.id"), nullable=True
     )
-    # Any company, is_vendor or not. Can be the same company as vendor_company_id
-    # (inter-company/self-billing) — intentional.
-    client_company_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("companies.id"), nullable=False
+    # Any active company, is_vendor or not. Can be the same company as vendor_company_id
+    # (inter-company/self-billing) — intentional. Nullable for the same reason as above.
+    client_company_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("companies.id"), nullable=True
+    )
+    vendor_company: Mapped["Company | None"] = relationship(
+        foreign_keys=[vendor_company_id]
+    )
+    client_company: Mapped["Company | None"] = relationship(
+        foreign_keys=[client_company_id]
     )
     # Must reference a currency with is_enabled = true (app-level check).
     invoicing_currency: Mapped[str] = mapped_column(
@@ -96,8 +106,7 @@ class Project(Base):
     )
     # Soft-delete flag, independent of `status`: a project can be `closed` (a real
     # lifecycle state) and still `is_active = true`, or vice versa. Deleted projects are
-    # filtered out of the list entirely (unlike Company, which keeps deactivated rows
-    # visible).
+    # filtered out of the list entirely, same as deactivated Companies.
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)

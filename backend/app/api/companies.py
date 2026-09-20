@@ -45,7 +45,6 @@ async def list_companies(
     search: str | None = None,
     page: int = Query(default=1, ge=1),
     is_vendor: bool | None = None,
-    is_active: bool | None = None,
     sort_by: str | None = None,
     sort_dir: str | None = None,
     db: AsyncSession = Depends(get_db),
@@ -55,7 +54,6 @@ async def list_companies(
         search,
         page,
         is_vendor=is_vendor,
-        is_active=is_active,
         sort_by=sort_by,
         sort_dir=sort_dir,
     )
@@ -64,8 +62,8 @@ async def list_companies(
             CompanyListItem(
                 id=c.id,
                 legal_name=c.legal_name,
+                trading_name=c.trading_name,
                 country_of_registration=c.country_of_registration,
-                is_active=c.is_active,
             )
             for c in companies
         ],
@@ -166,6 +164,7 @@ async def update_identifier(
     payload: PartyIdentifierWrite,
     db: AsyncSession = Depends(get_db),
 ) -> PartyIdentifierOut:
+    await _get_company_or_404(db, company_id)
     identifier = await company_service.get_identifier(db, company_id, identifier_id)
     if identifier is None:
         raise HTTPException(
@@ -190,6 +189,7 @@ async def update_identifier(
 async def delete_identifier(
     company_id: uuid.UUID, identifier_id: uuid.UUID, db: AsyncSession = Depends(get_db)
 ) -> None:
+    await _get_company_or_404(db, company_id)
     identifier = await company_service.get_identifier(db, company_id, identifier_id)
     if identifier is None:
         raise HTTPException(
@@ -233,6 +233,7 @@ async def update_address(
     payload: AddressWrite,
     db: AsyncSession = Depends(get_db),
 ) -> AddressOut:
+    await _get_company_or_404(db, company_id)
     address = await company_service.get_address(db, company_id, address_id)
     if address is None:
         raise HTTPException(
@@ -260,6 +261,7 @@ async def update_address(
 async def delete_address(
     company_id: uuid.UUID, address_id: uuid.UUID, db: AsyncSession = Depends(get_db)
 ) -> None:
+    await _get_company_or_404(db, company_id)
     address = await company_service.get_address(db, company_id, address_id)
     if address is None:
         raise HTTPException(

@@ -765,3 +765,107 @@ async def test_draft_project_delete_with_logged_time_is_soft_delete(
     line = await db_session.get(ServiceLine, line_id)
     assert line is not None
     assert line.is_active is False
+
+
+async def _deactivate_company(db_session, company) -> None:
+    company.is_active = False
+    await db_session.commit()
+
+
+async def test_create_and_update_project_reject_inactive_companies(
+    client, db_session
+) -> None:
+    await _login_manager(client, db_session)
+    vendor, client_company, currency = await _setup_refs(db_session)
+    create = await client.post(
+        "/api/projects", json=_project_payload(vendor, client_company, currency)
+    )
+    project_id = create.json()["id"]
+
+    await _deactivate_company(db_session, client_company)
+    payload = _project_payload(vendor, client_company, currency)
+    assert (await client.post("/api/projects", json=payload)).status_code == 422
+    assert (await client.patch(f"/api/projects/{project_id}", json=payload)).status_code == 422
+
+    await _deactivate_company(db_session, vendor)
+    other_client = await create_company(db_session, legal_name="Other Client")
+    payload = _project_payload(vendor, other_client, currency)
+    assert (await client.patch(f"/api/projects/{project_id}", json=payload)).status_code == 422
+
+
+async def test_project_with_inactive_company_stays_readable(client, db_session) -> None:
+    await _login_manager(client, db_session)
+    vendor, client_company, currency = await _setup_refs(db_session)
+    create = await client.post(
+        "/api/projects", json=_project_payload(vendor, client_company, currency)
+    )
+    project_id = create.json()["id"]
+    await _deactivate_company(db_session, client_company)
+
+    detail = (await client.get(f"/api/projects/{project_id}")).json()
+    assert detail["client_company_id"] == str(client_company.id)
+    assert detail["client_company_name"] == "Beta Client"
+    assert detail["client_company_is_active"] is False
+    assert detail["vendor_company_is_active"] is True
+
+    listing = (await client.get("/api/projects")).json()
+    assert listing["items"][0]["client_company_name"] == "Beta Client"
+
+
+async def test_closed_project_with_inactive_company_can_change_status(
+    client, db_session
+) -> None:
+    await _login_manager(client, db_session)
+    vendor, client_company, currency = await _setup_refs(db_session)
+    create = await client.post(
+        "/api/projects",
+        json=_project_payload(vendor, client_company, currency, status="closed"),
+    )
+    project_id = create.json()["id"]
+    await _deactivate_company(db_session, client_company)
+
+    reopen = await client.patch(
+        f"/api/projects/{project_id}",
+        json=_project_payload(vendor, client_company, currency, status="active"),
+    )
+    assert reopen.status_code == 200
+    assert reopen.json()["status"] == "active"
+
+    # Once reopened, the normal rule applies again.
+    edit = await client.patch(
+        f"/api/projects/{project_id}",
+        json=_project_payload(vendor, client_company, currency, status="active"),
+    )
+    assert edit.status_code == 422
+
+
+async def test_duplicate_project_clears_only_inactive_company_links(
+    client, db_session
+) -> None:
+    await _login_manager(client, db_session)
+    vendor, client_company, currency = await _setup_refs(db_session)
+    create = await client.post(
+        "/api/projects", json=_project_payload(vendor, client_company, currency)
+    )
+    project_id = create.json()["id"]
+    await _deactivate_company(db_session, client_company)
+
+    duplicate = await client.post(f"/api/projects/{project_id}/duplicate")
+    assert duplicate.status_code == 200
+    body = duplicate.json()
+    assert body["vendor_company_id"] == str(vendor.id)
+    assert body["client_company_id"] is None
+    assert body["client_company_name"] is None
+    assert body["client_company_is_active"] is None
+
+    listing = (await client.get("/api/projects")).json()
+    assert listing["total"] == 2
+
+    # Saving requires picking a valid company.
+    other_client = await create_company(db_session, legal_name="Other Client")
+    fixed = await client.patch(
+        f"/api/projects/{body['id']}",
+        json=_project_payload(vendor, other_client, currency),
+    )
+    assert fixed.status_code == 200
+    assert fixed.json()["client_company_id"] == str(other_client.id)

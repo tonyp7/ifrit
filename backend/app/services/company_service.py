@@ -1,6 +1,6 @@
 import uuid
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -21,8 +21,8 @@ PAGE_SIZE = 50
 # `sort_by` against the model dynamically (see app/services/sorting.py).
 _SORTABLE_COLUMNS = {
     "legal_name": Company.legal_name,
+    "trading_name": Company.trading_name,
     "country_of_registration": Company.country_of_registration,
-    "is_active": Company.is_active,
 }
 
 
@@ -31,25 +31,25 @@ async def list_companies(
     search: str | None,
     page: int,
     is_vendor: bool | None = None,
-    is_active: bool | None = None,
     sort_by: str | None = None,
     sort_dir: str | None = None,
 ) -> tuple[list[Company], int]:
-    stmt = select(Company)
-    count_stmt = select(func.count()).select_from(Company)
+    # Deactivated companies are never listed — there is no way to see or reactivate
+    # one through the API.
+    stmt = select(Company).where(Company.is_active.is_(True))
+    count_stmt = (
+        select(func.count()).select_from(Company).where(Company.is_active.is_(True))
+    )
 
     if search:
         pattern = f"%{search}%"
-        stmt = stmt.where(Company.legal_name.ilike(pattern))
-        count_stmt = count_stmt.where(Company.legal_name.ilike(pattern))
-    # is_vendor/is_active: used by the Project form's vendor/client pickers to narrow
-    # the list beyond the companies admin screen's unfiltered/all-statuses default.
+        match = or_(Company.legal_name.ilike(pattern), Company.trading_name.ilike(pattern))
+        stmt = stmt.where(match)
+        count_stmt = count_stmt.where(match)
+    # is_vendor: used by the Project form's vendor picker to narrow the list.
     if is_vendor is not None:
         stmt = stmt.where(Company.is_vendor == is_vendor)
         count_stmt = count_stmt.where(Company.is_vendor == is_vendor)
-    if is_active is not None:
-        stmt = stmt.where(Company.is_active == is_active)
-        count_stmt = count_stmt.where(Company.is_active == is_active)
 
     total = (await db.execute(count_stmt)).scalar_one()
 
@@ -67,6 +67,8 @@ async def list_companies(
 
 
 async def get_company(db: AsyncSession, company_id: uuid.UUID) -> Company | None:
+    # Only active companies: a deactivated one is treated as not found by every caller
+    # (read, update, duplicate, deactivate, identifier/address writes).
     # populate_existing=True: add_identifier/add_address insert child rows directly
     # rather than through company.identifiers.append(...), so if this company is
     # already in the session's identity map with those collections previously loaded,
@@ -76,7 +78,7 @@ async def get_company(db: AsyncSession, company_id: uuid.UUID) -> Company | None
     result = await db.execute(
         select(Company)
         .options(selectinload(Company.identifiers), selectinload(Company.addresses))
-        .where(Company.id == company_id)
+        .where(Company.id == company_id, Company.is_active.is_(True))
         .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()

@@ -30,10 +30,10 @@ class ProjectListItem(BaseModel):
     name: str
     status: ProjectStatus
     project_type: ProjectType
-    client_company_id: uuid.UUID
-    client_company_name: str
-    vendor_company_id: uuid.UUID
-    vendor_company_name: str
+    client_company_id: uuid.UUID | None
+    client_company_name: str | None
+    vendor_company_id: uuid.UUID | None
+    vendor_company_name: str | None
     created_at: datetime
 
 
@@ -85,8 +85,14 @@ class ServiceLineOut(BaseModel):
 class ProjectDetail(BaseModel):
     id: uuid.UUID
     name: str
-    vendor_company_id: uuid.UUID
-    client_company_id: uuid.UUID
+    # Null only on a duplicate whose source company was soft-deleted. A non-null company
+    # with *_is_active = false is still a valid link, but must be replaced on next edit.
+    vendor_company_id: uuid.UUID | None
+    vendor_company_name: str | None
+    vendor_company_is_active: bool | None
+    client_company_id: uuid.UUID | None
+    client_company_name: str | None
+    client_company_is_active: bool | None
     invoicing_currency: str
     project_type: ProjectType
     status: ProjectStatus

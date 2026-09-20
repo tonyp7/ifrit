@@ -80,8 +80,8 @@ export interface AddressInput {
 export interface CompanyListItem {
   id: string;
   legal_name: string;
+  trading_name: string | null;
   country_of_registration: string;
-  is_active: boolean;
 }
 
 export interface CompanyListResponse {

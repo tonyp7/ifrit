@@ -157,11 +157,13 @@ export function ProjectsTable() {
       accessorKey: "client_company_name",
       header: ({ column }) => <DataTableColumnHeader column={column} title={t("Client")} />,
       enableHiding: false,
+      cell: ({ row }) => row.original.client_company_name ?? "—",
     },
     {
       accessorKey: "vendor_company_name",
       header: ({ column }) => <DataTableColumnHeader column={column} title={t("Vendor")} />,
       enableHiding: true,
+      cell: ({ row }) => row.original.vendor_company_name ?? "—",
     },
     {
       accessorKey: "project_type",

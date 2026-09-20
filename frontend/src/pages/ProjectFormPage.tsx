@@ -97,10 +97,10 @@ export function ProjectFormPage() {
   } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: BLANK_VALUES });
 
   useEffect(() => {
-    listCompanies({ is_vendor: true, is_active: true })
+    listCompanies({ is_vendor: true })
       .then((r) => setVendors(r.items))
       .catch(() => setVendors([]));
-    listCompanies({ is_active: true })
+    listCompanies({})
       .then((r) => setClients(r.items))
       .catch(() => setClients([]));
     listCurrencies()
@@ -116,8 +116,10 @@ export function ProjectFormPage() {
         setSelectedManagers(detail.project_managers);
         reset({
           name: detail.name,
-          vendor_company_id: detail.vendor_company_id,
-          client_company_id: detail.client_company_id,
+          // Null on a duplicate whose company was soft-deleted: start empty so the
+          // "required" validation forces picking a valid one.
+          vendor_company_id: detail.vendor_company_id ?? "",
+          client_company_id: detail.client_company_id ?? "",
           invoicing_currency: detail.invoicing_currency,
           project_type: detail.project_type,
           status: detail.status,
@@ -149,6 +151,14 @@ export function ProjectFormPage() {
 
   async function onSubmit(values: FormValues) {
     setFormError(null);
+    // The inline "no longer active" message is already showing on the field(s).
+    if (
+      !isReadOnly &&
+      (isInactiveLink("vendor", values.vendor_company_id) ||
+        isInactiveLink("client", values.client_company_id))
+    ) {
+      return;
+    }
     try {
       if (project) {
         const updated = await updateProject(project.id, values);
@@ -186,6 +196,33 @@ export function ProjectFormPage() {
     });
   }
 
+  /**
+   * True while the form still holds the project's original company for `side` and that
+   * company has been soft-deleted since — the link is still valid on the project, but
+   * saving needs a replacement (the backend rejects an inactive company on write).
+   */
+  function isInactiveLink(side: "vendor" | "client", selectedId: string): boolean {
+    if (!project) return false;
+    return (
+      project[`${side}_company_is_active`] === false &&
+      project[`${side}_company_id`] === selectedId
+    );
+  }
+
+  /**
+   * `onValueChange` for the selects whose options load asynchronously (vendor, client,
+   * currency). Radix Select mirrors its value into a hidden native `<select>`; when the
+   * options re-register (e.g. the async list arriving after `reset()` already set the
+   * value), the native `<select>` briefly has no matching option, snaps to "" and fires a
+   * change event — which would otherwise clear the form value we just loaded. These
+   * selects have no "clear" option, so an empty value is never a real user choice.
+   */
+  function handleSelectChange(field: "vendor_company_id" | "client_company_id" | "invoicing_currency") {
+    return (value: string) => {
+      if (value) setValue(field, value);
+    };
+  }
+
   function handleManagersChange(next: ProjectManager[]) {
     setSelectedManagers(next);
     setValue(
@@ -200,6 +237,8 @@ export function ProjectFormPage() {
 
   const vendorId = watch("vendor_company_id");
   const clientId = watch("client_company_id");
+  const vendorInactive = !isReadOnly && isInactiveLink("vendor", vendorId);
+  const clientInactive = !isReadOnly && isInactiveLink("client", clientId);
   const currencyCode = watch("invoicing_currency");
   const projectType = watch("project_type");
   const status = watch("status");
@@ -228,17 +267,23 @@ export function ProjectFormPage() {
               </Field>
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <Field data-invalid={!!errors.vendor_company_id}>
+                <Field data-invalid={!!errors.vendor_company_id || vendorInactive}>
                   <FieldLabel htmlFor="vendor_company_id">{t("Vendor")}</FieldLabel>
                   <Select
                     disabled={isReadOnly}
                     value={vendorId}
-                    onValueChange={(value) => setValue("vendor_company_id", value)}
+                    onValueChange={handleSelectChange("vendor_company_id")}
                   >
                     <SelectTrigger id="vendor_company_id" aria-invalid={!!errors.vendor_company_id}>
                       <SelectValue placeholder={t("Select a vendor…")} />
                     </SelectTrigger>
                     <SelectContent>
+                      {project?.vendor_company_is_active === false &&
+                        project.vendor_company_id && (
+                          <SelectItem value={project.vendor_company_id} disabled>
+                            {t("{{name}} (inactive)", { name: project.vendor_company_name })}
+                          </SelectItem>
+                        )}
                       {vendors.map((company) => (
                         <SelectItem key={company.id} value={company.id}>
                           {company.legal_name}
@@ -246,19 +291,33 @@ export function ProjectFormPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <FieldError errors={errors.vendor_company_id && [errors.vendor_company_id]} />
+                  <FieldError
+                    errors={
+                      errors.vendor_company_id
+                        ? [errors.vendor_company_id]
+                        : vendorInactive
+                          ? [{ message: t("This vendor is no longer active. Select another one.") }]
+                          : undefined
+                    }
+                  />
                 </Field>
-                <Field data-invalid={!!errors.client_company_id}>
+                <Field data-invalid={!!errors.client_company_id || clientInactive}>
                   <FieldLabel htmlFor="client_company_id">{t("Client")}</FieldLabel>
                   <Select
                     disabled={isReadOnly}
                     value={clientId}
-                    onValueChange={(value) => setValue("client_company_id", value)}
+                    onValueChange={handleSelectChange("client_company_id")}
                   >
                     <SelectTrigger id="client_company_id" aria-invalid={!!errors.client_company_id}>
                       <SelectValue placeholder={t("Select a client…")} />
                     </SelectTrigger>
                     <SelectContent>
+                      {project?.client_company_is_active === false &&
+                        project.client_company_id && (
+                          <SelectItem value={project.client_company_id} disabled>
+                            {t("{{name}} (inactive)", { name: project.client_company_name })}
+                          </SelectItem>
+                        )}
                       {clients.map((company) => (
                         <SelectItem key={company.id} value={company.id}>
                           {company.legal_name}
@@ -266,7 +325,15 @@ export function ProjectFormPage() {
                       ))}
                     </SelectContent>
                   </Select>
-                  <FieldError errors={errors.client_company_id && [errors.client_company_id]} />
+                  <FieldError
+                    errors={
+                      errors.client_company_id
+                        ? [errors.client_company_id]
+                        : clientInactive
+                          ? [{ message: t("This client is no longer active. Select another one.") }]
+                          : undefined
+                    }
+                  />
                 </Field>
               </div>
 
@@ -276,7 +343,7 @@ export function ProjectFormPage() {
                   <Select
                     disabled={isReadOnly}
                     value={currencyCode}
-                    onValueChange={(value) => setValue("invoicing_currency", value)}
+                    onValueChange={handleSelectChange("invoicing_currency")}
                   >
                     <SelectTrigger
                       id="invoicing_currency"

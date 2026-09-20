@@ -67,9 +67,10 @@ async def list_projects(
     page: int,
     sort_by: str | None = None,
     sort_dir: str | None = None,
-) -> tuple[list[tuple[Project, str, str]], int]:
+) -> tuple[list[tuple[Project, str | None, str | None]], int]:
     """Returns (project, vendor_company_name, client_company_name) tuples — the list
-    screen shows company names, not raw ids."""
+    screen shows company names, not raw ids. Names are None for a project with no
+    company link (see Project.vendor_company_id)."""
     vendor = aliased(Company)
     client = aliased(Company)
 
@@ -95,8 +96,8 @@ async def list_projects(
 
     stmt = (
         select(Project, vendor.legal_name, client.legal_name)
-        .join(vendor, Project.vendor_company_id == vendor.id)
-        .join(client, Project.client_company_id == client.id)
+        .outerjoin(vendor, Project.vendor_company_id == vendor.id)
+        .outerjoin(client, Project.client_company_id == client.id)
         .where(Project.is_active.is_(True))
     )
     if search:
@@ -118,6 +119,8 @@ async def get_project(db: AsyncSession, project_id: uuid.UUID) -> Project | None
         .options(
             selectinload(Project.service_lines).selectinload(ServiceLine.users),
             selectinload(Project.project_managers),
+            selectinload(Project.vendor_company),
+            selectinload(Project.client_company),
         )
         .where(Project.id == project_id, Project.is_active.is_(True))
         .execution_options(populate_existing=True)
@@ -128,15 +131,18 @@ async def get_project(db: AsyncSession, project_id: uuid.UUID) -> Project | None
 async def _check_vendor(db: AsyncSession, company_id: uuid.UUID) -> None:
     result = await db.execute(select(Company).where(Company.id == company_id))
     company = result.scalar_one_or_none()
-    if company is None or not company.is_vendor:
-        raise InvalidReferenceError("vendor_company_id must reference a vendor company")
+    if company is None or not company.is_vendor or not company.is_active:
+        raise InvalidReferenceError(
+            "vendor_company_id must reference an active vendor company"
+        )
 
 
 async def _check_client(db: AsyncSession, company_id: uuid.UUID) -> None:
     result = await db.execute(select(Company).where(Company.id == company_id))
-    if result.scalar_one_or_none() is None:
+    company = result.scalar_one_or_none()
+    if company is None or not company.is_active:
         raise InvalidReferenceError(
-            "client_company_id does not reference an existing company"
+            "client_company_id does not reference an active company"
         )
 
 
@@ -198,8 +204,19 @@ async def deactivate_project(db: AsyncSession, project: Project) -> None:
 async def duplicate_project(db: AsyncSession, source: Project) -> Project:
     new_project = Project(
         name=source.name,
-        vendor_company_id=source.vendor_company_id,
-        client_company_id=source.client_company_id,
+        # A soft-deleted company's link is dropped rather than copied: the duplicate
+        # must not start out pointing at a company nobody can select any more, so the
+        # user has to pick an active one before saving.
+        vendor_company_id=(
+            source.vendor_company_id
+            if source.vendor_company is not None and source.vendor_company.is_active
+            else None
+        ),
+        client_company_id=(
+            source.client_company_id
+            if source.client_company is not None and source.client_company.is_active
+            else None
+        ),
         invoicing_currency=source.invoicing_currency,
         project_type=source.project_type,
         status="draft",
@@ -401,11 +418,17 @@ def to_service_line_out(line: ServiceLine) -> ServiceLineOut:
 
 def to_project_detail(project: Project) -> ProjectDetail:
     active_lines = [line for line in project.service_lines if line.is_active]
+    vendor = project.vendor_company
+    client = project.client_company
     return ProjectDetail(
         id=project.id,
         name=project.name,
         vendor_company_id=project.vendor_company_id,
+        vendor_company_name=vendor.legal_name if vendor else None,
+        vendor_company_is_active=vendor.is_active if vendor else None,
         client_company_id=project.client_company_id,
+        client_company_name=client.legal_name if client else None,
+        client_company_is_active=client.is_active if client else None,
         invoicing_currency=project.invoicing_currency,
         project_type=project.project_type,
         status=project.status,
