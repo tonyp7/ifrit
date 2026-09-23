@@ -4,6 +4,7 @@
 # --- Synced ---
 !/backend/
 !/docker/
+!/docs/
 !/frontend/
 !/README.md
 !/docker-compose.yml
