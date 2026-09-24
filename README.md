@@ -98,7 +98,7 @@ This assumes you already have a database running on host. Alternatively you can 
 cd backend
 cp .env.example .env
 uv run alembic upgrade head
-uv run python -m scripts.seed_admin      # creates admin@ifrit.local / changeme123
+uv run python -m scripts.seed_admin      # creates SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD user
 uv run uvicorn app.main:app --reload     # http://localhost:8000
 ```
 
