@@ -27,7 +27,7 @@ async def get_current_user(
         raise UNAUTHORIZED from err
 
     user = await get_user_by_id(db, uuid.UUID(payload["sub"]))
-    if user is None or not user.is_active:
+    if user is None or not user.is_active or payload.get("tv") != user.token_version:
         raise UNAUTHORIZED
 
     return user

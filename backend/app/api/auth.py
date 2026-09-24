@@ -18,6 +18,7 @@ from app.schemas.user import UserOut
 from app.services.user_service import (
     authenticate_local_user,
     get_user_by_id,
+    revoke_sessions,
     to_user_out,
 )
 
@@ -29,8 +30,8 @@ REFRESH_COOKIE = "refresh_token"
 
 def _set_auth_cookies(response: Response, user: User) -> None:
     roles = [role.name for role in user.roles]
-    access_token = create_access_token(user.id, roles)
-    refresh_token = create_refresh_token(user.id)
+    access_token = create_access_token(user.id, roles, user.token_version)
+    refresh_token = create_refresh_token(user.id, user.token_version)
 
     response.set_cookie(
         ACCESS_COOKIE,
@@ -81,7 +82,7 @@ async def refresh(
         raise UNAUTHORIZED from err
 
     user = await get_user_by_id(db, uuid.UUID(payload["sub"]))
-    if user is None or not user.is_active:
+    if user is None or not user.is_active or payload.get("tv") != user.token_version:
         raise UNAUTHORIZED
 
     _set_auth_cookies(response, user)
@@ -89,7 +90,21 @@ async def refresh(
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
-async def logout(response: Response) -> None:
+async def logout(
+    request: Request, response: Response, db: AsyncSession = Depends(get_db)
+) -> None:
+    # Best effort: an already-expired or missing token must still get its cookies
+    # cleared, so this never 401s. A valid one has its whole token family revoked, so
+    # a copy of the cookie held elsewhere stops working too.
+    token = request.cookies.get(REFRESH_COOKIE)
+    if token is not None:
+        try:
+            payload = decode_token(token, expected_type="refresh")
+            user = await get_user_by_id(db, uuid.UUID(payload["sub"]))
+            if user is not None and payload.get("tv") == user.token_version:
+                await revoke_sessions(db, user)
+        except (InvalidTokenError, ValueError, KeyError):
+            pass
     response.delete_cookie(ACCESS_COOKIE, path="/")
     response.delete_cookie(REFRESH_COOKIE, path="/")
 

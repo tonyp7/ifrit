@@ -229,6 +229,8 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("now()"),
         ),
+        # Bumped on logout / password reset to invalidate every token issued so far.
+        sa.Column("token_version", sa.Integer(), nullable=False, server_default="0"),
         sa.CheckConstraint(
             "theme_preference IN ('light', 'dark', 'system')",
             name="ck_users_theme_preference",

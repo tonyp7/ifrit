@@ -21,14 +21,15 @@ def test_password_hash_roundtrip() -> None:
 
 def test_access_token_roundtrip() -> None:
     user_id = uuid.uuid4()
-    token = create_access_token(user_id, roles=["administrator"])
+    token = create_access_token(user_id, roles=["administrator"], token_version=3)
     payload = decode_token(token, expected_type="access")
     assert payload["sub"] == str(user_id)
     assert payload["roles"] == ["administrator"]
+    assert payload["tv"] == 3
 
 
 def test_refresh_token_rejected_as_access() -> None:
     user_id = uuid.uuid4()
-    token = create_refresh_token(user_id)
+    token = create_refresh_token(user_id, token_version=0)
     with pytest.raises(InvalidTokenError):
         decode_token(token, expected_type="access")

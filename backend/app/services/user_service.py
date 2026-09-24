@@ -139,11 +139,13 @@ async def update_user(
         # hidden: hashed_password is cleared outright, not preserved for a
         # possible future switch back.
         user.hashed_password = None
+        user.token_version += 1
     elif not data.is_sso and user.is_sso:
         # SSO -> local: a password is required to make the account usable again.
         if not data.password:
             raise ValueError("password is required when switching an SSO user to local")
         user.hashed_password = hash_password(data.password)
+        user.token_version += 1
 
     if "project_manager" not in data.roles and any(
         role.name == "project_manager" for role in user.roles
@@ -198,6 +200,14 @@ async def authenticate_local_user(
 
 async def reset_password(db: AsyncSession, user: User, new_password: str) -> None:
     user.hashed_password = hash_password(new_password)
+    # A reset is what an admin does when an account may be compromised: sessions
+    # already issued must not survive it.
+    user.token_version += 1
+    await db.commit()
+
+
+async def revoke_sessions(db: AsyncSession, user: User) -> None:
+    user.token_version += 1
     await db.commit()
 
 

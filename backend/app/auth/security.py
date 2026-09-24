@@ -41,18 +41,21 @@ def _create_token(
     return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
 
 
-def create_access_token(subject: uuid.UUID, roles: list[str]) -> str:
+def create_access_token(subject: uuid.UUID, roles: list[str], token_version: int) -> str:
     return _create_token(
         subject,
         "access",
         timedelta(minutes=settings.access_token_expire_minutes),
-        extra_claims={"roles": roles},
+        extra_claims={"roles": roles, "tv": token_version},
     )
 
 
-def create_refresh_token(subject: uuid.UUID) -> str:
+def create_refresh_token(subject: uuid.UUID, token_version: int) -> str:
     return _create_token(
-        subject, "refresh", timedelta(minutes=settings.refresh_token_expire_minutes)
+        subject,
+        "refresh",
+        timedelta(minutes=settings.refresh_token_expire_minutes),
+        extra_claims={"tv": token_version},
     )
 
 

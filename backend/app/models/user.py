@@ -69,6 +69,10 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(UTC)
     )
+    # Embedded in every issued token as the `tv` claim and compared on each request:
+    # incrementing it invalidates every access/refresh token issued so far (logout,
+    # password reset), which stateless JWTs can't otherwise do before they expire.
+    token_version: Mapped[int] = mapped_column(default=0, server_default="0")
 
     roles: Mapped[list[Role]] = relationship(secondary=user_roles, back_populates="users")
 
