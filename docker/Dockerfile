@@ -5,7 +5,7 @@
 # only Dockerfile for the app.
 #
 # Build from the REPO ROOT so both backend/ and frontend/ are in context:
-#   docker build -f docker/Dockerfile -t ifrit-app .
+#   docker build -f docker/Dockerfile -t ifrit .
 # (docker/build.sh wraps this.)
 #
 # Unresolved / deliberately deferred (see the PR or ping before changing either):
