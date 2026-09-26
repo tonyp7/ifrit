@@ -56,7 +56,8 @@ interface TimesheetDesktopGridProps {
    * keep the default generic message below. */
   unassignedTooltip?: (userId: string, serviceLineId: string) => string;
   onCellChange: (userId: string, serviceLineId: string, dayKey: string, value: string) => void;
-  onCellBlur: (userId: string, serviceLineId: string, dayKey: string) => void;
+  onCellFocus: (userId: string, serviceLineId: string, dayKey: string) => void;
+  onCellBlur: (userId: string, serviceLineId: string, dayKey: string, badInput: boolean) => void;
   // Keeps `selectedKey` pointed at whatever day the user is actually looking at on
   // desktop, so a later Week<->Month switch re-anchors on that day instead of a
   // stale value.
@@ -84,6 +85,7 @@ export function TimesheetDesktopGrid({
   onRemoveServiceLine,
   onClearAndRemoveServiceLine,
   onCellChange,
+  onCellFocus,
   onCellBlur,
   onFocusDay,
   isFullyLockedInPeriod,
@@ -260,8 +262,18 @@ export function TimesheetDesktopGrid({
                         onChange={(e) =>
                           onCellChange(line.user_id, line.service_line_id, dayKey, e.target.value)
                         }
-                        onBlur={() => onCellBlur(line.user_id, line.service_line_id, dayKey)}
-                        onFocus={() => onFocusDay(dayKey)}
+                        onBlur={(e) =>
+                          onCellBlur(
+                            line.user_id,
+                            line.service_line_id,
+                            dayKey,
+                            e.currentTarget.validity.badInput,
+                          )
+                        }
+                        onFocus={() => {
+                          onCellFocus(line.user_id, line.service_line_id, dayKey);
+                          onFocusDay(dayKey);
+                        }}
                         aria-label={t("Hours")}
                         className={cn(
                           "w-full rounded border border-transparent bg-transparent p-1 text-center text-sm outline-none transition-colors",

@@ -36,7 +36,8 @@ interface TimesheetMobileViewProps {
   onRemoveServiceLine?: (userId: string, serviceLineId: string) => void;
   onClearAndRemoveServiceLine?: (userId: string, serviceLineId: string) => Promise<void>;
   onCellChange: (userId: string, serviceLineId: string, dayKey: string, value: string) => void;
-  onCellBlur: (userId: string, serviceLineId: string, dayKey: string) => void;
+  onCellFocus: (userId: string, serviceLineId: string, dayKey: string) => void;
+  onCellBlur: (userId: string, serviceLineId: string, dayKey: string, badInput: boolean) => void;
   /** My Timesheet never sets these: no lock control there. */
   isFullyLockedInPeriod?: (userId: string, serviceLineId: string) => boolean;
   onToggleLock?: (userId: string, serviceLineId: string) => Promise<void>;
@@ -61,6 +62,7 @@ export function TimesheetMobileView({
   onRemoveServiceLine,
   onClearAndRemoveServiceLine,
   onCellChange,
+  onCellFocus,
   onCellBlur,
   isFullyLockedInPeriod,
   onToggleLock,
@@ -167,7 +169,15 @@ export function TimesheetMobileView({
                   onChange={(e) =>
                     onCellChange(line.user_id, line.service_line_id, selectedKey, e.target.value)
                   }
-                  onBlur={() => onCellBlur(line.user_id, line.service_line_id, selectedKey)}
+                  onFocus={() => onCellFocus(line.user_id, line.service_line_id, selectedKey)}
+                  onBlur={(e) =>
+                    onCellBlur(
+                      line.user_id,
+                      line.service_line_id,
+                      selectedKey,
+                      e.currentTarget.validity.badInput,
+                    )
+                  }
                   className="w-20 text-right"
                   aria-label={t("Hours")}
                 />

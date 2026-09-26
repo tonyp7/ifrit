@@ -27,6 +27,15 @@ export function normalizeHours(raw: string, fallback: string): string {
   return String(rounded);
 }
 
+// Blur-time dirty check: `baseline` is the cell's value when it gained focus
+// (undefined if unknown), `corrected` the normalizeHours() result. Equal numeric
+// value (an empty cell counts as 0) means nothing to save, so the caller skips the
+// PUT and the backend's last_updated_by/updated_at aren't rewritten by a mere tab-through.
+export function isUnchangedHours(baseline: string | undefined, corrected: string): boolean {
+  if (baseline === undefined) return false;
+  return Number(corrected) === Number(baseline || "0");
+}
+
 export function sumHours(values: Array<string | undefined>): number {
   return values.reduce((sum: number, v) => sum + (v ? Number(v) : 0), 0);
 }

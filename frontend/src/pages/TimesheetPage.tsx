@@ -88,6 +88,7 @@ export function TimesheetPage() {
     handleRemoveServiceLine,
     handleClearAndRemoveServiceLine,
     handleCellChange,
+    handleCellFocus,
     handleCellBlur,
   } = useTimesheetGrid({ days, initialEntries, eligibleLines, rowOwnerId: user?.id ?? "" });
 
@@ -142,6 +143,7 @@ export function TimesheetPage() {
         onRemoveServiceLine={handleRemoveServiceLine}
         onClearAndRemoveServiceLine={handleClearAndRemoveServiceLine}
         onCellChange={handleCellChange}
+        onCellFocus={handleCellFocus}
         onCellBlur={handleCellBlur}
       />
 
@@ -162,6 +164,7 @@ export function TimesheetPage() {
         onRemoveServiceLine={handleRemoveServiceLine}
         onClearAndRemoveServiceLine={handleClearAndRemoveServiceLine}
         onCellChange={handleCellChange}
+        onCellFocus={handleCellFocus}
         onCellBlur={handleCellBlur}
         onFocusDay={setSelectedKey}
       />

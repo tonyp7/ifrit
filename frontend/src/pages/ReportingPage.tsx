@@ -106,6 +106,7 @@ export function ReportingPage() {
     serviceLineTotal,
     periodTotal,
     handleCellChange,
+    handleCellFocus,
     handleCellBlur,
     handleToggleLock,
   } = useReportGrid({ days, rows });
@@ -258,6 +259,7 @@ export function ReportingPage() {
         isUnassignedInPeriod={isUnassignedInPeriod}
         unassignedTooltip={unassignedTooltip}
         onCellChange={handleCellChange}
+        onCellFocus={handleCellFocus}
         onCellBlur={handleCellBlur}
         dayTotal={dayTotal}
         isFullyLockedInPeriod={isFullyLockedInPeriod}
@@ -276,6 +278,7 @@ export function ReportingPage() {
         isUnassignedInPeriod={isUnassignedInPeriod}
         unassignedTooltip={unassignedTooltip}
         onCellChange={handleCellChange}
+        onCellFocus={handleCellFocus}
         onCellBlur={handleCellBlur}
         onFocusDay={setSelectedKey}
         isFullyLockedInPeriod={isFullyLockedInPeriod}
