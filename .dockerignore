@@ -1,0 +1,40 @@
+# Keeps the build context small and correct — docker/Dockerfile's stages rebuild
+# node_modules/.venv/dist from scratch anyway, so shipping the host's copies into
+# the context would only slow the build and risk host-vs-container drift.
+
+.git/
+.github/
+
+# Backend (Python / uv)
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.egg-info/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/htmlcov/
+backend/.coverage
+backend/.coverage.*
+backend/tests/
+
+# Frontend (Node / Vite)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/*.tsbuildinfo
+frontend/coverage/
+frontend/.eslintcache
+
+# Secrets — never sent to the build context, let alone baked into an image layer
+.env
+**/.env
+docker/.env
+
+# Editors / OS / misc
+.DS_Store
+.vscode/
+.idea/
+*.log
+.debug/
+.claude/

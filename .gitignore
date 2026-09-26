@@ -1,0 +1,50 @@
+# Deny-by-default
+/*
+
+# --- Synced ---
+!/backend/
+!/docker/
+!/docs/
+!/frontend/
+!/README.md
+!/docker-compose.yml
+!/.env.example
+!/.dockerignore
+!/.gitignore
+!/LICENSE
+
+# --- Ignored build/temp/cache files  ---
+
+# Backend (Python / uv)
+backend/.venv/
+backend/__pycache__/
+backend/**/__pycache__/
+backend/*.egg-info/
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+backend/htmlcov/
+backend/.coverage
+backend/.coverage.*
+backend/.env
+
+# Frontend (Node / Vite)
+frontend/node_modules/
+frontend/dist/
+frontend/.vite/
+frontend/*.local
+frontend/*.tsbuildinfo
+frontend/coverage/
+frontend/.eslintcache
+
+# Logs (either stack)
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editors / OS
+.DS_Store
+.vscode/
+.idea/
