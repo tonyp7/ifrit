@@ -1469,3 +1469,60 @@ async def test_export_week_period_filename_includes_iso_year(client, db_session)
     assert (
         response.headers["content-disposition"] == 'attachment; filename="2026-week-32.pdf"'
     )
+
+
+# --- date-range bounds (SAST F-06 / F-09) ---------------------------------------------------------
+
+_TOO_WIDE = {"start_date": "0001-01-01", "end_date": "9999-12-31"}
+_INVERTED = {"start_date": "2026-09-20", "end_date": "2026-09-01"}
+
+
+async def test_date_ranges_are_bounded_on_read_endpoints(client, db_session) -> None:
+    await _login_manager_first(client, db_session)
+    await _setup_project_with_consultant_and_pm(
+        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+    )
+    await _login_as(client, "pm@example.com")
+
+    for bad in (_TOO_WIDE, _INVERTED):
+        assert (await client.get("/api/time-entries", params=bad)).status_code == 422
+        assert (await client.get("/api/time-entries/report", params=bad)).status_code == 422
+        for fmt in ("pdf", "xlsx", "csv"):
+            export = await client.get(
+                "/api/time-entries/report/export",
+                params={"format": fmt, "period_type": "month", **bad},
+            )
+            assert export.status_code == 422
+
+    # The longest accepted span (366 days) still works.
+    ok = await client.get(
+        "/api/time-entries/report",
+        params={"start_date": "2026-01-01", "end_date": "2027-01-02"},
+    )
+    assert ok.status_code == 200
+    just_over = await client.get(
+        "/api/time-entries/report",
+        params={"start_date": "2026-01-01", "end_date": "2027-01-03"},
+    )
+    assert just_over.status_code == 422
+
+
+async def test_lock_rejects_unbounded_or_inverted_range(client, db_session) -> None:
+    await _login_manager_first(client, db_session)
+    _project_id, service_line_id, consultant_id, _pm_id = (
+        await _setup_project_with_consultant_and_pm(
+            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        )
+    )
+    await _login_as(client, "pm@example.com")
+    for bad in (_TOO_WIDE, _INVERTED):
+        response = await client.put(
+            "/api/time-entries/lock",
+            json={
+                "user_id": consultant_id,
+                "service_line_id": service_line_id,
+                "locked": True,
+                **bad,
+            },
+        )
+        assert response.status_code == 422

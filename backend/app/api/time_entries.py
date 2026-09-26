@@ -17,9 +17,17 @@ from app.schemas.time_entry import (
     TimeEntryUpsertResult,
     TimesheetReportFiltersOut,
     TimesheetReportResponse,
+    period_error,
 )
 from app.services import report_export_service, time_entry_service
 from app.services.time_entry_service import NotAuthorizedError
+
+
+def validate_period(start_date: date, end_date: date) -> None:
+    """422 on an inverted or over-long range, before any service code expands it per day."""
+    if (error := period_error(start_date, end_date)) is not None:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=error)
+
 
 router = APIRouter(
     prefix="/time-entries",
@@ -35,6 +43,7 @@ async def list_time_entries(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> TimeEntryListResponse:
+    validate_period(start_date, end_date)
     rows = await time_entry_service.list_time_entries(db, user.id, start_date, end_date)
     return TimeEntryListResponse(
         items=[
@@ -104,6 +113,7 @@ async def get_time_entries_report(
     list, not grouped by consultant. All four filter params are
     optional; omitted means no restriction on that dimension. Any id outside the
     caller's own project_manager scope is silently dropped, never a 403."""
+    validate_period(start_date, end_date)
     rows = await time_entry_service.list_time_entries_report(
         db,
         user,
@@ -136,6 +146,7 @@ async def export_time_entries_report(
     showing. Always re-queries fresh server-side; never a client-supplied payload
     of already-rendered rows, so an unblurred, not-yet-saved cell edit can never
     appear in an export."""
+    validate_period(start_date, end_date)
     file_bytes, filename, content_type = await report_export_service.build_report_export(
         db,
         user,
