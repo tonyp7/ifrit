@@ -4,6 +4,20 @@ from decimal import Decimal
 
 from pydantic import BaseModel, model_validator
 
+# A week or a month from the UI; a year is generous headroom. Bounds every endpoint that
+# expands a caller-supplied [start_date, end_date] into a per-day list (list, report,
+# export, lock), since `date` alone accepts years 1-9999.
+MAX_PERIOD_DAYS = 366
+
+
+def period_error(start_date: date_, end_date: date_) -> str | None:
+    """The reason [start_date, end_date] is not an acceptable period, or None if it is."""
+    if end_date < start_date:
+        return "end_date must not be before start_date"
+    if (end_date - start_date).days > MAX_PERIOD_DAYS:
+        return f"date range must not exceed {MAX_PERIOD_DAYS} days"
+    return None
+
 
 class TimeEntryUpsert(BaseModel):
     service_line_id: uuid.UUID
@@ -76,6 +90,12 @@ class TimeEntryLockRequest(BaseModel):
     start_date: date_
     end_date: date_
     locked: bool
+
+    @model_validator(mode="after")
+    def check_period(self) -> "TimeEntryLockRequest":
+        if (error := period_error(self.start_date, self.end_date)) is not None:
+            raise ValueError(error)
+        return self
 
 
 class ReportFilterProjectOut(BaseModel):

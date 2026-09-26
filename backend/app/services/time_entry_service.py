@@ -334,8 +334,7 @@ async def set_service_line_lock(
             "This consultant is not assigned to this service line"
         )
 
-    # An inverted range (end before start) just produces no days to act on: a
-    # harmless no-op, not an authorization failure, so no error is raised for it.
+    # TimeEntryLockRequest already rejected an inverted or over-long range (422).
     day_count = (request.end_date - request.start_date).days
     days = [request.start_date + timedelta(days=i) for i in range(day_count + 1)]
 
