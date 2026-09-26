@@ -13,6 +13,10 @@ from app.core.config import settings
 # has no such practical limit.
 _password_hasher = PasswordHasher()
 
+# Binds tokens to this app: a token minted by another service that happens to share
+# the signing secret carries a different (or no) issuer and is rejected on decode.
+_ISSUER = "ifrit"
+
 
 def hash_password(password: str) -> str:
     return _password_hasher.hash(password)
@@ -31,6 +35,7 @@ def _create_token(
 ) -> str:
     now = datetime.now(UTC)
     payload: dict[str, Any] = {
+        "iss": _ISSUER,
         "sub": str(subject),
         "type": token_type,
         "iat": now,
@@ -66,7 +71,11 @@ class InvalidTokenError(Exception):
 def decode_token(token: str, expected_type: Literal["access", "refresh"]) -> dict[str, Any]:
     try:
         payload: dict[str, Any] = jwt.decode(
-            token, settings.jwt_secret_key, algorithms=[settings.jwt_algorithm]
+            token,
+            settings.jwt_secret_key,
+            algorithms=[settings.jwt_algorithm],
+            issuer=_ISSUER,
+            options={"require": ["exp", "iat", "sub", "type"]},
         )
     except jwt.PyJWTError as err:
         raise InvalidTokenError("Invalid or expired token") from err
