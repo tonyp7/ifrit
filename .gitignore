@@ -6,6 +6,7 @@
 !/docker/
 !/docs/
 !/frontend/
+!/.github/
 !/README.md
 !/docker-compose.yml
 !/.env.example

@@ -1,0 +1,51 @@
+# Builds the combined app image (docker/Dockerfile) and pushes it to GHCR as
+# `latest` whenever main changes
+name: Docker image
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Never run two publishes at once, and let a newer commit supersede a queued one
+# without cancelling a push that is already in flight.
+concurrency:
+  group: docker-image-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: docker/setup-buildx-action@v3
+
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/ifrit
+          tags: |
+            type=raw,value=latest
+            type=sha
+
+      # Build context is the REPO ROOT (backend/ and frontend/ must both be in it),
+      # matching docker/build.sh.
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: docker/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
