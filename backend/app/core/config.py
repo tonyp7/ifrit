@@ -1,3 +1,5 @@
+from typing import Literal
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -20,7 +22,9 @@ class Settings(BaseSettings):
     database_url: str
 
     jwt_secret_key: str
-    jwt_algorithm: str
+    # HMAC family only: the key is a shared secret, so an asymmetric name here (RS256,
+    # ES256) would misread it as a PEM key. Anything else fails at startup.
+    jwt_algorithm: Literal["HS256", "HS384", "HS512"]
     access_token_expire_minutes: int
     refresh_token_expire_minutes: int
 
