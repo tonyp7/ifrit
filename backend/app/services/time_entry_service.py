@@ -141,6 +141,13 @@ async def _fetch_entry_with_context(
     service_line_id: uuid.UUID,
     entry_date: date,
 ) -> tuple[TimeEntry, ServiceLine, Project] | None:
+    # populate_existing=True: writes here go through a core upsert
+    # (pg_insert ... on_conflict_do_update), which changes the row without telling
+    # the ORM. If _fetch_existing already loaded this row into the session's identity
+    # map, SQLAlchemy would hand that object back on this re-read with its old
+    # attribute values (and the session is expire_on_commit=False, so the commit
+    # doesn't expire it either): the response would then describe the value that was
+    # just replaced instead of the one that was saved.
     stmt = (
         select(TimeEntry, ServiceLine, Project)
         .join(ServiceLine, TimeEntry.service_line_id == ServiceLine.id)
@@ -150,6 +157,7 @@ async def _fetch_entry_with_context(
             TimeEntry.service_line_id == service_line_id,
             TimeEntry.date == entry_date,
         )
+        .execution_options(populate_existing=True)
     )
     row = (await db.execute(stmt)).first()
     return (row[0], row[1], row[2]) if row is not None else None
@@ -158,12 +166,18 @@ async def _fetch_entry_with_context(
 async def _fetch_existing(
     db: AsyncSession, user_id: uuid.UUID, service_line_id: uuid.UUID, entry_date: date
 ) -> TimeEntry | None:
+    # populate_existing=True: see _fetch_entry_with_context. Today the re-read after
+    # each write already refreshes the cached row, so this is belt and braces, but the
+    # unchanged-hours skip in _upsert_one compares against this row (and a bulk request
+    # can repeat the same cell), so it shouldn't depend on that side effect.
     result = await db.execute(
-        select(TimeEntry).where(
+        select(TimeEntry)
+        .where(
             TimeEntry.user_id == user_id,
             TimeEntry.service_line_id == service_line_id,
             TimeEntry.date == entry_date,
         )
+        .execution_options(populate_existing=True)
     )
     return result.scalar_one_or_none()
 
@@ -174,7 +188,9 @@ async def _upsert_one(
     """One item of the bulk `PUT /time-entries` request: this endpoint is always
     bulk, never a single-entry shape, even for a one-cell edit. hours == 0 deletes
     any existing row instead of saving a zero; hours > 0 upserts, always unlocked,
-    only if the entry's owner is currently assigned to the service line. **Every path
+    only if the entry's owner is currently assigned to the service line, and only
+    if the value actually differs from the stored one (an identical re-save writes
+    nothing and leaves `last_updated_by`/`updated_at` untouched). **Every path
     here checks `is_locked` first, unconditionally**: locked rows are immutable
     through this endpoint regardless of direction (delete or overwrite) or who's
     calling; unlocking is exclusively a `project_manager`'s action via
@@ -237,6 +253,23 @@ async def _upsert_one(
         )
 
     time_value = _hours_to_timedelta(item.hours)
+
+    if existing is not None and existing.time_entry == time_value:
+        # Nothing changed: skip the write so `last_updated_by`/`updated_at` keep
+        # recording who last actually changed the hours. Otherwise a project_manager
+        # who merely re-saves (or tabs through) a consultant's cell would take over
+        # the audit trail. Lock and eligibility were already checked above, so
+        # rejections behave exactly as before; only the no-op write is dropped.
+        context = await _fetch_entry_with_context(db, owner_id, item.service_line_id, item.date)
+        assert context is not None
+        entry, line, project = context
+        return TimeEntryUpsertResult(
+            service_line_id=item.service_line_id,
+            date=item.date,
+            ok=True,
+            entry=to_time_entry_out(entry, line, project),
+        )
+
     stmt = (
         pg_insert(TimeEntry)
         .values(
@@ -402,6 +435,9 @@ async def set_service_line_lock(
             TimeEntry.date <= request.end_date,
         )
         .order_by(TimeEntry.date)
+        # populate_existing=True: same reason as _fetch_entry_with_context (the lock
+        # branch above writes with a core upsert).
+        .execution_options(populate_existing=True)
     )
     return [to_time_entry_out(entry, line, project) for entry, line, project in result.all()]
 

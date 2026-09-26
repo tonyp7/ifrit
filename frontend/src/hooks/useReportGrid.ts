@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -6,7 +6,13 @@ import { ApiError } from "@/api/client";
 import { setServiceLineLock, upsertTimeEntries } from "@/api/timeEntries";
 import { errorMessage } from "@/hooks/useTimesheetGrid";
 import { toDayKey } from "@/lib/timesheetDates";
-import { cellKey, formatHours, normalizeHours, sumHours } from "@/lib/timesheetHours";
+import {
+  cellKey,
+  formatHours,
+  isUnchangedHours,
+  normalizeHours,
+  sumHours,
+} from "@/lib/timesheetHours";
 import type { EntryCell, ServiceLineRow, TimesheetReportRow } from "@/types/timesheet";
 
 export interface UseReportGridOptions {
@@ -32,6 +38,10 @@ export function useReportGrid({ days, rows }: UseReportGridOptions) {
   const { t } = useTranslation(["timesheet"]);
 
   const [entries, setEntries] = useState<Record<string, EntryCell>>({});
+  // Each cell's hours as they were when it gained focus: the baseline handleCellBlur
+  // compares against to skip saves when nothing changed. A ref, not state: it must
+  // not trigger renders and is only ever read from the blur handler.
+  const focusValueRef = useRef<Record<string, string>>({});
   // Whether each (user_id, service_line_id) pair is currently assigned, per the
   // backend's narrower is_assigned rule (see TimesheetReportRowOut): what
   // isUnassignedInPeriod below reads, instead of computing eligibility
@@ -145,8 +155,39 @@ export function useReportGrid({ days, rows }: UseReportGridOptions) {
     }));
   }
 
-  async function handleCellBlur(userId: string, serviceLineId: string, dayKey: string) {
+  function handleCellFocus(userId: string, serviceLineId: string, dayKey: string) {
     const key = cellKey(userId, serviceLineId, dayKey);
+    focusValueRef.current[key] = entries[key]?.hours ?? "";
+  }
+
+  async function handleCellBlur(
+    userId: string,
+    serviceLineId: string,
+    dayKey: string,
+    badInput: boolean,
+  ) {
+    const key = cellKey(userId, serviceLineId, dayKey);
+    const baseline = focusValueRef.current[key];
+    delete focusValueRef.current[key];
+
+    // A number input holding unparseable text (e.g. "1e") reports "", which would
+    // otherwise be read as "clear this cell" and delete the saved entry: put the
+    // value the cell had on focus back and send nothing.
+    if (badInput) {
+      if (baseline !== undefined) {
+        setEntries((prev) => {
+          const next = { ...prev };
+          if (Number(baseline) > 0) {
+            next[key] = { hours: baseline, is_locked: prev[key]?.is_locked ?? false };
+          } else {
+            delete next[key];
+          }
+          return next;
+        });
+      }
+      return;
+    }
+
     const previous = entries[key]?.hours ?? "";
     const corrected = normalizeHours(entries[key]?.hours ?? "", previous || "0");
 
@@ -159,6 +200,11 @@ export function useReportGrid({ days, rows }: UseReportGridOptions) {
     } else {
       setEntries((prev) => ({ ...prev, [key]: { hours: corrected, is_locked: false } }));
     }
+
+    // Nothing changed since focus (a plain tab-through, or an edit that normalizes
+    // back to the same value): no save. Matters most here: a project_manager
+    // tabbing through a consultant's row must not take over last_updated_by.
+    if (isUnchangedHours(baseline, corrected)) return;
 
     function revert() {
       setEntries((prev) => {
@@ -245,6 +291,7 @@ export function useReportGrid({ days, rows }: UseReportGridOptions) {
     serviceLineTotal,
     periodTotal,
     handleCellChange,
+    handleCellFocus,
     handleCellBlur,
     handleToggleLock,
   };

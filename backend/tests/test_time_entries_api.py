@@ -1,6 +1,6 @@
 import csv
 import io
-from datetime import date
+from datetime import date, timedelta
 
 import openpyxl
 
@@ -648,6 +648,166 @@ async def test_override_allows_project_manager_to_edit_consultant_entry(
         params={"start_date": "2026-08-01", "end_date": "2026-08-31"},
     )
     assert listing.json()["items"][0]["hours"] == "4.00"
+
+
+async def _audit_trail(db_session, service_line_id: str):
+    """(last_updated_by, updated_at, time_entry) of the single entry on `service_line_id`,
+    read straight from the database. Selects plain columns rather than the ORM
+    object so the assertion never depends on the (shared) session's identity map."""
+    from sqlalchemy import select
+
+    from app.models.time_entry import TimeEntry
+
+    row = (
+        await db_session.execute(
+            select(
+                TimeEntry.last_updated_by, TimeEntry.updated_at, TimeEntry.time_entry
+            ).where(TimeEntry.service_line_id == service_line_id)
+        )
+    ).one()
+    return str(row.last_updated_by), row.updated_at, row.time_entry
+
+
+async def test_resaving_unchanged_hours_does_not_touch_audit_trail(
+    client, db_session
+) -> None:
+    await _login_manager_first(client, db_session)
+    _project_id, service_line_id, consultant_id, _pm_id = (
+        await _setup_project_with_consultant_and_pm(
+            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        )
+    )
+    await _login_as(client, "c@example.com")
+    payload = [{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "4"}]
+    first = await client.put("/api/time-entries", json=payload)
+    assert first.status_code == 200
+    before = await _audit_trail(db_session, service_line_id)
+    assert before[0] == consultant_id
+
+    second = await client.put("/api/time-entries", json=payload)
+
+    # Still a normal success (with the entry), just with nothing written.
+    assert second.status_code == 200
+    assert second.json()[0]["ok"] is True
+    assert second.json()[0]["entry"]["hours"] == "4.00"
+    assert await _audit_trail(db_session, service_line_id) == before
+
+
+async def test_override_with_unchanged_hours_keeps_original_last_updated_by(
+    client, db_session
+) -> None:
+    await _login_manager_first(client, db_session)
+    _project_id, service_line_id, consultant_id, _pm_id = (
+        await _setup_project_with_consultant_and_pm(
+            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        )
+    )
+    await _login_as(client, "c@example.com")
+    await client.put(
+        "/api/time-entries",
+        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "4"}],
+    )
+    before = await _audit_trail(db_session, service_line_id)
+
+    # A project_manager re-saving the same value (what tabbing through a
+    # consultant's row used to do) must not take over the audit trail.
+    await _login_as(client, "pm@example.com")
+    response = await client.put(
+        "/api/time-entries",
+        json=[
+            {
+                "service_line_id": service_line_id,
+                "date": "2026-08-05",
+                "hours": "4",
+                "user_id": consultant_id,
+            }
+        ],
+    )
+
+    assert response.status_code == 200
+    assert response.json()[0]["ok"] is True
+    assert await _audit_trail(db_session, service_line_id) == before
+
+
+async def test_override_with_changed_hours_records_project_manager(
+    client, db_session
+) -> None:
+    await _login_manager_first(client, db_session)
+    _project_id, service_line_id, consultant_id, pm_id = (
+        await _setup_project_with_consultant_and_pm(
+            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        )
+    )
+    await _login_as(client, "c@example.com")
+    await client.put(
+        "/api/time-entries",
+        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "4"}],
+    )
+    before = await _audit_trail(db_session, service_line_id)
+    assert before[0] == consultant_id
+
+    await _login_as(client, "pm@example.com")
+    response = await client.put(
+        "/api/time-entries",
+        json=[
+            {
+                "service_line_id": service_line_id,
+                "date": "2026-08-05",
+                "hours": "6",
+                "user_id": consultant_id,
+            }
+        ],
+    )
+
+    assert response.status_code == 200
+    assert response.json()[0]["ok"] is True
+    assert response.json()[0]["entry"]["hours"] == "6.00"
+    last_updated_by, updated_at, time_entry = await _audit_trail(db_session, service_line_id)
+    assert time_entry == timedelta(hours=6)
+    assert last_updated_by == pm_id
+    assert updated_at > before[1]
+
+
+async def test_overwrite_returns_saved_hours(client, db_session) -> None:
+    await _login_manager_first(client, db_session)
+    _project_id, service_line_id = await _setup_project_with_consultant(
+        client, db_session, consultant_name_id="c@example.com"
+    )
+    await _login_as(client, "c@example.com")
+    day = {"service_line_id": service_line_id, "date": "2026-08-05"}
+    first = await client.put("/api/time-entries", json=[{**day, "hours": "4"}])
+    assert first.json()[0]["entry"]["hours"] == "4.00"
+
+    second = await client.put("/api/time-entries", json=[{**day, "hours": "6"}])
+
+    # The response must describe what was just saved, not the value it replaced.
+    assert second.status_code == 200
+    assert second.json()[0]["entry"]["hours"] == "6.00"
+    assert (await _audit_trail(db_session, service_line_id))[2] == timedelta(hours=6)
+
+
+async def test_bulk_upsert_same_cell_repeated_ends_on_last_value(
+    client, db_session
+) -> None:
+    await _login_manager_first(client, db_session)
+    _project_id, service_line_id = await _setup_project_with_consultant(
+        client, db_session, consultant_name_id="c@example.com"
+    )
+    await _login_as(client, "c@example.com")
+    day = {"service_line_id": service_line_id, "date": "2026-08-05"}
+    await client.put("/api/time-entries", json=[{**day, "hours": "5"}])
+
+    # Each item is judged against what the previous one actually stored: the third
+    # (5 again) differs from the stored 6, so it must be written, not skipped as
+    # "unchanged" against a stale copy of the original 5.
+    response = await client.put(
+        "/api/time-entries",
+        json=[{**day, "hours": "5"}, {**day, "hours": "6"}, {**day, "hours": "5"}],
+    )
+
+    assert response.status_code == 200
+    assert [r["entry"]["hours"] for r in response.json()] == ["5.00", "6.00", "5.00"]
+    assert (await _audit_trail(db_session, service_line_id))[2] == timedelta(hours=5)
 
 
 async def test_override_rejects_non_project_manager(client, db_session) -> None:
