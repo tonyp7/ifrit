@@ -5,7 +5,6 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { RequireRoles } from "@/components/RequireRoles";
 import { CompaniesListPage } from "@/pages/CompaniesListPage";
 import { CompanyFormPage } from "@/pages/CompanyFormPage";
-import { HomePage } from "@/pages/HomePage";
 import { LoginPage } from "@/pages/LoginPage";
 import { ProjectFormPage } from "@/pages/ProjectFormPage";
 import { ProjectsPage } from "@/pages/ProjectsPage";
@@ -20,8 +19,9 @@ export default function App() {
       <Route path="/login" element={<LoginPage />} />
       <Route element={<ProtectedRoute />}>
         <Route element={<AppLayout />}>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/timesheet" element={<TimesheetPage />} />
+          {/* The timesheet is the landing screen. There is deliberately no /timesheet
+              route: it falls through to the catch-all below and lands here. */}
+          <Route path="/" element={<TimesheetPage />} />
           <Route element={<RequireRoles roles={["project_manager"]} />}>
             <Route path="/reporting" element={<ReportingPage />} />
           </Route>

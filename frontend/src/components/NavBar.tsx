@@ -57,16 +57,6 @@ export function NavBar() {
 
   const items = NAV_ITEMS.filter((item) => canAccessNavItem(item, currentUser.roles));
 
-  // A child gated by its own `requiredRoles` (e.g. Reporting, project_manager-only)
-  // may not be visible to every user who can see the parent item at all:
-  // Configuration's children have no such gate and are always both visible, same as
-  // before this concept existed.
-  function visibleChildren(item: (typeof items)[number]) {
-    return item.children?.filter(
-      (child) => !child.requiredRoles || child.requiredRoles.some((role) => currentUser.roles.includes(role)),
-    );
-  }
-
   return (
     <TooltipProvider delayDuration={200}>
       <nav
@@ -76,8 +66,8 @@ export function NavBar() {
         )}
       >
         {items.map((item) => {
-          const children = visibleChildren(item);
-          return children && children.length > 1 ? (
+          const children = item.children;
+          return children ? (
             <Tooltip key={item.to}>
               <DropdownMenu>
                 <TooltipTrigger asChild>
