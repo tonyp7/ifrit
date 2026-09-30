@@ -13,3 +13,14 @@ export function sortServiceLines(lines: ServiceLineRow[]): ServiceLineRow[] {
       (a.service_line_name ?? "").localeCompare(b.service_line_name ?? ""),
   );
 }
+
+// The "add a service line" guidance only makes sense when the user has no rows yet and
+// there is at least one line they could actually add. A user with nothing eligible (not
+// assigned anywhere, or never assignable) gets no text, and Reporting, which passes no
+// add options at all, never gets it.
+export function shouldShowAddLineHint(
+  displayedRowCount: number,
+  addOptionCount: number | undefined,
+): boolean {
+  return displayedRowCount === 0 && (addOptionCount ?? 0) > 0;
+}
