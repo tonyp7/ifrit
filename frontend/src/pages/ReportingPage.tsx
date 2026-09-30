@@ -58,7 +58,7 @@ export function ReportingPage() {
 
   const [filterOptions, setFilterOptions] = useState<TimesheetReportFilters | null>(null);
   // Every filter starts unchecked: unchecked/empty means unfiltered, not "show
-  // nothing" (see reporting.md's Default state).
+  // nothing".
   const [projectIds, setProjectIds] = useState<string[]>([]);
   const [serviceLineIds, setServiceLineIds] = useState<string[]>([]);
   const [consultantIds, setConsultantIds] = useState<string[]>([]);
@@ -69,7 +69,8 @@ export function ReportingPage() {
   const days = useMemo(() => getPeriodDays(periodType, periodDate), [periodType, periodDate]);
 
   // Static, not period-scoped: one fetch on mount, never re-fetched on period or
-  // filter changes (see reporting.md's "Filters are independent, not cascading").
+  // filter changes: each dropdown always lists the caller's full set and is never
+  // narrowed by the other filters.
   useEffect(() => {
     getReportFilters()
       .then(setFilterOptions)

@@ -253,8 +253,8 @@ def _build_pdf(rows: list[TimesheetReportRowOut], days: list[date], period_label
     # artifact) and stroke a rounded rectangle over the same bounding box: the
     # straight edges land exactly on the grid's own already-correct border, only
     # the corners actually change appearance. Skipped for a table spanning
-    # multiple pages: there's no single closed rectangle to round in that case
-    # (see reporting.md's own note on this).
+    # multiple pages: there's no single closed rectangle to round in that case, so a
+    # multi-page export keeps the plain square edge.
     if pdf.page_no() == table_start_page:
         _round_table_corners(
             pdf,
@@ -369,7 +369,7 @@ _DETAILS_COLUMNS = ["Project Name", "Service Line", "Consultant", "Date", "Hours
 
 def _build_details_dataframe(rows: list[TimesheetReportRowOut]) -> pd.DataFrame:
     """Flattens each row's `entries` sub-array: a row with no entries in the
-    requested period contributes nothing (see reporting.md's Details section)."""
+    requested period contributes nothing."""
     records = [
         {
             "Project Name": _escape_formula_prefix(row.project_name),
@@ -387,7 +387,8 @@ def _build_details_dataframe(rows: list[TimesheetReportRowOut]) -> pd.DataFrame:
 def _build_csv(rows: list[TimesheetReportRowOut]) -> bytes:
     details_df = _build_details_dataframe(rows)
     # Plain UTF-8, no BOM: matches this app's other text responses rather than
-    # special-casing this one download (see reporting.md's CSV Export section).
+    # special-casing this one download. No semicolon delimiter either: hours already
+    # use `.` as the decimal separator, so there's no comma clash to work around.
     return details_df.to_csv(index=False, float_format="%.1f").encode("utf-8")
 
 
@@ -408,7 +409,7 @@ def _build_report_dataframe(
 ) -> tuple[pd.DataFrame, list[str]]:
     """A natural Excel layout, separate Project/Service Line/Consultant columns,
     not the PDF's single merged 3-line label column, since Excel has no printed
-    page-width constraint forcing that (see reporting.md's XLSX Export section).
+    page-width constraint forcing that.
     Carries over only the PDF's *color* formatting rules, applied separately by
     _style_report_sheet, this just builds the row data, including the bottom
     Total row."""
@@ -471,7 +472,7 @@ def _style_report_sheet(
             )
 
     # One decimal place throughout the day/Total columns, data and Total rows:
-    # matches hours' existing 0.5-increment convention (see reporting.md).
+    # matches hours' 0.5-increment convention.
     for excel_row in [*range(header_row + 1, total_row), total_row]:
         for col_index in range(day_column_start, len(columns) + 1):
             ws.cell(row=excel_row, column=col_index).number_format = "0.0"

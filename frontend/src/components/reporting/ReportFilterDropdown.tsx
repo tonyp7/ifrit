@@ -27,7 +27,7 @@ interface ReportFilterDropdownProps {
   selected: string[];
   onChange: (next: string[]) => void;
   /** Project Status is exactly 3 fixed values: a search bar over 3 items is
-   * pointless UI (see reporting.md), so this defaults to true but that one
+   * pointless UI, so this defaults to true but that one
    * dropdown passes false. */
   searchable?: boolean;
 }
