@@ -12,6 +12,7 @@ import {
   toDayKey,
 } from "@/lib/timesheetDates";
 import { cellKey, formatHours } from "@/lib/timesheetHours";
+import { shouldShowAddLineHint } from "@/lib/timesheetServiceLines";
 import { cn } from "@/lib/utils";
 import type {
   EligibleServiceLine,
@@ -343,7 +344,7 @@ export function TimesheetDesktopGrid({
 
       {onAddServiceLine && (
         <>
-          {serviceLines.length === 0 && (
+          {shouldShowAddLineHint(serviceLines.length, addOptions?.length) && (
             <p className="text-sm text-muted-foreground">
               {t(
                 "No service lines added yet. Use “Add service line” below to start logging time.",

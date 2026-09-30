@@ -8,6 +8,7 @@ import { cn } from "@/lib/utils";
 import { serviceLineBorderColor } from "@/lib/timesheetColors";
 import { formatFullDate, formatWeekdayShort, isToday, toDayKey } from "@/lib/timesheetDates";
 import { cellKey, formatHours } from "@/lib/timesheetHours";
+import { shouldShowAddLineHint } from "@/lib/timesheetServiceLines";
 import type { EligibleServiceLine, EntryCell, ServiceLineRow } from "@/types/timesheet";
 
 interface TimesheetMobileViewProps {
@@ -115,7 +116,7 @@ export function TimesheetMobileView({
           </span>
         </div>
 
-        {serviceLines.length === 0 && (
+        {shouldShowAddLineHint(serviceLines.length, addOptions?.length) && (
           <p className="text-sm text-muted-foreground">
             {t("No service lines added yet. Use “Add service line” below to start logging time.")}
           </p>
