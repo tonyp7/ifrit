@@ -1,12 +1,16 @@
-import { CalendarClock, House, NotebookTabs, Settings, type LucideIcon } from "lucide-react";
+import {
+  CalendarClock,
+  FileChartColumn,
+  NotebookTabs,
+  Settings,
+  type LucideIcon,
+} from "lucide-react";
 
 import type { Role } from "@/types/user";
 
 export interface NavSubItem {
   to: string;
   label: string;
-  /** undefined = visible to every user who can already see the parent item. */
-  requiredRoles?: Role[];
 }
 
 // Mirrors this app's role -> screen access rules: keep in sync with the actual
@@ -21,26 +25,25 @@ export interface NavItem {
    * When present, the icon opens a dropdown of these destinations instead of
    * navigating to `to` directly. `to` is still used to derive the icon's
    * active/highlighted state (any current pathname under it counts as active).
+   * Every child is shown to everyone who can see the item.
    */
   children?: NavSubItem[];
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { to: "/", label: "Home", icon: House },
+  // The landing screen: every role has at least its own timesheet, so this is
+  // always shown and is a plain link, never a dropdown.
   {
-    to: "/timesheet",
+    to: "/",
     label: "Timesheet",
     icon: CalendarClock,
-    // Every role gets at least the own-timesheet screen. `project_manager`
-    // additionally gets the Reporting sub-destination. Only a
-    // `child.requiredRoles`-visible count > 1 turns this into
-    // an actual dropdown (see canAccessNavItem/NavBar): everyone else falls through
-    // to a plain direct link to `to`.
     requiredRoles: ["consultant", "project_admin", "project_manager", "administrator"],
-    children: [
-      { to: "/timesheet", label: "My timesheet" },
-      { to: "/reporting", label: "Reporting", requiredRoles: ["project_manager"] },
-    ],
+  },
+  {
+    to: "/reporting",
+    label: "Reporting",
+    icon: FileChartColumn,
+    requiredRoles: ["project_manager"],
   },
   {
     to: "/projects",
