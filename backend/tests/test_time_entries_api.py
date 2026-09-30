@@ -1631,7 +1631,7 @@ async def test_export_week_period_filename_includes_iso_year(client, db_session)
     )
 
 
-# --- date-range bounds (SAST F-06 / F-09) ---------------------------------------------------------
+# --- date-range bounds (an unbounded range would expand into an unbounded per-day write) ---------------------------------------------------------
 
 _TOO_WIDE = {"start_date": "0001-01-01", "end_date": "9999-12-31"}
 _INVERTED = {"start_date": "2026-09-20", "end_date": "2026-09-01"}

@@ -195,7 +195,7 @@ async def authenticate_local_user(
     user = await get_user_by_name_id(db, name_id)
     # Always hash against something, even when there's nothing real to check, so a
     # nonexistent/inactive/SSO account costs the same time as a real password check
-    # (see specs/sast.md F-05: this was previously a login timing side channel).
+    # (otherwise response time would reveal which emails are registered).
     candidate_hash = (
         user.hashed_password
         if user is not None and user.is_active and not user.is_sso and user.hashed_password

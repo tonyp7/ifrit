@@ -165,8 +165,8 @@ async def export_time_entries_report(
         media_type=content_type,
         headers={
             "Content-Disposition": f'attachment; filename="{filename}"',
-            # Same forced-download hardening fileupload.md already establishes
-            # for every other download in this app.
+            # Forced-download hardening: the browser must not sniff the body into a
+            # different content type than the one declared above.
             "X-Content-Type-Options": "nosniff",
         },
     )

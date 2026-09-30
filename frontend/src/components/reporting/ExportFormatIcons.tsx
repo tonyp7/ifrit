@@ -1,6 +1,5 @@
-// Bootstrap Icons' filetype-pdf/xlsx/csv, inlined as raw SVG per reporting.md's
-// own instruction ("do not import the entire bootstrap icon lib... use the SVG
-// directly to avoid a new dependency"): this app is lucide-react everywhere
+// Bootstrap Icons' filetype-pdf/xlsx/csv, inlined as raw SVG rather than importing the
+// whole bootstrap-icons library, to avoid a new dependency: this app is lucide-react everywhere
 // else, but lucide has no filetype-specific icon set. Paths copied verbatim from
 // https://github.com/twbs/icons (MIT), not hand-drawn, so they render exactly as
 // the real bootstrap-icons set does.

@@ -610,10 +610,10 @@ async def test_active_project_allows_service_line_delete_without_logged_time(
 async def test_locked_zero_hour_entry_still_blocks_delete_on_active_project(
     client, db_session
 ) -> None:
-    """A locked 0-hour gap-fill row (see timesheet.md's Lock/Unlock) exists because
-    a project_manager took a real, recorded action on it: the delete-blocking
-    check must be an existence check, not filtered to hours > 0, or this history
-    would be silently destroyed."""
+    """A locked 0-hour gap-fill row (created when a project_manager locks a day with no
+    entry) exists because a project_manager took a real, recorded action on it: the
+    delete-blocking check must be an existence check, not filtered to hours > 0, or
+    this history would be silently destroyed."""
     await _login_manager(client, db_session)
     vendor, client_company, currency = await _setup_refs(db_session)
     consultant = await create_user(

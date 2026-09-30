@@ -101,8 +101,8 @@ async function request<T>(path: string, init?: RequestInit, isRetry = false): Pr
   return (await response.json()) as T;
 }
 
-// filename is parsed from Content-Disposition here (built server-side: see
-// reporting.md's export API contract) rather than recomputed by the caller.
+// filename is parsed from Content-Disposition here (built server-side from the real
+// project and consultant names) rather than recomputed by the caller.
 function parseFilename(disposition: string | null): string | null {
   if (!disposition) return null;
   const match = /filename="?([^";]+)"?/.exec(disposition);
