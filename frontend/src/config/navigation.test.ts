@@ -44,13 +44,15 @@ describe("navigation item shape", () => {
     expect(NAV_ITEMS.map((item) => item.label)).not.toContain("Home");
   });
 
-  it("links Timesheet to / and Reporting to /reporting, both without a dropdown", () => {
-    const timesheet = NAV_ITEMS.find((item) => item.label === "Timesheet");
-    const reporting = NAV_ITEMS.find((item) => item.label === "Reporting");
-    expect(timesheet?.to).toBe("/");
-    expect(timesheet?.children).toBeUndefined();
-    expect(reporting?.to).toBe("/reporting");
-    expect(reporting?.children).toBeUndefined();
+  it("links Timesheet to /, Reporting to /reporting and Configuration to /configuration", () => {
+    const to = (label: string) => NAV_ITEMS.find((item) => item.label === label)?.to;
+    expect(to("Timesheet")).toBe("/");
+    expect(to("Reporting")).toBe("/reporting");
+    expect(to("Configuration")).toBe("/configuration");
+  });
+
+  it("has no dropdown items: every item is a plain link", () => {
+    expect(NAV_ITEMS.every((item) => !("children" in item))).toBe(true);
   });
 
   it("puts Timesheet first", () => {

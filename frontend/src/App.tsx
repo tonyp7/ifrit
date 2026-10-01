@@ -1,10 +1,12 @@
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { AppLayout } from "@/components/AppLayout";
+import { ConfigurationLayout } from "@/components/ConfigurationLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { RequireRoles } from "@/components/RequireRoles";
 import { CompaniesListPage } from "@/pages/CompaniesListPage";
 import { CompanyFormPage } from "@/pages/CompanyFormPage";
+import { ConfigurationGeneralPage } from "@/pages/ConfigurationGeneralPage";
 import { LoginPage } from "@/pages/LoginPage";
 import { ProjectFormPage } from "@/pages/ProjectFormPage";
 import { ProjectsPage } from "@/pages/ProjectsPage";
@@ -31,20 +33,18 @@ export default function App() {
             <Route path="/projects/:projectId" element={<ProjectFormPage />} />
           </Route>
           <Route element={<RequireRoles roles={["administrator"]} />}>
-            {/* Bare /configuration has no page of its own: the Configuration nav
-                icon opens a dropdown instead, so there's no single "right"
-                destination to redirect to. Deliberately no route for it here: it
-                falls through to the catch-all below, same as any other
-                unrecognized URL. */}
-            <Route path="/configuration/companies" element={<CompaniesListPage />} />
-            <Route path="/configuration/companies/new" element={<CompanyFormPage />} />
-            <Route
-              path="/configuration/companies/:companyId"
-              element={<CompanyFormPage />}
-            />
-            <Route path="/configuration/users" element={<UsersPage />} />
-            <Route path="/configuration/users/new" element={<UserFormPage />} />
-            <Route path="/configuration/users/:userId" element={<UserFormPage />} />
+            {/* Bare /configuration redirects to the default tab; unknown sub-paths still
+                fall through to the catch-all below like any other unrecognized URL. */}
+            <Route path="/configuration" element={<ConfigurationLayout />}>
+              <Route index element={<Navigate to="general" replace />} />
+              <Route path="general" element={<ConfigurationGeneralPage />} />
+              <Route path="companies" element={<CompaniesListPage />} />
+              <Route path="companies/new" element={<CompanyFormPage />} />
+              <Route path="companies/:companyId" element={<CompanyFormPage />} />
+              <Route path="users" element={<UsersPage />} />
+              <Route path="users/new" element={<UserFormPage />} />
+              <Route path="users/:userId" element={<UserFormPage />} />
+            </Route>
           </Route>
         </Route>
       </Route>

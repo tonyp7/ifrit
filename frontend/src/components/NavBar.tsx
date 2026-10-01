@@ -5,7 +5,7 @@ import {
   SunMoon,
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { NavLink } from "react-router-dom";
 
 import {
   DropdownMenu,
@@ -35,18 +35,14 @@ import type { ThemePreference } from "@/types/user";
 
 // Single shared style for every nav bar icon button (screen icons + profile): same
 // resting/hover/active treatment for all of them. `aria-[current=page]` picks up the
-// `aria-current="page"` that NavLink sets on the active route automatically for plain
-// links; the Configuration menu trigger isn't a NavLink (it opens a dropdown instead
-// of navigating directly), so it sets `aria-current` manually via `isActive` below to
-// stay visually consistent with the rest.
+// `aria-current="page"` that NavLink sets on the active route automatically; the profile
+// trigger isn't a NavLink (it opens a menu instead of navigating), so it never shows it.
 const navIconClass =
   "flex h-10 w-10 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground aria-[current=page]:bg-secondary aria-[current=page]:text-foreground";
 
 export function NavBar() {
   const { user, logout } = useAuth();
   const { themePreference, setThemePreference } = useTheme();
-  const navigate = useNavigate();
-  const location = useLocation();
   // NAV_ITEMS' `label` is the English source string, used here as the translation
   // key: it's defined at module scope in config/navigation.ts, outside any
   // component, so it can't call useTranslation() itself.
@@ -65,42 +61,20 @@ export function NavBar() {
           "md:inset-y-0 md:left-0 md:right-auto md:h-full md:w-14 md:flex-col md:justify-start md:gap-2 md:border-r md:border-t-0 md:py-4",
         )}
       >
-        {items.map((item) => {
-          const children = item.children;
-          return children ? (
-            <Tooltip key={item.to}>
-              <DropdownMenu>
-                <TooltipTrigger asChild>
-                  <DropdownMenuTrigger
-                    className={navIconClass}
-                    aria-current={location.pathname.startsWith(item.to) ? "page" : undefined}
-                  >
-                    <item.icon className="h-5 w-5" aria-hidden="true" />
-                    <span className="sr-only">{t(item.label)}</span>
-                  </DropdownMenuTrigger>
-                </TooltipTrigger>
-                <DropdownMenuContent side="right" align="start">
-                  {children.map((child) => (
-                    <DropdownMenuItem key={child.to} onClick={() => navigate(child.to)}>
-                      {t(child.label)}
-                    </DropdownMenuItem>
-                  ))}
-                </DropdownMenuContent>
-              </DropdownMenu>
-              <TooltipContent side="right">{t(item.label)}</TooltipContent>
-            </Tooltip>
-          ) : (
-            <Tooltip key={item.to}>
-              <TooltipTrigger asChild>
-                <NavLink to={item.to} end className={navIconClass}>
-                  <item.icon className="h-5 w-5" aria-hidden="true" />
-                  <span className="sr-only">{t(item.label)}</span>
-                </NavLink>
-              </TooltipTrigger>
-              <TooltipContent side="right">{t(item.label)}</TooltipContent>
-            </Tooltip>
-          );
-        })}
+        {items.map((item) => (
+          <Tooltip key={item.to}>
+            <TooltipTrigger asChild>
+              {/* `end` only for "/": it would otherwise match every route, but every other
+                  item must stay highlighted on the screens nested beneath it (a project's
+                  edit screen, a company's form, ...). */}
+              <NavLink to={item.to} end={item.to === "/"} className={navIconClass}>
+                <item.icon className="h-5 w-5" aria-hidden="true" />
+                <span className="sr-only">{t(item.label)}</span>
+              </NavLink>
+            </TooltipTrigger>
+            <TooltipContent side="right">{t(item.label)}</TooltipContent>
+          </Tooltip>
+        ))}
 
         <div className="md:mt-auto">
           <Tooltip>
