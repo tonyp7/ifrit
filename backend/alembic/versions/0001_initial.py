@@ -590,10 +590,99 @@ def upgrade() -> None:
     )
     op.create_index("ix_time_entries_user_id_date", "time_entries", ["user_id", "date"])
 
+    # --- File storage ---------------------------------------------------------------
+    # The bytes and the facts about them: one row per distinct stored content.
+    op.create_table(
+        "stored_files",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        # SHA-256 of the bytes as stored (after image re-encoding), the dedup key.
+        sa.Column("checksum_sha256", sa.Text(), nullable=False, unique=True),
+        sa.Column("size_bytes", sa.BigInteger(), nullable=False),
+        sa.Column("detected_content_type", sa.Text(), nullable=False),
+        sa.Column("bucket_key", sa.Text(), nullable=False, unique=True),
+        sa.Column("status", sa.Text(), nullable=False),
+        sa.Column("rejection_reason", sa.Text(), nullable=True),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
+        sa.CheckConstraint(
+            "status IN ('pending', 'scanning', 'processing', 'ready', 'rejected',"
+            " 'failed')",
+            name="ck_stored_files_status",
+        ),
+    )
+    # One row per upload: a named attachment of stored content to exactly one object.
+    op.create_table(
+        "files",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        # RESTRICT: stored content is only removed by a cleanup job once nothing refers
+        # to it, never as a side effect of deleting an attachment.
+        sa.Column(
+            "stored_file_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("stored_files.id", ondelete="RESTRICT"),
+            nullable=False,
+        ),
+        sa.Column("kind", sa.Text(), nullable=False),
+        sa.Column(
+            "uploaded_by",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+        sa.Column("original_filename", sa.Text(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
+        sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
+        sa.UniqueConstraint("id", "kind", name="uq_files_id_kind"),
+        sa.CheckConstraint("kind IN ('setting')", name="ck_files_kind"),
+    )
+    # Instance-wide slots named in code (so there is no row to reference): the CHECK on
+    # setting_key is what rules out an unknown slot.
+    op.create_table(
+        "setting_files",
+        sa.Column("file_id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("kind", sa.Text(), nullable=False, server_default="setting"),
+        sa.Column("setting_key", sa.Text(), nullable=False),
+        sa.ForeignKeyConstraint(
+            ["file_id", "kind"],
+            ["files.id", "files.kind"],
+            ondelete="CASCADE",
+            name="fk_setting_files_file_id_kind",
+        ),
+        sa.CheckConstraint("kind = 'setting'", name="ck_setting_files_kind"),
+        sa.CheckConstraint("setting_key IN ('org_logo')", name="ck_setting_files_key"),
+    )
+    op.create_index(
+        "setting_files_single_slot",
+        "setting_files",
+        ["setting_key"],
+        unique=True,
+        postgresql_where=sa.text("setting_key IN ('org_logo')"),
+    )
+    for statement in triggers.SETTING_FILES_TRIGGER_STATEMENTS:
+        op.execute(statement)
+
 
 def downgrade() -> None:
     for statement in triggers.DROP_STATEMENTS:
         op.execute(statement)
+    op.drop_table("setting_files")
+    op.drop_table("files")
+    op.drop_table("stored_files")
     op.drop_table("time_entries")
     op.drop_table("service_line_consultants")
     op.drop_table("service_lines")

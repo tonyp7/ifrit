@@ -1,0 +1,18 @@
+{
+  "Organization Logo": "Organization Logo",
+  "Organization logo": "Organization logo",
+  "JPEG, PNG or WebP.": "JPEG, PNG or WebP.",
+  "No logo uploaded": "No logo uploaded",
+  "Browse…": "Browse…",
+  "Uploading… {{percent}}%": "Uploading… {{percent}}%",
+  "Logo updated": "Logo updated",
+  "Logo removed": "Logo removed",
+  "Upload rejected": "Upload rejected",
+  "Upload failed": "Upload failed",
+  "The upload didn't go through. Check your connection and try again.": "The upload didn't go through. Check your connection and try again.",
+  "Try again": "Try again",
+  "Couldn't load the logo.": "Couldn't load the logo.",
+  "Remove logo?": "Remove logo?",
+  "The organization logo will be deleted.": "The organization logo will be deleted.",
+  "Removing…": "Removing…"
+}

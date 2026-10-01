@@ -1,9 +1,5 @@
-import { useTranslation } from "react-i18next";
-
-import { PlaceholderScreen } from "@/components/PlaceholderScreen";
+import { OrganizationLogoCard } from "@/components/configuration/OrganizationLogoCard";
 
 export function ConfigurationGeneralPage() {
-  const { t } = useTranslation(["common"]);
-
-  return <PlaceholderScreen title={t("General")} />;
+  return <OrganizationLogoCard />;
 }

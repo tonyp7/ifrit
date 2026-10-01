@@ -44,27 +44,34 @@ function attemptRefresh(): Promise<boolean> {
   return refreshPromise;
 }
 
+// Turns an error response's JSON body into one user-facing message.
+function messageFromBody(status: number, body: unknown): string {
+  let message = `Request failed with status ${status}`;
+  const detail = (body as { detail?: unknown } | null)?.detail;
+  if (typeof detail === "string") {
+    // A plain error message (most endpoints).
+    message = detail;
+  } else if (Array.isArray(detail)) {
+    // FastAPI/Pydantic 422 validation errors: a list of {msg, loc, type}.
+    message = detail
+      .map((entry) =>
+        entry && typeof entry === "object" && "msg" in entry
+          ? String((entry as { msg: unknown }).msg)
+          : String(entry),
+      )
+      .join("; ");
+  }
+  return message;
+}
+
 async function throwApiError(response: Response): Promise<never> {
-  let message = `Request failed with status ${response.status}`;
+  let body: unknown = null;
   try {
-    const body = (await response.json()) as { detail?: unknown };
-    if (typeof body.detail === "string") {
-      // A plain error message (most endpoints).
-      message = body.detail;
-    } else if (Array.isArray(body.detail)) {
-      // FastAPI/Pydantic 422 validation errors: a list of {msg, loc, type}.
-      message = body.detail
-        .map((entry) =>
-          entry && typeof entry === "object" && "msg" in entry
-            ? String((entry as { msg: unknown }).msg)
-            : String(entry),
-        )
-        .join("; ");
-    }
+    body = await response.json();
   } catch {
     // response had no JSON body; keep the generic message
   }
-  throw new ApiError(response.status, message);
+  throw new ApiError(response.status, messageFromBody(response.status, body));
 }
 
 async function request<T>(path: string, init?: RequestInit, isRetry = false): Promise<T> {
@@ -133,6 +140,73 @@ async function requestBlob(
   return { blob, filename: parseFilename(response.headers.get("Content-Disposition")) };
 }
 
+export interface UploadOptions {
+  method?: "POST" | "PUT";
+  /** Called with 0-100 as the request body is sent. */
+  onProgress?: (percent: number) => void;
+}
+
+// fetch cannot report upload progress, so uploads go through XMLHttpRequest. They share
+// the 401 -> refresh-and-retry handling above, so an upload doesn't fail just because
+// the short-lived access token expired while the user was choosing a file. No
+// Content-Type is set: the browser must add the multipart boundary itself.
+function requestUpload<T>(
+  path: string,
+  body: FormData,
+  { method = "PUT", onProgress }: UploadOptions,
+  isRetry = false,
+): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, `${BASE_URL}${path}`);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader("Accept", "application/json");
+
+    xhr.upload.onprogress = (event) => {
+      if (event.lengthComputable && event.total > 0) {
+        onProgress?.(Math.round((event.loaded / event.total) * 100));
+      }
+    };
+    // Status 0 marks a request that never got a response (offline, aborted, timed out).
+    xhr.onerror = () => reject(new ApiError(0, "Network error"));
+    xhr.onabort = () => reject(new ApiError(0, "Upload aborted"));
+    xhr.ontimeout = () => reject(new ApiError(0, "Upload timed out"));
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try {
+          resolve(JSON.parse(xhr.responseText) as T);
+        } catch {
+          reject(new ApiError(xhr.status, "Unexpected response from the server"));
+        }
+        return;
+      }
+
+      let parsed: unknown = null;
+      try {
+        parsed = JSON.parse(xhr.responseText);
+      } catch {
+        // response had no JSON body; keep the generic message
+      }
+      const failure = new ApiError(xhr.status, messageFromBody(xhr.status, parsed));
+
+      if (xhr.status === 401 && !isRetry) {
+        void attemptRefresh().then((refreshed) => {
+          if (refreshed) {
+            requestUpload<T>(path, body, { method, onProgress }, true).then(resolve, reject);
+          } else {
+            notifySessionExpired();
+            reject(failure);
+          }
+        });
+        return;
+      }
+      reject(failure);
+    };
+
+    xhr.send(body);
+  });
+}
+
 export const apiClient = {
   get: <T>(path: string) => request<T>(path, { method: "GET" }),
   // For endpoints that return a file rather than JSON (e.g. Reporting's export)
@@ -155,4 +229,7 @@ export const apiClient = {
       body: body !== undefined ? JSON.stringify(body) : undefined,
     }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  // multipart file upload with progress (see requestUpload)
+  upload: <T>(path: string, body: FormData, options: UploadOptions = {}) =>
+    requestUpload<T>(path, body, options),
 };
