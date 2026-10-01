@@ -401,6 +401,29 @@ async def get_setting_file(db: AsyncSession, setting_key: SettingKey) -> File | 
     ).scalar_one_or_none()
 
 
+async def read_setting_file_bytes(
+    db: AsyncSession, setting_key: SettingKey
+) -> bytes | None:
+    """The stored bytes of a single-slot setting's file, for backend code acting on behalf
+    of the system (e.g. putting the organization logo in a generated report).
+
+    Deliberately has no access check: it is not a download. The caller is trusted backend
+    code, never a route, and the bytes only leave the server inside whatever that code
+    produces for a user who was already allowed to request it, which is why the logo reaches
+    a project manager who has no access to setting files. It does require the file to be
+    `ready`.
+
+    Returns None when the setting has no file or the file is not ready. A missing disk
+    file (OSError) or a recorded path outside the storage root (StoragePathError) is raised,
+    so the caller decides what a broken file means for it.
+    """
+    file = await get_setting_file(db, setting_key)
+    if file is None or file.stored_file.status != "ready":
+        return None
+    path = resolve_storage_path(file.stored_file.bucket_key)
+    return await asyncio.to_thread(path.read_bytes)
+
+
 async def delete_setting_file(db: AsyncSession, setting_key: SettingKey) -> bool:
     """Removes a single-slot setting's file. Setting files keep no history, so the
     record is deleted outright; the stored content stays until the cleanup job."""

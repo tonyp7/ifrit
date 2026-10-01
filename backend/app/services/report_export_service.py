@@ -1,10 +1,13 @@
 """Reporting screen's export: GET /time-entries/report/export. Three formats: pdf,
 xlsx, csv."""
 
+import asyncio
 import io
+import logging
 import os
 import re
 import uuid
+from dataclasses import dataclass
 from datetime import date, timedelta
 from decimal import Decimal
 
@@ -16,12 +19,16 @@ from fpdf.util import Padding
 from openpyxl.styles import PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
+from PIL import Image, UnidentifiedImageError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.project import Project
 from app.models.user import User
 from app.schemas.time_entry import TimesheetReportRowOut
+from app.services import file_storage_service
 from app.services.time_entry_service import _pm_project_ids, list_time_entries_report
+
+logger = logging.getLogger(__name__)
 
 SUPPORTED_FORMATS = {
     "pdf": "application/pdf",
@@ -134,6 +141,54 @@ def _heat_color(hours: Decimal) -> tuple[int, int, int]:
     return red, green, blue
 
 
+_LOGO_MAX_WIDTH_MM = 112.5
+_LOGO_MAX_HEIGHT_MM = 40.0
+# The title block, from the top of the accent bar to the bottom of the subtitle: the 3 mm
+# between bar and title, the title line and the subtitle line of _build_pdf. A logo taller than
+# this pushes the block down by the difference (a test pins this to the real layout).
+_TITLE_BLOCK_HEIGHT_MM = 3.0 + 11.0 + 7.0
+# Long edge of the logo as embedded: about 270 dpi across the full 112.5 mm box width, crisp in
+# print, while a 25-megapixel upload would otherwise be embedded whole in every export.
+_LOGO_MAX_EDGE_PX = 1200
+
+
+@dataclass(frozen=True)
+class _PreparedLogo:
+    """A logo ready to embed in the PDF, with its pixel size (which placement needs)."""
+
+    data: bytes
+    width_px: int
+    height_px: int
+
+
+def _prepare_logo(data: bytes) -> _PreparedLogo:
+    """Shrinks the stored logo to what the PDF needs: long edge at most 1200 px (never
+    enlarged, aspect ratio kept). A JPEG stays a JPEG (no transparency to lose, and
+    photographs stay small); anything else, WebP included, becomes a PNG, which keeps
+    transparency and is read by fpdf2 without any extra format support.
+
+    Raises Pillow's decode errors (UnidentifiedImageError, OSError, ...) for bytes that are
+    not a readable image; the caller decides what that means for the export.
+    """
+    with Image.open(io.BytesIO(data)) as source:
+        source.load()
+        keep_jpeg = source.format == "JPEG"
+        image: Image.Image = source
+        # Palette and bilevel images resize badly (nearest-neighbour), so go to a true-colour
+        # mode first, keeping transparency where the image has it.
+        if image.mode not in ("RGB", "RGBA", "L", "LA"):
+            has_alpha = "A" in image.getbands() or "transparency" in image.info
+            image = image.convert("RGBA" if has_alpha else "RGB")
+        image = image.copy()
+    image.thumbnail((_LOGO_MAX_EDGE_PX, _LOGO_MAX_EDGE_PX), Image.Resampling.LANCZOS)
+    buffer = io.BytesIO()
+    if keep_jpeg:
+        image.convert("RGB").save(buffer, format="JPEG", quality=90)
+    else:
+        image.save(buffer, format="PNG", optimize=True)
+    return _PreparedLogo(buffer.getvalue(), image.width, image.height)
+
+
 class _TimesheetBordersLayout(TableBordersLayout):
     """No vertical lines and no outer frame: a hairline above each data row, a heavier rule
     under the header (the top of the first data row) and above the Total row, and a faint
@@ -187,7 +242,19 @@ _WEEKEND_INDICES = {5, 6}  # Saturday, Sunday, per _WEEKDAY_LETTERS' Monday-firs
 _CELL_PADDING_MM = 1.8  # top and bottom of every cell, for breathing room between rows
 
 
-def _build_pdf(rows: list[TimesheetReportRowOut], days: list[date], period_label: str) -> bytes:
+def _logo_size_mm(logo: _PreparedLogo) -> tuple[float, float]:
+    """The logo's size on the page: as large as fits the 112.5 x 40 mm box at its own aspect
+    ratio (never stretched or cropped)."""
+    width = min(_LOGO_MAX_WIDTH_MM, _LOGO_MAX_HEIGHT_MM * logo.width_px / logo.height_px)
+    return width, width * logo.height_px / logo.width_px
+
+
+def _build_pdf(
+    rows: list[TimesheetReportRowOut],
+    days: list[date],
+    period_label: str,
+    logo: _PreparedLogo | None = None,
+) -> bytes:
     pdf = _ReportPdf(orientation="L", unit="mm", format="A4")
     pdf.set_margins(left=8, top=8, right=8)
     # The bottom margin leaves room for the page footer, which sits inside it.
@@ -196,6 +263,27 @@ def _build_pdf(rows: list[TimesheetReportRowOut], days: list[date], period_label
     pdf.add_font("LiberationSans", "", _liberation_font_path("LiberationSans-Regular.ttf"))
     pdf.add_font("LiberationSans", "B", _liberation_font_path("LiberationSans-Bold.ttf"))
     pdf.add_page()
+
+    page_top = pdf.get_y()
+    # How far the title block moves down: a logo taller than the block would otherwise leave a
+    # wide gap between the title and the table, so the block's bottom is lined up with the
+    # logo's and the table (a fixed distance below the subtitle) follows the logo.
+    title_block_shift = 0.0
+    if logo is not None:
+        # First page only, drawn here rather than from a page header so later pages keep their
+        # full height. Flush right at the margin (not centred in its box, which would leave a
+        # narrow logo floating inside it), with its top where the accent bar's top is without a
+        # logo.
+        logo_w, logo_h = _logo_size_mm(logo)
+        pdf.image(
+            io.BytesIO(logo.data),
+            x=pdf.w - pdf.r_margin - logo_w,
+            y=page_top + 1,
+            w=logo_w,
+            h=logo_h,
+        )
+        title_block_shift = max(0.0, logo_h - _TITLE_BLOCK_HEIGHT_MM)
+    pdf.set_y(page_top + title_block_shift)
 
     # A short accent bar above the title, the one splash of the accent colour outside the
     # hours heatmap.
@@ -509,6 +597,33 @@ def _build_xlsx(rows: list[TimesheetReportRowOut], days: list[date]) -> bytes:
     return buffer.getvalue()
 
 
+async def _load_logo(db: AsyncSession) -> _PreparedLogo | None:
+    """The organization logo, ready to embed, or None when there is none or it cannot be used.
+
+    The logo is optional decoration, so unlike the font (a wrong font silently changes the
+    report) a logo that is recorded but unreadable never fails an export: it is logged and the
+    PDF is produced without it. Read as the system, not as the requesting user, so every
+    project manager who can export gets it, administrator or not.
+    """
+    try:
+        data = await file_storage_service.read_setting_file_bytes(db, "org_logo")
+        if data is None:
+            return None
+        return await asyncio.to_thread(_prepare_logo, data)
+    except (
+        OSError,  # missing or unreadable disk file; also Pillow's UnidentifiedImageError
+        ValueError,
+        SyntaxError,  # Pillow's error for some corrupt PNGs
+        Image.DecompressionBombError,
+        UnidentifiedImageError,
+        file_storage_service.StoragePathError,
+    ) as err:
+        # The error type only: no file name or content, and the message of an OSError can
+        # carry the storage path.
+        logger.warning("Organization logo left out of the PDF export: %s", type(err).__name__)
+        return None
+
+
 async def build_report_export(
     db: AsyncSession,
     project_manager: User,
@@ -545,7 +660,7 @@ async def build_report_export(
     )
 
     if export_format == "pdf":
-        file_bytes = _build_pdf(rows, days, period_label)
+        file_bytes = _build_pdf(rows, days, period_label, await _load_logo(db))
     elif export_format == "xlsx":
         file_bytes = _build_xlsx(rows, days)
     else:
