@@ -35,6 +35,8 @@ const ACCEPTED_TYPES = ".jpg,.jpeg,.png,.webp,image/jpeg,image/png,image/webp";
 
 export interface OrganizationLogoCardViewProps {
   logo: StoredFileInfo | null;
+  /** True until the lookup of the current logo has finished, whatever its outcome. */
+  loading: boolean;
   loadFailed: boolean;
   upload: { status: UploadStatus; progress: number; error: string | null };
   removing: boolean;
@@ -45,6 +47,7 @@ export interface OrganizationLogoCardViewProps {
 
 export function OrganizationLogoCardView({
   logo,
+  loading,
   loadFailed,
   upload,
   removing,
@@ -55,19 +58,22 @@ export function OrganizationLogoCardView({
   const { t } = useTranslation(["configuration", "common"]);
   const inputRef = useRef<HTMLInputElement>(null);
   const uploading = upload.status === "uploading";
-  const busy = uploading || removing;
+  // Browse stays disabled while the current logo is still being looked up, so an upload
+  // cannot race the lookup.
+  const busy = loading || uploading || removing;
 
   return (
-    <Card className="m-4 max-w-2xl">
+    <Card>
       <CardHeader>
-        <CardTitle>{t("Organization Logo")}</CardTitle>
+        <CardTitle className="text-lg font-medium">{t("Organization Logo")}</CardTitle>
         <CardDescription>{t("JPEG, PNG or WebP.")}</CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4 sm:flex-row sm:items-center">
         {/* Width is the capped axis (it is the scarce one on a phone) and the fixed 3:2 box
             keeps the layout from shifting while loading or on replace; the image is
-            contained, never cropped or stretched, so any logo shape fits, tall ones included. */}
-        <div className="w-28 shrink-0 sm:w-40">
+            contained, never cropped or stretched, so any logo shape fits, tall ones included.
+            The card itself takes the content area's width, like the tables do. */}
+        <div className="w-44 shrink-0 sm:w-60">
           <AspectRatio ratio={3 / 2} className="bg-muted overflow-hidden rounded-md border">
             {logo ? (
               <img
@@ -75,7 +81,7 @@ export function OrganizationLogoCardView({
                 alt={t("Organization logo")}
                 className="h-full w-full object-contain"
               />
-            ) : (
+            ) : loading ? null : (
               <div className="text-muted-foreground flex h-full w-full flex-col items-center justify-center gap-1 p-2 text-center text-xs">
                 <ImageIcon className="h-6 w-6" aria-hidden="true" />
                 <span>{t("No logo uploaded")}</span>
@@ -137,7 +143,7 @@ export function OrganizationLogoCardView({
 
           {uploading && (
             <div className="flex flex-col gap-1">
-              <Progress value={upload.progress} aria-label={t("Browse…")} />
+              <Progress value={upload.progress} aria-label={t("Uploading logo")} />
               <span className="text-muted-foreground text-xs">
                 {t("Uploading… {{percent}}%", { percent: upload.progress })}
               </span>

@@ -11,6 +11,7 @@ import type { StoredFileInfo } from "@/types/file";
 export function OrganizationLogoCard() {
   const { t } = useTranslation(["configuration"]);
   const [logo, setLogo] = useState<StoredFileInfo | null>(null);
+  const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
   const [removing, setRemoving] = useState(false);
   const lastFile = useRef<File | null>(null);
@@ -26,6 +27,9 @@ export function OrganizationLogoCard() {
         // 404 just means no logo has been uploaded yet.
         if (cancelled || (failure instanceof ApiError && failure.status === 404)) return;
         setLoadFailed(true);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
       });
     return () => {
       cancelled = true;
@@ -66,6 +70,7 @@ export function OrganizationLogoCard() {
   return (
     <OrganizationLogoCardView
       logo={logo}
+      loading={loading}
       loadFailed={loadFailed}
       upload={{ status, progress, error }}
       removing={removing}

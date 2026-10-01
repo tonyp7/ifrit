@@ -22,6 +22,7 @@ const idle = { status: "idle", progress: 0, error: null } as const;
 
 const baseProps: OrganizationLogoCardViewProps = {
   logo: null,
+  loading: false,
   loadFailed: false,
   upload: idle,
   removing: false,
@@ -82,13 +83,62 @@ describe("OrganizationLogoCardView", () => {
     expect(html).not.toContain("No logo uploaded");
   });
 
-  it("caps the picture's width and lays Browse out below it on mobile, beside it on wider screens", () => {
+  it("takes the content area's width: no margin or width cap of its own", () => {
     const html = render({ logo });
 
-    expect(html).toContain("w-28");
-    expect(html).toContain("sm:w-40");
+    // The card's root carries no classes beyond the shadcn defaults; the page supplies
+    // padding and spacing.
+    expect(html).toContain(
+      '<div class="rounded-lg border bg-card text-card-foreground shadow-sm">',
+    );
+    expect(html).not.toContain("max-w-2xl");
+    expect(html).not.toContain("m-4");
+  });
+
+  it("uses the Projects heading style for its title", () => {
+    const html = render();
+
+    expect(html).toMatch(
+      /class="[^"]*\btext-lg\b[^"]*\bfont-medium\b[^"]*">Organization Logo</,
+    );
+    expect(html).not.toMatch(/class="[^"]*\btext-2xl\b[^"]*">Organization Logo</);
+    expect(html).not.toMatch(/class="[^"]*\bfont-semibold\b[^"]*">Organization Logo</);
+  });
+
+  it("caps the picture's width at 176px on mobile and 240px beyond, with Browse below on mobile and beside it on wider screens", () => {
+    const html = render({ logo });
+
+    expect(html).toContain("w-44");
+    expect(html).toContain("sm:w-60");
+    expect(html).not.toContain("w-28");
+    expect(html).not.toContain("sm:w-40");
     expect(html).toContain("flex-col");
     expect(html).toContain("sm:flex-row");
+  });
+
+  it("keeps Browse and Remove beside the picture, not pushed to the card's edge", () => {
+    const html = render({ logo });
+
+    expect(html).not.toContain("justify-between");
+    expect(html).not.toContain("ml-auto");
+  });
+
+  it("shows a blank box, with Browse disabled and no Remove, while the logo is being looked up", () => {
+    const html = render({ loading: true });
+
+    expect(html).not.toContain("No logo uploaded");
+    expect(html).not.toContain("<img");
+    expect(html).not.toContain(">Remove<");
+    expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>(?:(?!<\/button>).)*Browse…/s);
+    // The box keeps its size so nothing shifts when the result arrives.
+    expect(html).toContain("padding-bottom:66.6666");
+  });
+
+  it("shows the empty state, an enabled Browse and the load alert after a failed lookup", () => {
+    const html = render({ loading: false, loadFailed: true });
+
+    expect(html).toContain("No logo uploaded");
+    expect(html).not.toMatch(/<button[^>]*\sdisabled=""[^>]*>(?:(?!<\/button>).)*Browse…/s);
   });
 
   it("restricts the file chooser to JPEG, PNG and WebP", () => {
@@ -101,8 +151,10 @@ describe("OrganizationLogoCardView", () => {
     const html = render({ logo, upload: { status: "uploading", progress: 42, error: null } });
 
     expect(html).toContain('role="progressbar"');
+    expect(html).toContain('aria-label="Uploading logo"');
+    expect(html).not.toContain('aria-label="Browse…"');
     expect(html).toContain("Uploading… 42%");
-    expect(html).toMatch(/<button[^>]*disabled[^>]*>(?:(?!<\/button>).)*Browse…/s);
+    expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>(?:(?!<\/button>).)*Browse…/s);
   });
 
   it("shows the server's reason for a rejected file, without a retry", () => {
