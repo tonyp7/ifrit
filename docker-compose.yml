@@ -28,6 +28,10 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:?}
       SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:?}
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?}
+      STORAGE_ROOT: ${STORAGE_ROOT:?}
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:?}
+    volumes:
+      - ifrit-storage:${STORAGE_ROOT:?}
     depends_on:
       db:
         condition: service_healthy
@@ -49,3 +53,4 @@ services:
 
 volumes:
   ifrit-db:
+  ifrit-storage:

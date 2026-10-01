@@ -1,4 +1,5 @@
 from collections.abc import AsyncGenerator
+from pathlib import Path
 
 import asyncpg
 import pytest
@@ -47,6 +48,20 @@ async def _ensure_test_database_exists() -> None:
         pass
     finally:
         await conn.close()
+
+
+# Small enough that size-limit tests stay cheap, large enough for any test image.
+TEST_MAX_UPLOAD_BYTES = 100_000
+
+
+@pytest.fixture(autouse=True)
+def _storage_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
+    """Every test stores files in its own temporary directory, never in the developer's
+    real STORAGE_ROOT, with a small upload limit."""
+    root = tmp_path / "storage"
+    monkeypatch.setattr(settings, "storage_root", root)
+    monkeypatch.setattr(settings, "max_upload_bytes", TEST_MAX_UPLOAD_BYTES)
+    return root
 
 
 @pytest.fixture(autouse=True)

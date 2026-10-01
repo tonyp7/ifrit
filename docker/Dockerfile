@@ -75,8 +75,10 @@ FROM python:3.12-slim-trixie AS final
 # no TTY) before landing on Noninteractive anyway.
 # fonts-liberation: the Reporting screen's PDF export (fpdf2) renders in
 # Liberation Sans — this slim base image has no fonts installed at all otherwise.
+# libmagic1: the shared library behind python-magic, which sniffs an upload's real
+# content type from its bytes.
 RUN DEBIAN_FRONTEND=noninteractive apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends nginx fonts-liberation \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends nginx fonts-liberation libmagic1 \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

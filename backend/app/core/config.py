@@ -1,3 +1,4 @@
+from pathlib import Path
 from typing import Literal
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -35,6 +36,13 @@ class Settings(BaseSettings):
 
     seed_admin_email: str
     seed_admin_password: str
+
+    # Root directory for uploaded file content (never served statically) and the
+    # per-file size cap. The proxy's request-body limit (docker/nginx.conf's
+    # client_max_body_size) is configured separately, slightly above this, and must
+    # be changed together with it: nothing keeps the two in sync automatically.
+    storage_root: Path
+    max_upload_bytes: int
 
 
 settings = Settings()
