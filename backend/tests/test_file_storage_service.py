@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 from PIL import Image
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import settings
@@ -365,3 +365,59 @@ async def test_delete_setting_file_reports_whether_anything_was_removed(db_sessi
     await _attach(db_session, png_bytes(), "logo.png")
     assert await storage.delete_setting_file(db_session, "org_logo") is True
     assert await storage.get_setting_file(db_session, "org_logo") is None
+
+
+# --- system read of a setting file -----------------------------------------------
+
+
+async def test_read_setting_file_bytes_returns_the_stored_bytes(db_session):
+    file = await _attach(db_session, png_bytes((12, 12)), "logo.png")
+
+    content = await storage.read_setting_file_bytes(db_session, "org_logo")
+
+    on_disk = storage.resolve_storage_path(file.stored_file.bucket_key).read_bytes()
+    assert content == on_disk
+    assert content is not None
+    assert Image.open(io.BytesIO(content)).size == (12, 12)
+
+
+async def test_read_setting_file_bytes_is_none_without_a_record(db_session):
+    assert await storage.read_setting_file_bytes(db_session, "org_logo") is None
+
+
+@pytest.mark.parametrize(
+    "status", ["pending", "scanning", "processing", "rejected", "failed"]
+)
+async def test_read_setting_file_bytes_is_none_unless_the_file_is_ready(
+    db_session, status
+):
+    file = await _attach(db_session, png_bytes(), "logo.png")
+    await db_session.execute(
+        update(StoredFile)
+        .where(StoredFile.id == file.stored_file_id)
+        .values(status=status)
+    )
+    await db_session.commit()
+
+    assert await storage.read_setting_file_bytes(db_session, "org_logo") is None
+
+
+async def test_read_setting_file_bytes_raises_for_a_missing_disk_file(db_session):
+    file = await _attach(db_session, png_bytes(), "logo.png")
+    storage.resolve_storage_path(file.stored_file.bucket_key).unlink()
+
+    with pytest.raises(FileNotFoundError):
+        await storage.read_setting_file_bytes(db_session, "org_logo")
+
+
+async def test_read_setting_file_bytes_raises_for_a_path_outside_the_root(db_session):
+    file = await _attach(db_session, png_bytes(), "logo.png")
+    await db_session.execute(
+        update(StoredFile)
+        .where(StoredFile.id == file.stored_file_id)
+        .values(bucket_key="../../etc/passwd")
+    )
+    await db_session.commit()
+
+    with pytest.raises(storage.StoragePathError):
+        await storage.read_setting_file_bytes(db_session, "org_logo")

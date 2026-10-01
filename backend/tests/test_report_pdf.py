@@ -1,3 +1,4 @@
+import io
 import re
 import uuid
 from datetime import date, timedelta
@@ -6,6 +7,7 @@ from decimal import Decimal
 import pytest
 from fpdf.enums import TableBorderStyle
 from fpdf.table import Row
+from PIL import Image, UnidentifiedImageError
 
 from app.schemas.time_entry import TimeEntryOut, TimesheetReportRowOut
 from app.services import report_export_service as svc
@@ -292,3 +294,253 @@ def test_day_columns_share_the_page_width_so_a_month_fits(monkeypatch, days):
 def test_no_leftover_square_corner_masking_code():
     assert not hasattr(svc, "_round_table_corners")
     assert not hasattr(svc, "_TABLE_CORNER_RADIUS")
+
+
+# --- logo preparation ------------------------------------------------------------
+
+
+def _png(size: tuple[int, int], mode: str = "RGB", color=(30, 60, 160)) -> bytes:
+    buffer = io.BytesIO()
+    Image.new(mode, size, color).save(buffer, format="PNG")
+    return buffer.getvalue()
+
+
+def _open(data: bytes) -> Image.Image:
+    return Image.open(io.BytesIO(data))
+
+
+def test_a_wide_logo_is_shrunk_to_the_long_edge_limit_keeping_its_ratio():
+    prepared = svc._prepare_logo(_png((3000, 1000)))
+
+    assert (prepared.width_px, prepared.height_px) == (1200, 400)
+    assert _open(prepared.data).size == (1200, 400)
+
+
+def test_a_tall_logo_is_shrunk_to_the_long_edge_limit_keeping_its_ratio():
+    prepared = svc._prepare_logo(_png((100, 2000)))
+
+    assert (prepared.width_px, prepared.height_px) == (60, 1200)
+
+
+def test_a_small_logo_is_never_enlarged():
+    prepared = svc._prepare_logo(_png((120, 40)))
+
+    assert (prepared.width_px, prepared.height_px) == (120, 40)
+
+
+def test_transparency_survives_the_shrink():
+    data = _png((2000, 1000), "RGBA", (255, 0, 0, 0))
+
+    prepared = svc._prepare_logo(data)
+
+    image = _open(prepared.data)
+    assert image.format == "PNG"
+    assert image.mode == "RGBA"
+    assert image.getpixel((0, 0))[3] == 0
+
+
+def test_a_palette_png_with_transparency_keeps_it():
+    source = Image.new("P", (900, 300), 0)
+    source.putpalette([0, 0, 0, 255, 0, 0])
+    buffer = io.BytesIO()
+    source.save(buffer, format="PNG", transparency=0)
+
+    prepared = svc._prepare_logo(buffer.getvalue())
+
+    image = _open(prepared.data)
+    assert image.mode == "RGBA"
+    assert image.getpixel((0, 0))[3] == 0
+
+
+def test_a_webp_logo_becomes_a_png():
+    buffer = io.BytesIO()
+    Image.new("RGB", (2400, 1200), (10, 200, 10)).save(buffer, format="WEBP")
+
+    prepared = svc._prepare_logo(buffer.getvalue())
+
+    assert _open(prepared.data).format == "PNG"
+    assert (prepared.width_px, prepared.height_px) == (1200, 600)
+
+
+def test_a_jpeg_logo_stays_a_jpeg():
+    buffer = io.BytesIO()
+    Image.new("RGB", (2400, 1200), (200, 30, 30)).save(buffer, format="JPEG")
+
+    prepared = svc._prepare_logo(buffer.getvalue())
+
+    assert _open(prepared.data).format == "JPEG"
+    assert (prepared.width_px, prepared.height_px) == (1200, 600)
+
+
+def test_bytes_that_are_not_an_image_raise_a_decode_error():
+    with pytest.raises((UnidentifiedImageError, OSError)):
+        svc._prepare_logo(b"definitely not an image")
+
+
+# --- logo placement --------------------------------------------------------------
+
+PAGE_TOP = 8.0  # the top margin: where the title block starts without a logo
+TABLE_START_WITHOUT_LOGO = 33.0
+
+
+def _logo(width_px: int, height_px: int) -> svc._PreparedLogo:
+    return svc._prepare_logo(_png((width_px, height_px), "RGBA", (30, 60, 160, 255)))
+
+
+def _record_pdf_calls(monkeypatch):
+    """Records the image, rect and cell calls _build_pdf makes (with the y position each is
+    made at), and where the table starts."""
+    calls: dict[str, list] = {"image": [], "rect": [], "cell": [], "table_y": []}
+    real = {
+        name: getattr(svc._ReportPdf, name)
+        for name in ("image", "rect", "cell", "table")
+    }
+
+    def image(self, name, *args, **kwargs):
+        calls["image"].append(kwargs)
+        return real["image"](self, name, *args, **kwargs)
+
+    def rect(self, *args, **kwargs):
+        calls["rect"].append((args, tuple(sorted(kwargs.items()))))
+        return real["rect"](self, *args, **kwargs)
+
+    def cell(self, *args, **kwargs):
+        calls["cell"].append(
+            {"page": self.page_no(), "y": self.get_y(), "args": args, "kwargs": kwargs}
+        )
+        return real["cell"](self, *args, **kwargs)
+
+    def table(self, *args, **kwargs):
+        calls["table_y"].append(self.get_y())
+        return real["table"](self, *args, **kwargs)
+
+    for name, wrapper in (
+        ("image", image),
+        ("rect", rect),
+        ("cell", cell),
+        ("table", table),
+    ):
+        monkeypatch.setattr(svc._ReportPdf, name, wrapper)
+    return calls
+
+
+def _image_objects(pdf: bytes) -> int:
+    return len(re.findall(rb"/Subtype\s*/Image", pdf))
+
+
+def _title_cells(calls) -> dict[str, dict]:
+    """The title and subtitle cells of page 1, by their text."""
+    return {
+        c["args"][2]: c
+        for c in calls["cell"]
+        if c["page"] == 1
+        and len(c["args"]) > 2
+        and c["args"][2] in ("Timesheet Report", "2026 Week 36")
+    }
+
+
+@pytest.mark.parametrize("size", [(600, 200), (30, 600), (200, 200), (225, 80)])
+def test_the_logo_is_flush_right_at_the_content_top_and_fits_the_box(monkeypatch, size):
+    calls = _record_pdf_calls(monkeypatch)
+    logo = _logo(*size)
+
+    svc._build_pdf([_row()], WEEK, "2026 Week 36", logo)
+
+    (placed,) = calls["image"]
+    width, height = placed["w"], placed["h"]
+    assert placed["x"] + width == pytest.approx(
+        297 - 8
+    )  # right edge at the right margin
+    assert placed["y"] == pytest.approx(
+        PAGE_TOP + 1
+    )  # where the accent bar's top is with no logo
+    assert width <= 112.5 + 1e-9
+    assert height <= 40 + 1e-9
+    assert width / height == pytest.approx(logo.width_px / logo.height_px)
+    # It fills the box along the limiting axis.
+    assert width == pytest.approx(112.5) or height == pytest.approx(40)
+
+
+def test_a_logo_is_drawn_once_even_when_the_report_has_three_pages(monkeypatch):
+    calls = _record_pdf_calls(monkeypatch)
+    rows = [_row(hours={MONTH[1]: "8"}) for _ in range(30)]
+
+    pdf = svc._build_pdf(rows, MONTH, "August 2026", _logo(600, 200))
+
+    assert _page_count(pdf) == 3
+    assert len(calls["image"]) == 1
+    # Embedded once in the file too (the alpha channel is a second image object).
+    assert 1 <= _image_objects(pdf) <= 2
+
+
+def test_a_pdf_has_an_image_with_a_logo_and_none_without():
+    with_logo = svc._build_pdf([_row()], WEEK, "2026 Week 36", _logo(600, 200))
+    without = svc._build_pdf([_row()], WEEK, "2026 Week 36")
+
+    assert _image_objects(with_logo) >= 1
+    assert _image_objects(without) == 0
+
+
+def test_the_title_block_height_constant_matches_the_real_layout(monkeypatch):
+    calls = _record_pdf_calls(monkeypatch)
+
+    svc._build_pdf([_row()], WEEK, "2026 Week 36")
+
+    bar_top = calls["rect"][0][0][1]
+    subtitle = _title_cells(calls)["2026 Week 36"]
+    subtitle_bottom = subtitle["y"] + subtitle["args"][1]
+    assert subtitle_bottom - bar_top == pytest.approx(svc._TITLE_BLOCK_HEIGHT_MM)
+    assert calls["table_y"][0] == pytest.approx(TABLE_START_WITHOUT_LOGO)
+    assert calls["table_y"][0] - subtitle_bottom == pytest.approx(
+        3
+    )  # fixed gap below the subtitle
+
+
+def test_a_full_height_logo_pulls_the_title_block_down_to_its_bottom(monkeypatch):
+    calls = _record_pdf_calls(monkeypatch)
+
+    svc._build_pdf([_row()], WEEK, "2026 Week 36", _logo(225, 80))  # 112.5 x 40 mm
+
+    placed = calls["image"][0]
+    logo_bottom = placed["y"] + placed["h"]
+    assert logo_bottom == pytest.approx(PAGE_TOP + 1 + 40)
+    subtitle = _title_cells(calls)["2026 Week 36"]
+    # The subtitle ends level with the logo's bottom, and the table keeps its usual distance
+    # below the subtitle (so 3 mm below the logo).
+    assert subtitle["y"] + subtitle["args"][1] == pytest.approx(logo_bottom)
+    assert calls["table_y"][0] == pytest.approx(logo_bottom + 3)
+
+
+def test_the_title_block_keeps_its_shape_when_it_moves(monkeypatch):
+    plain = _record_pdf_calls(monkeypatch)
+    svc._build_pdf([_row()], WEEK, "2026 Week 36")
+    plain_titles = _title_cells(plain)
+    plain_bar = plain["rect"][0]
+
+    moved = _record_pdf_calls(monkeypatch)
+    svc._build_pdf([_row()], WEEK, "2026 Week 36", _logo(225, 80))
+    moved_titles = _title_cells(moved)
+    shift = moved["table_y"][0] - plain["table_y"][0]
+
+    assert shift == pytest.approx(40 - svc._TITLE_BLOCK_HEIGHT_MM)
+    for text, cell in plain_titles.items():
+        assert moved_titles[text]["y"] == pytest.approx(cell["y"] + shift)
+        assert moved_titles[text]["args"] == cell["args"]
+    assert moved["rect"][0][0][1] == pytest.approx(plain_bar[0][1] + shift)
+
+
+@pytest.mark.parametrize("size", [(600, 50), (400, 60), (1100, 200)])
+def test_a_logo_no_taller_than_the_title_block_changes_nothing_else(monkeypatch, size):
+    logo = _logo(*size)
+    assert svc._logo_size_mm(logo)[1] <= svc._TITLE_BLOCK_HEIGHT_MM
+    plain = _record_pdf_calls(monkeypatch)
+    svc._build_pdf([_row()], WEEK, "2026 Week 36")
+    plain_state = {k: list(v) for k, v in plain.items()}
+    for value in plain.values():
+        value.clear()
+
+    svc._build_pdf([_row()], WEEK, "2026 Week 36", logo)
+
+    assert plain["table_y"] == plain_state["table_y"] == [pytest.approx(33)]
+    assert plain["rect"] == plain_state["rect"]
+    assert plain["cell"] == plain_state["cell"]
