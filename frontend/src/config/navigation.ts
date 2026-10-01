@@ -8,11 +8,6 @@ import {
 
 import type { Role } from "@/types/user";
 
-export interface NavSubItem {
-  to: string;
-  label: string;
-}
-
 // Mirrors this app's role -> screen access rules: keep in sync with the actual
 // role-gating logic (RequireRoles, backend endpoint role checks).
 export interface NavItem {
@@ -21,13 +16,6 @@ export interface NavItem {
   icon: LucideIcon;
   /** undefined = every authenticated user, regardless of role. */
   requiredRoles?: Role[];
-  /**
-   * When present, the icon opens a dropdown of these destinations instead of
-   * navigating to `to` directly. `to` is still used to derive the icon's
-   * active/highlighted state (any current pathname under it counts as active).
-   * Every child is shown to everyone who can see the item.
-   */
-  children?: NavSubItem[];
 }
 
 export const NAV_ITEMS: NavItem[] = [
@@ -56,10 +44,6 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Configuration",
     icon: Settings,
     requiredRoles: ["administrator"],
-    children: [
-      { to: "/configuration/companies", label: "Companies" },
-      { to: "/configuration/users", label: "Users" },
-    ],
   },
 ];
 
