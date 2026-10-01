@@ -10,8 +10,7 @@ from decimal import Decimal
 
 import pandas as pd
 from fpdf import FPDF
-from fpdf.drawing_primitives import DeviceRGB
-from fpdf.enums import TableBordersLayout
+from fpdf.enums import TableBordersLayout, TableBorderStyle, TableCellStyle
 from fpdf.fonts import FontFace
 from fpdf.util import Padding
 from openpyxl.styles import PatternFill
@@ -102,41 +101,119 @@ def _liberation_font_path(filename: str) -> str:
     )
 
 
-# "#446" (CSS 3-digit shorthand, each hex digit doubled) -> #444466, used for
-# borders and the subtitle text only now (revised: no longer used as a cell fill
-# see _WEEKEND_FILL below).
-_ACCENT_COLOR = (0x44, 0x44, 0x66)
-_HEADER_FILL = (0xF0, 0xFF, 0xFF)  # Azure: header row and the bottom Total row
-_ROW_FILL_EVEN = (0xFF, 0xFF, 0xFF)  # white
-_ROW_FILL_ODD = (0xF8, 0xF8, 0xFF)  # GhostWhite
-_WEEKEND_FILL = (0xDC, 0xDC, 0xDC)  # Gainsboro: Saturday/Sunday override, data rows only
-_BLACK_TEXT = (0x00, 0x00, 0x00)
-_PAGE_BACKGROUND = (0xFF, 0xFF, 0xFF)
-_TABLE_CORNER_RADIUS = 1.5  # mm: small enough to stay inside a cell's own padding
+# PDF palette: slate for text and surfaces, one indigo accent (title bar and the hours heatmap).
+_COLOR_TEXT = (0x0F, 0x17, 0x2A)  # primary text, title, and the strong table rules
+_COLOR_TEXT_LABEL = (0x33, 0x41, 0x55)  # label column: project in bold, detail lines regular
+_COLOR_TEXT_SECONDARY = (0x47, 0x55, 0x69)  # subtitle
+_COLOR_TEXT_MUTED = (0x94, 0xA3, 0xB8)  # header weekday letters, footer
+_COLOR_HAIRLINE = (0xE2, 0xE8, 0xF0)  # separators between data rows, left edge of Total column
+_COLOR_SURFACE = (0xF8, 0xFA, 0xFC)  # header and Total rows
+_COLOR_WEEKEND = (0xF1, 0xF5, 0xF9)  # Saturday/Sunday cells of data rows without hours
+_COLOR_ACCENT = (0x4F, 0x46, 0xE5)  # indigo
+_COLOR_PAGE = (0xFF, 0xFF, 0xFF)  # cells without a tint
+_HEAT_PALE = (0xEE, 0xF2, 0xFF)  # tint of a day with 1 hour logged
+_HEAT_STRONG = (0xA5, 0xB4, 0xFC)  # tint of a day with 8 hours or more
+_HEAT_MIN_HOURS = Decimal(1)
+_HEAT_MAX_HOURS = Decimal(8)
+
+_RULE_THICKNESS_MM = 0.3  # under the header row and above the Total row
+_HAIRLINE_THICKNESS_MM = 0.1
+
+
+def _heat_color(hours: Decimal) -> tuple[int, int, int]:
+    """Background tint for a day with logged hours: pale at 1 hour, deepening linearly to
+    its strongest at 8 hours, and flat beyond that (so a very long day does not wash out
+    the dark text). Anything under 1 hour gets the pale tint, since a day with any hours
+    must still be visibly tinted."""
+    span = _HEAT_MAX_HOURS - _HEAT_MIN_HOURS
+    amount = min(max((hours - _HEAT_MIN_HOURS) / span, Decimal(0)), Decimal(1))
+    red, green, blue = (
+        round(pale + (strong - pale) * float(amount))
+        for pale, strong in zip(_HEAT_PALE, _HEAT_STRONG, strict=True)
+    )
+    return red, green, blue
+
+
+class _TimesheetBordersLayout(TableBordersLayout):
+    """No vertical lines and no outer frame: a hairline above each data row, a heavier rule
+    under the header (the top of the first data row) and above the Total row, and a faint
+    left edge on the last (Total) column.
+
+    Every separator is a cell's *top* border rather than the previous row's bottom one:
+    rows are filled as they are drawn, so a bottom border would have its lower half painted
+    over by the next row's fill, while a top border is drawn after the row above it.
+    """
+
+    def cell_style_getter(
+        self,
+        row_idx: int,
+        col_idx: int,
+        col_pos: int,
+        num_heading_rows: int,
+        num_rows: int,
+        num_col_idx: int,
+        num_col_pos: int,
+    ) -> TableCellStyle:
+        rule = TableBorderStyle(thickness=_RULE_THICKNESS_MM, color=_COLOR_TEXT)
+        hairline = TableBorderStyle(thickness=_HAIRLINE_THICKNESS_MM, color=_COLOR_HAIRLINE)
+        is_total_row = row_idx == num_rows - 1
+        is_first_body_row = row_idx == num_heading_rows
+
+        top: bool | TableBorderStyle = False
+        if is_total_row or is_first_body_row:
+            top = rule
+        elif row_idx > num_heading_rows:
+            top = hairline
+        return TableCellStyle(
+            left=hairline if col_idx == num_col_idx - 1 and col_idx > 0 else False,
+            bottom=rule if is_total_row else False,
+            right=False,
+            top=top,
+        )
+
+
+class _ReportPdf(FPDF):
+    def footer(self) -> None:
+        self.set_y(-7)
+        self.set_font("LiberationSans", size=7)
+        self.set_text_color(*_COLOR_TEXT_MUTED)
+        # "{nb}" is replaced with the total page count when the document is finished.
+        self.cell(0, 4, f"Page {self.page_no()} / {{nb}}", align="C")
+
 
 _WEEKDAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"]  # Monday-first, per this app's ISO-8601 rule
 _WEEKEND_INDICES = {5, 6}  # Saturday, Sunday, per _WEEKDAY_LETTERS' Monday-first ordering
 
+_CELL_PADDING_MM = 1.8  # top and bottom of every cell, for breathing room between rows
+
 
 def _build_pdf(rows: list[TimesheetReportRowOut], days: list[date], period_label: str) -> bytes:
-    pdf = FPDF(orientation="L", unit="mm", format="A4")
+    pdf = _ReportPdf(orientation="L", unit="mm", format="A4")
     pdf.set_margins(left=8, top=8, right=8)
-    pdf.set_auto_page_break(auto=True, margin=8)
+    # The bottom margin leaves room for the page footer, which sits inside it.
+    pdf.set_auto_page_break(auto=True, margin=10)
+    pdf.alias_nb_pages()
     pdf.add_font("LiberationSans", "", _liberation_font_path("LiberationSans-Regular.ttf"))
     pdf.add_font("LiberationSans", "B", _liberation_font_path("LiberationSans-Bold.ttf"))
     pdf.add_page()
 
-    pdf.set_font("LiberationSans", style="B", size=25)
-    pdf.set_text_color(*_BLACK_TEXT)
-    pdf.cell(0, 12, "Timesheet Report", new_x="LMARGIN", new_y="NEXT")
+    # A short accent bar above the title, the one splash of the accent colour outside the
+    # hours heatmap.
+    pdf.set_fill_color(*_COLOR_ACCENT)
+    pdf.rect(pdf.l_margin, pdf.get_y() + 1, 10, 1.2, style="F")
+    # Back to white: a table cell that sets no fill of its own would inherit the accent.
+    pdf.set_fill_color(*_COLOR_PAGE)
+    pdf.set_y(pdf.get_y() + 4)
 
-    pdf.set_font("LiberationSans", size=13)
-    pdf.set_text_color(*_ACCENT_COLOR)
-    pdf.cell(0, 8, period_label, new_x="LMARGIN", new_y="NEXT")
-    pdf.ln(2)
-    pdf.set_text_color(*_BLACK_TEXT)
-    pdf.set_draw_color(*_ACCENT_COLOR)
-    pdf.set_line_width(0.1)
+    pdf.set_font("LiberationSans", style="B", size=22)
+    pdf.set_text_color(*_COLOR_TEXT)
+    pdf.cell(0, 11, "Timesheet Report", new_x="LMARGIN", new_y="NEXT")
+
+    pdf.set_font("LiberationSans", size=11)
+    pdf.set_text_color(*_COLOR_TEXT_SECONDARY)
+    pdf.cell(0, 7, period_label, new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(3)
+    pdf.set_text_color(*_COLOR_TEXT)
 
     label_w = 45.0
     total_w = 14.0
@@ -152,46 +229,49 @@ def _build_pdf(rows: list[TimesheetReportRowOut], days: list[date], period_label
     # between the label column's three stacked lines: set explicitly, from the
     # larger of the two font sizes in play (8pt), for single-line spacing on both.
     line_height = 8 * 1.1 / pdf.k
-    # Half a line of top/bottom breathing room per cell, so rows don't look
-    # cramped against their own borders: left/right stay flush, only requested
-    # for top/bottom.
-    cell_padding = Padding(top=line_height / 2, right=0, bottom=line_height / 2, left=0)
+    cell_padding = Padding(
+        top=_CELL_PADDING_MM, right=0, bottom=_CELL_PADDING_MM, left=0
+    )
 
-    def font(size_pt: float, *, bold: bool = False, fill: tuple[int, int, int] | None = None) -> FontFace:
+    def font(
+        size_pt: float,
+        *,
+        bold: bool = False,
+        color: tuple[int, int, int] = _COLOR_TEXT,
+        fill: tuple[int, int, int] = _COLOR_PAGE,
+    ) -> FontFace:
         return FontFace(
             family="LiberationSans",
             size_pt=size_pt,
-            emphasis="B" if bold else None,
+            emphasis="B" if bold else "",
+            color=color,
             fill_color=fill,
         )
 
     entries_by_row = _entries_by_row(rows)
 
-    table_start_page = pdf.page_no()
-    table_start_y = pdf.get_y()
-
     with pdf.table(
         col_widths=col_widths,
-        borders_layout=TableBordersLayout.ALL,
+        borders_layout=_TimesheetBordersLayout(),
         first_row_as_headings=True,
         text_align="CENTER",
         markdown=True,
         line_height=line_height,
         padding=cell_padding,
     ) as table:
+        header_style = font(7, bold=True, color=_COLOR_TEXT_SECONDARY, fill=_COLOR_SURFACE)
         header_row = table.row()
-        header_row.cell("Timesheet", style=font(7, fill=_HEADER_FILL), align="LEFT")
+        header_row.cell("Timesheet", style=header_style, align="LEFT")
         for day in days:
             weekday_letter = _WEEKDAY_LETTERS[day.weekday()]
-            header_row.cell(f"{weekday_letter}\n{day.day}", style=font(7, fill=_HEADER_FILL))
-        header_row.cell("Total", style=font(7, fill=_HEADER_FILL))
+            header_row.cell(f"{weekday_letter}\n{day.day}", style=header_style)
+        header_row.cell("Total", style=header_style)
 
         day_totals = {day: Decimal(0) for day in days}
         grand_total = Decimal(0)
 
-        for row_index, row in enumerate(rows):
+        for row in rows:
             data_row = table.row()
-            row_fill = _ROW_FILL_EVEN if row_index % 2 == 0 else _ROW_FILL_ODD
             # Truncate each line to roughly what the 45mm label column can hold at
             # 8pt, the same idea as the live grid's CSS truncate, done by hand
             # since fpdf2 has no text-overflow equivalent.
@@ -199,26 +279,24 @@ def _build_pdf(rows: list[TimesheetReportRowOut], days: list[date], period_label
             service_line_name = _truncate(row.service_line_name or "", 28)
             consultant_name = _truncate(row.full_name, 28)
             label_text = f"**{project_name}**\n{service_line_name}\n{consultant_name}"
-            data_row.cell(label_text, style=font(8, fill=row_fill), align="LEFT")
+            # One text colour per cell is all fpdf2 allows, so only the project name stands
+            # out (bold), against the regular detail lines.
+            data_row.cell(label_text, style=font(8, color=_COLOR_TEXT_LABEL), align="LEFT")
 
             entries = entries_by_row.get((row.user_id, row.service_line_id), {})
             period_total = Decimal(0)
             for day in days:
                 hours = entries.get(day)
-                # Saturday/Sunday always override the row's own banding, on data
-                # rows only: never the header/Total rows, which keep their Azure
-                # fill regardless of which weekday a column falls on. Gainsboro is
-                # light enough that text stays plain black, unlike the earlier
-                # dark #446 version this replaced.
-                is_weekend = day.weekday() in _WEEKEND_INDICES
-                cell_style = FontFace(
-                    family="LiberationSans",
-                    size_pt=7,
-                    fill_color=_WEEKEND_FILL if is_weekend else row_fill,
-                    color=_BLACK_TEXT,
-                )
+                # Logged hours get the heatmap tint. A weekend day without any is tinted
+                # grey, on data rows only: the header and Total rows never are.
+                if hours is not None and hours > 0:
+                    fill = _heat_color(hours)
+                elif day.weekday() in _WEEKEND_INDICES:
+                    fill = _COLOR_WEEKEND
+                else:
+                    fill = _COLOR_PAGE
                 data_row.cell(
-                    _format_hours(hours) if hours is not None else "", style=cell_style
+                    _format_hours(hours) if hours is not None else "", style=font(7, fill=fill)
                 )
                 if hours is not None:
                     period_total += hours
@@ -228,97 +306,19 @@ def _build_pdf(rows: list[TimesheetReportRowOut], days: list[date], period_label
             # the live grid), the Total column always shows a value, "0h"
             # included: same `formatHours(x) || "0"` convention the live grid's
             # own total cells already use.
-            data_row.cell(f"{_format_hours(period_total) or '0'}h", style=font(7, fill=row_fill))
+            data_row.cell(f"{_format_hours(period_total) or '0'}h", style=font(7, bold=True))
 
         # Bottom Total row: per-day sums across every row shown, plus a grand
-        # total: same as the live grid's own bottom row. Same LightSteelBlue
-        # fill as the header, on every column, weekend columns included.
+        # total: same as the live grid's own bottom row. Same light fill as the
+        # header, on every column, weekend columns included.
+        total_style = font(7, bold=True, fill=_COLOR_SURFACE)
         total_row = table.row()
-        total_row.cell("Total", style=font(7, bold=True, fill=_HEADER_FILL), align="LEFT")
+        total_row.cell("Total", style=total_style, align="LEFT")
         for day in days:
-            total_row.cell(
-                _format_hours(day_totals[day]) or "0",
-                style=font(7, bold=True, fill=_HEADER_FILL),
-            )
-        total_row.cell(
-            f"{_format_hours(grand_total) or '0'}h",
-            style=font(7, bold=True, fill=_HEADER_FILL),
-        )
-
-    # Rounded corners, matching the live grid's own rounded container: fpdf2's
-    # table() always draws a square grid, so the outer frame above is a plain
-    # ALL-bordered rectangle on every page (always correct, including across a
-    # page break). On top of that, when the whole table fits on one page, paint
-    # small white squares over its 4 corner intersections (erasing the square
-    # artifact) and stroke a rounded rectangle over the same bounding box: the
-    # straight edges land exactly on the grid's own already-correct border, only
-    # the corners actually change appearance. Skipped for a table spanning
-    # multiple pages: there's no single closed rectangle to round in that case, so a
-    # multi-page export keeps the plain square edge.
-    if pdf.page_no() == table_start_page:
-        _round_table_corners(
-            pdf,
-            x=pdf.l_margin,
-            y=table_start_y,
-            w=usable_w,
-            h=pdf.get_y() - table_start_y,
-        )
+            total_row.cell(_format_hours(day_totals[day]) or "0", style=total_style)
+        total_row.cell(f"{_format_hours(grand_total) or '0'}h", style=total_style)
 
     return bytes(pdf.output())
-
-
-def _round_table_corners(pdf: FPDF, *, x: float, y: float, w: float, h: float) -> None:
-    r = _TABLE_CORNER_RADIUS
-    # Each corner's "sliver", the bit of the old square corner that falls
-    # outside the rounded curve, is traced as its own single closed vector
-    # path (corner point -> tangent point -> the real rounding arc, same
-    # radius `r` the visible stroke below uses -> other tangent point ->
-    # close) and filled with the page background. This only ever touches
-    # that sliver, never the curve's interior, important because the
-    # interior can hold cell text close enough to the corner to matter (e.g.
-    # the bottom row's "Total" label, right at the bottom-left corner): any
-    # flat-color mask shaped as a plain square or circle instead of this
-    # exact sliver either leaves the old square corner poking out past the
-    # curve, or paints over content, fill or text, that the rounded corner
-    # should never have touched. The straight legs extend a touch past the
-    # table's nominal box (into the page margin, harmless) so the mask also
-    # swallows the table border's own stroke-width bleed past (x, y, w, h)
-    # fpdf2 centers stroke width on the path.
-    pad = 0.15
-    background = DeviceRGB(*(c / 255 for c in _PAGE_BACKGROUND))
-    # (corner point, inward-x sign, inward-y sign): the sign pair points
-    # from the corner into the table, and the sliver's two straight legs and
-    # arc are all derived from it.
-    corners = (
-        (x, y, 1, 1),  # top-left
-        (x + w, y, -1, 1),  # top-right
-        (x, y + h, 1, -1),  # bottom-left
-        (x + w, y + h, -1, -1),  # bottom-right
-    )
-    for px, py, dx, dy in corners:
-        outer_x, outer_y = px - dx * pad, py - dy * pad
-        tangent1 = (px + dx * r, py)
-        tangent2 = (px, py + dy * r)
-        # The arc's sweep direction has to flip between diagonally-opposite
-        # corner pairs (top-left/bottom-right vs. top-right/bottom-left):
-        # mirroring the corner mirrors which of the two same-radius arcs
-        # between the tangent points bulges toward the true corner, which is
-        # the one that traces the actual sliver instead of a small stray
-        # lens near the middle of the curve.
-        with pdf.new_path() as path:
-            path.style.fill_color = background
-            path.style.stroke_color = None
-            path.move_to(outer_x, outer_y)
-            path.line_to(tangent1[0], outer_y)
-            path.line_to(*tangent1)
-            path.arc_to(
-                r, r, 0, large_arc=False, positive_sweep=dx * dy < 0, x=tangent2[0], y=tangent2[1]
-            )
-            path.line_to(outer_x, tangent2[1])
-            path.close()
-    pdf.set_draw_color(*_ACCENT_COLOR)
-    pdf.set_line_width(0.1)
-    pdf.rect(x, y, w, h, style="D", round_corners=True, corner_radius=r)
 
 
 def _truncate(text: str, max_chars: int) -> str:
