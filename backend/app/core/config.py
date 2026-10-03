@@ -45,4 +45,6 @@ class Settings(BaseSettings):
     max_upload_bytes: int
 
 
-settings = Settings()
+# Every field is read from the environment (and deliberately has no default), which mypy
+# cannot see: it takes them for required constructor arguments.
+settings = Settings()  # type: ignore[call-arg]
