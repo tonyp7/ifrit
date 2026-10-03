@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.security import hash_password
 from app.models.company import Company
 from app.models.currency import Currency
+from app.models.project import Project
 from app.models.user import Role, User
 
 
@@ -87,3 +88,25 @@ async def create_currency(
     db_session.add(currency)
     await db_session.commit()
     return currency
+
+
+async def create_project(
+    db_session: AsyncSession, *, name: str = "Acme ERP Rollout", status: str = "active"
+) -> Project:
+    """A project with its own vendor, client and currency, for tests that only need
+    something to attach to."""
+    vendor = await create_company(db_session, legal_name="Vendor SA", is_vendor=True)
+    client = await create_company(db_session, legal_name="Client SA")
+    existing = await db_session.get(Currency, "USD")
+    currency = existing or await create_currency(db_session)
+    project = Project(
+        name=name,
+        vendor_company_id=vendor.id,
+        client_company_id=client.id,
+        invoicing_currency=currency.alpha_code,
+        project_type="time_and_material",
+        status=status,
+    )
+    db_session.add(project)
+    await db_session.commit()
+    return project

@@ -35,3 +35,20 @@ export function formatMoney(value: string, minorUnit: number | null | undefined)
 export function stripGrouping(value: string): string {
   return value.replace(/,/g, "");
 }
+
+/** A file size as people read it: `512 B`, `1.4 KB`, `2.1 MB`. Decimal units, one decimal
+ * at most, like the file managers users compare it against. */
+export function formatFileSize(bytes: number): string {
+  if (!Number.isFinite(bytes) || bytes < 0) return "";
+  const units = ["B", "KB", "MB", "GB"];
+  let value = bytes;
+  let unit = 0;
+  while (value >= 1000 && unit < units.length - 1) {
+    value /= 1000;
+    unit += 1;
+  }
+  const formatted = new Intl.NumberFormat(undefined, {
+    maximumFractionDigits: unit === 0 ? 0 : 1,
+  }).format(value);
+  return `${formatted} ${units[unit]}`;
+}

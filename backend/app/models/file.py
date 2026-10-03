@@ -3,6 +3,7 @@ from datetime import UTC, datetime
 from typing import Literal
 
 from sqlalchemy import (
+    DDL,
     BigInteger,
     CheckConstraint,
     DateTime,
@@ -11,6 +12,7 @@ from sqlalchemy import (
     Index,
     Text,
     UniqueConstraint,
+    event,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -19,9 +21,9 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.db import Base
 
 FileStatus = Literal["pending", "scanning", "processing", "ready", "rejected", "failed"]
-# The kind of object a file is attached to. Only instance-wide settings exist so far;
-# a new attachable object adds its value here and a `<object>_files` link table.
-FileKind = Literal["setting"]
+# The kind of object a file is attached to. A new attachable object adds its value here
+# and a `<object>_files` link table.
+FileKind = Literal["setting", "project"]
 SettingKey = Literal["org_logo"]
 
 
@@ -98,7 +100,7 @@ class File(Base):
         # A superkey that lets link tables point at (id, kind), so a file can be linked
         # only from the one link table matching its kind.
         UniqueConstraint("id", "kind", name="uq_files_id_kind"),
-        CheckConstraint("kind IN ('setting')", name="ck_files_kind"),
+        CheckConstraint("kind IN ('setting', 'project')", name="ck_files_kind"),
     )
 
 
@@ -135,3 +137,98 @@ class SettingFile(Base):
             postgresql_where=text("setting_key IN ('org_logo')"),
         ),
     )
+
+
+class ProjectFile(Base):
+    """Attaches a file to exactly one project."""
+
+    __tablename__ = "project_files"
+
+    file_id: Mapped[uuid.UUID] = mapped_column(UUID(as_uuid=True), primary_key=True)
+    kind: Mapped[str] = mapped_column(Text, nullable=False, default="project")
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    file: Mapped[File] = relationship()
+    # Tags belong to this attachment, not to the stored bytes: the same content attached
+    # to two projects keeps independent tags.
+    tags: Mapped[list["FileTag"]] = relationship(
+        secondary="project_file_tags", order_by="FileTag.name"
+    )
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["file_id", "kind"],
+            ["files.id", "files.kind"],
+            ondelete="CASCADE",
+            name="fk_project_files_file_id_kind",
+        ),
+        CheckConstraint("kind = 'project'", name="ck_project_files_kind"),
+    )
+
+
+# The fixed vocabulary a document can be tagged with. Seeded by the initial migration
+# (with its own literal copy, since a migration must not follow later code changes) and
+# by the hook below for databases built with `create_all`.
+DEFAULT_FILE_TAGS = (
+    "contract",
+    "purchase order",
+    "statement of work",
+    "proposal",
+    "master service agreement",
+    "non-disclosure agreement",
+    "invoice",
+    "addendum",
+)
+
+
+class FileTag(Base):
+    """One entry of the tag vocabulary. Nothing in the app edits these rows."""
+
+    __tablename__ = "file_tags"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    name: Mapped[str] = mapped_column(Text, nullable=False, unique=True)
+
+    __table_args__ = (
+        # Stored trimmed, lowercase and single-spaced, so two spellings of one tag can
+        # never coexist. Enforced here so every writer is bound by it, not just the app.
+        CheckConstraint(
+            r"name <> '' AND name = btrim(lower(regexp_replace(name, '\s+', ' ', 'g')))",
+            name="ck_file_tags_name_normalized",
+        ),
+    )
+
+
+class ProjectFileTag(Base):
+    """Joins a project file to one of the tags on it."""
+
+    __tablename__ = "project_file_tags"
+
+    file_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("project_files.file_id", ondelete="CASCADE"),
+        primary_key=True,
+    )
+    # RESTRICT: removing an in-use tag from the vocabulary is a decision for whoever
+    # builds that screen, not something to happen silently to the files carrying it.
+    tag_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("file_tags.id", ondelete="RESTRICT"),
+        primary_key=True,
+        index=True,
+    )
+
+
+FILE_TAGS_SEED_STATEMENT = (
+    "INSERT INTO file_tags (id, name) SELECT gen_random_uuid(), name FROM (VALUES "
+    + ", ".join(f"('{name}')" for name in DEFAULT_FILE_TAGS)
+    + ") AS seed(name)"
+)
+event.listen(FileTag.__table__, "after_create", DDL(FILE_TAGS_SEED_STATEMENT))

@@ -63,15 +63,19 @@ PROJECT_MANAGERS_TRIGGER_STATEMENTS = [
 # takes the parent `files` row with it, so no attachment record outlives its link. When
 # the parent delete is what started the cascade the row is already gone and this is a
 # no-op.
-SETTING_FILES_TRIGGER_STATEMENTS = [
-    """
+# Shared by every link table's trigger. Each list creates it too (OR REPLACE), because
+# `create_all` does not promise which link table is created first.
+_DELETE_PARENT_FUNCTION = """
     CREATE OR REPLACE FUNCTION ifrit_delete_parent_file() RETURNS trigger AS $$
     BEGIN
         DELETE FROM files WHERE id = OLD.file_id;
         RETURN NULL;
     END;
     $$ LANGUAGE plpgsql
-    """,
+    """
+
+SETTING_FILES_TRIGGER_STATEMENTS = [
+    _DELETE_PARENT_FUNCTION,
     """
     CREATE TRIGGER trg_setting_files_delete_parent
     AFTER DELETE ON setting_files
@@ -80,7 +84,18 @@ SETTING_FILES_TRIGGER_STATEMENTS = [
     """,
 ]
 
+PROJECT_FILES_TRIGGER_STATEMENTS = [
+    _DELETE_PARENT_FUNCTION,
+    """
+    CREATE TRIGGER trg_project_files_delete_parent
+    AFTER DELETE ON project_files
+    FOR EACH ROW
+    EXECUTE FUNCTION ifrit_delete_parent_file()
+    """,
+]
+
 DROP_STATEMENTS = [
+    "DROP TRIGGER IF EXISTS trg_project_files_delete_parent ON project_files",
     "DROP TRIGGER IF EXISTS trg_setting_files_delete_parent ON setting_files",
     "DROP FUNCTION IF EXISTS ifrit_delete_parent_file()",
     "DROP TRIGGER IF EXISTS trg_project_managers_require_active_user ON project_managers",
@@ -92,7 +107,7 @@ DROP_STATEMENTS = [
 
 def attach() -> None:
     """Registers the triggers to be created right after their tables (`create_all`)."""
-    from app.models.file import SettingFile
+    from app.models.file import ProjectFile, SettingFile
     from app.models.project import project_manager_assignments
     from app.models.user import User
 
@@ -102,3 +117,5 @@ def attach() -> None:
         event.listen(project_manager_assignments, "after_create", DDL(statement))
     for statement in SETTING_FILES_TRIGGER_STATEMENTS:
         event.listen(SettingFile.__table__, "after_create", DDL(statement))
+    for statement in PROJECT_FILES_TRIGGER_STATEMENTS:
+        event.listen(ProjectFile.__table__, "after_create", DDL(statement))

@@ -12,6 +12,7 @@ import { listCurrencies } from "@/api/currencies";
 import { createProject, getProject, updateProject } from "@/api/projects";
 import { ProjectManagersPicker } from "@/components/projects/ProjectManagersPicker";
 import { ServiceLinesTable } from "@/components/projects/ServiceLinesTable";
+import { SupportingDocumentsSection } from "@/components/projects/SupportingDocumentsSection";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -435,6 +436,14 @@ export function ProjectFormPage() {
                 ensureSaved={ensureSaved}
                 readOnly={isReadOnly}
                 minorUnit={selectedCurrency?.minor_unit}
+              />
+
+              <Separator />
+
+              <SupportingDocumentsSection
+                projectId={project?.id ?? null}
+                ensureSaved={ensureSaved}
+                readOnly={isReadOnly}
               />
 
               {formError && <p className="text-sm text-destructive">{formError}</p>}

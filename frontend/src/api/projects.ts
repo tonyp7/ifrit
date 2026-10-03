@@ -1,4 +1,5 @@
 import { apiClient } from "@/api/client";
+import type { FileTag, ProjectFile } from "@/types/file";
 import type {
   ProjectDetail,
   ProjectInput,
@@ -58,4 +59,45 @@ export function updateServiceLine(
 
 export function deleteServiceLine(projectId: string, lineId: string) {
   return apiClient.delete<void>(`/projects/${projectId}/service-lines/${lineId}`);
+}
+
+export function listProjectFiles(projectId: string) {
+  return apiClient.get<ProjectFile[]>(`/projects/${projectId}/files`);
+}
+
+export function uploadProjectFile(
+  projectId: string,
+  file: File,
+  onProgress?: (percent: number) => void,
+) {
+  const body = new FormData();
+  body.append("file", file);
+  return apiClient.upload<ProjectFile>(`/projects/${projectId}/files`, body, {
+    method: "POST",
+    onProgress,
+  });
+}
+
+export function deleteProjectFile(projectId: string, fileId: string) {
+  return apiClient.delete<void>(`/projects/${projectId}/files/${fileId}`);
+}
+
+// Adding a tag the file has, or removing one it lacks, succeeds without change, so the
+// optimistic UI can fire these freely and retry after an error.
+export function addProjectFileTag(projectId: string, fileId: string, tagId: string) {
+  return apiClient.put<void>(`/projects/${projectId}/files/${fileId}/tags/${tagId}`);
+}
+
+export function removeProjectFileTag(projectId: string, fileId: string, tagId: string) {
+  return apiClient.delete<void>(`/projects/${projectId}/files/${fileId}/tags/${tagId}`);
+}
+
+export function listFileTags() {
+  return apiClient.get<FileTag[]>("/file-tags");
+}
+
+/** The file's bytes and the name to save them under. Fetched, never navigated to, so an
+ * expired session refreshes and an error shows as a toast instead of replacing the app. */
+export function downloadProjectFile(fileId: string) {
+  return apiClient.getBlob(`/files/${fileId}/content`);
 }

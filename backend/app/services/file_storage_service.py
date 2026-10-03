@@ -2,11 +2,15 @@
 
 The whole upload path lives here, in this order, rejecting at the first failure:
 the file's size, then its extension, then the type sniffed from its bytes (which
-must agree with the extension), then a decode and fresh re-encode of the image.
-Only the re-encoded bytes are ever persisted, never the original, which drops
-metadata and anything hidden in the file. The result is written to a temporary file
-and moved into a hash-sharded path, so a partially written file is never readable at
-its final location.
+must be one the extension may contain), then, for JPEG, PNG and WebP images, a decode
+and fresh re-encode. Re-encoded images are persisted only as the re-encoded bytes, never
+the original, which drops metadata and anything hidden in the file; every other
+accepted format cannot be re-rendered and is stored exactly as received. The result is
+written to a temporary file and moved into a hash-sharded path, so a partially written
+file is never readable at its final location.
+
+What an upload accepts is decided per upload context (see `UploadContext`), so the
+organization logo stays images-only while project documents take many more formats.
 
 Pillow, libmagic and disk I/O are blocking, so they run in a worker thread.
 """
@@ -15,8 +19,10 @@ import asyncio
 import hashlib
 import logging
 import os
+import shutil
 import unicodedata
 import uuid
+import zipfile
 from dataclasses import dataclass
 from io import BufferedIOBase
 from pathlib import Path
@@ -33,7 +39,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.config import settings
-from app.models.file import File, SettingFile, SettingKey, StoredFile
+from app.models.file import File, ProjectFile, SettingFile, SettingKey, StoredFile
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -49,29 +55,134 @@ MAX_IMAGE_PIXELS = 25_000_000
 
 DISPLAY_NAME_MAX_LENGTH = 255
 _HASH_CHUNK_BYTES = 1024 * 1024
-# libmagic needs only the start of the file to identify an image.
+# libmagic needs only the start of a file to identify an image.
 _SNIFF_BYTES = 4096
+# Legacy Office files only reveal which application made them deeper in the file; with
+# less than this libmagic can only say "an OLE container".
+_DOCUMENT_SNIFF_BYTES = 1024 * 1024
+
+
+@dataclass(frozen=True)
+class AllowedType:
+    """What one extension may contain and how it is stored."""
+
+    # Detected types the extension may legitimately hold. Formats with no signature
+    # libmagic knows list a generic type, which leaves only the extension allowlist
+    # standing guard for them.
+    content_types: frozenset[str]
+    # Extension used on disk: ours, never the client's spelling of it.
+    disk_extension: str
+    # Only JPEG, PNG and WebP can be decoded and written out again.
+    reencode: bool = False
+    # For zip-based formats libmagic can fail to recognize (the members it looks at may
+    # lie beyond what it was shown): a file sniffed as a plain zip is accepted when it
+    # has a member starting with this name. Read from the zip's central directory, so
+    # nothing is decompressed.
+    zip_marker: str | None = None
 
 
 @dataclass(frozen=True)
 class UploadContext:
-    """What one kind of upload accepts: allowed extensions mapped to the content type
-    each one must actually contain."""
+    """What one kind of upload accepts, by extension."""
 
-    allowed: dict[str, str]
+    allowed: dict[str, AllowedType]
+    sniff_bytes: int = _SNIFF_BYTES
 
+
+def _types(*content_types: str) -> frozenset[str]:
+    return frozenset(content_types)
+
+
+_JPEG = AllowedType(_types("image/jpeg"), ".jpg", reencode=True)
+_PNG = AllowedType(_types("image/png"), ".png", reencode=True)
+_WEBP = AllowedType(_types("image/webp"), ".webp", reencode=True)
 
 IMAGE_CONTEXT = UploadContext(
-    allowed={
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-        ".png": "image/png",
-        ".webp": "image/webp",
-    }
+    allowed={".jpg": _JPEG, ".jpeg": _JPEG, ".png": _PNG, ".webp": _WEBP}
 )
 
-# Extension used on disk, derived from the detected type, never from the client name.
-_EXTENSION_FOR_TYPE = {"image/jpeg": ".jpg", "image/png": ".png", "image/webp": ".webp"}
+_OLE = ("application/x-ole-storage", "application/CDFV2")
+_OOXML = "application/vnd.openxmlformats-officedocument."
+_ODF = "application/vnd.oasis.opendocument."
+_TEXT = ("text/plain",)
+
+# Detected types were taken from real sample files of each format on libmagic 5.48,
+# the version of the container image.
+PROJECT_DOCUMENT_CONTEXT = UploadContext(
+    allowed={
+        ".pdf": AllowedType(_types("application/pdf"), ".pdf"),
+        ".doc": AllowedType(_types("application/msword", *_OLE), ".doc"),
+        ".docx": AllowedType(
+            _types(_OOXML + "wordprocessingml.document"),
+            ".docx",
+            zip_marker="word/document.xml",
+        ),
+        ".rtf": AllowedType(_types("text/rtf", "application/rtf"), ".rtf"),
+        ".odt": AllowedType(_types(_ODF + "text"), ".odt"),
+        ".txt": AllowedType(_types(*_TEXT), ".txt"),
+        ".md": AllowedType(
+            _types(*_TEXT, "text/markdown", "text/x-markdown"), ".md"
+        ),
+        ".xls": AllowedType(_types("application/vnd.ms-excel", *_OLE), ".xls"),
+        ".xlsx": AllowedType(
+            _types(_OOXML + "spreadsheetml.sheet"),
+            ".xlsx",
+            zip_marker="xl/workbook.xml",
+        ),
+        ".csv": AllowedType(_types("text/csv", *_TEXT), ".csv"),
+        ".ods": AllowedType(_types(_ODF + "spreadsheet"), ".ods"),
+        ".ppt": AllowedType(_types("application/vnd.ms-powerpoint", *_OLE), ".ppt"),
+        ".pptx": AllowedType(
+            _types(_OOXML + "presentationml.presentation"),
+            ".pptx",
+            zip_marker="ppt/presentation.xml",
+        ),
+        ".key": AllowedType(
+            _types("application/vnd.apple.keynote"), ".key", zip_marker="Index"
+        ),
+        ".png": _PNG,
+        ".jpg": _JPEG,
+        ".jpeg": _JPEG,
+        ".webp": _WEBP,
+        ".gif": AllowedType(_types("image/gif"), ".gif"),
+        ".svg": AllowedType(_types("image/svg+xml", "text/xml"), ".svg"),
+        ".heic": AllowedType(_types("image/heic", "image/heif"), ".heic"),
+        ".mp4": AllowedType(_types("video/mp4"), ".mp4"),
+        ".mov": AllowedType(_types("video/quicktime"), ".mov"),
+        ".webm": AllowedType(_types("video/webm"), ".webm"),
+        ".mp3": AllowedType(_types("audio/mpeg"), ".mp3"),
+        ".wav": AllowedType(_types("audio/x-wav", "audio/vnd.wave"), ".wav"),
+        ".m4a": AllowedType(_types("audio/x-m4a", "audio/mp4", "video/mp4"), ".m4a"),
+        ".zip": AllowedType(_types("application/zip"), ".zip"),
+        ".rar": AllowedType(_types("application/vnd.rar", "application/x-rar"), ".rar"),
+        ".7z": AllowedType(_types("application/x-7z-compressed"), ".7z"),
+        ".gz": AllowedType(_types("application/gzip", "application/x-gzip"), ".gz"),
+        ".json": AllowedType(_types("application/json", *_TEXT), ".json"),
+        ".xml": AllowedType(_types("text/xml", "application/xml"), ".xml"),
+        ".html": AllowedType(_types("text/html"), ".html"),
+        ".eml": AllowedType(_types("message/rfc822", *_TEXT), ".eml"),
+        ".msg": AllowedType(
+            _types("application/vnd.ms-outlook", *_OLE), ".msg"
+        ),
+        # Both are DER binaries libmagic has no signature for (the .cer may also be PEM
+        # text), so for these the extension allowlist is the only real check.
+        ".p12": AllowedType(
+            _types("application/x-pkcs12", "application/octet-stream"), ".p12"
+        ),
+        ".pem": AllowedType(_types("application/x-pem-file", *_TEXT), ".pem"),
+        ".cer": AllowedType(
+            _types(
+                "application/x-x509-ca-cert",
+                "application/pkix-cert",
+                "application/x-pem-file",
+                "application/octet-stream",
+            ),
+            ".cer",
+        ),
+    },
+    sniff_bytes=_DOCUMENT_SNIFF_BYTES,
+)
+
 _PILLOW_FORMAT_FOR_TYPE = {
     "image/jpeg": "JPEG",
     "image/png": "PNG",
@@ -158,10 +269,32 @@ def _measure(file: IO[bytes]) -> int:
     return size
 
 
-def _sniff(file: IO[bytes]) -> str:
-    head = file.read(_SNIFF_BYTES)
+def _sniff(file: IO[bytes], sniff_bytes: int) -> str:
+    head = file.read(sniff_bytes)
     file.seek(0)
     return magic.from_buffer(head, mime=True)
+
+
+def _has_zip_member(file: IO[bytes], prefix: str) -> bool:
+    """Whether the zip has a member whose name starts with `prefix`. Reads only the
+    zip's directory, never a member's content, so a zip bomb costs nothing here."""
+    try:
+        with zipfile.ZipFile(file) as archive:
+            return any(name.startswith(prefix) for name in archive.namelist())
+    except (zipfile.BadZipFile, OSError, ValueError):
+        return False
+    finally:
+        file.seek(0)
+
+
+def _matches(file: IO[bytes], detected: str, entry: AllowedType) -> bool:
+    if detected in entry.content_types:
+        return True
+    return (
+        entry.zip_marker is not None
+        and detected == "application/zip"
+        and _has_zip_member(file, entry.zip_marker)
+    )
 
 
 def _encode_image(file: IO[bytes], content_type: str, tmp_path: Path) -> None:
@@ -203,6 +336,13 @@ def _encode_image(file: IO[bytes], content_type: str, tmp_path: Path) -> None:
         raise InvalidImageError("The file is not a valid image") from err
 
 
+def _stage_as_received(file: IO[bytes], tmp_path: Path) -> None:
+    """Writes the upload to the staging file unchanged, for formats that cannot be
+    decoded and written out again."""
+    with tmp_path.open("wb") as out:
+        shutil.copyfileobj(file, out, _HASH_CHUNK_BYTES)
+
+
 def _hash_file(path: Path) -> tuple[str, int]:
     digest = hashlib.sha256()
     size = 0
@@ -222,18 +362,22 @@ def _prepare(
         raise FileTooLargeError(f"The file is larger than {max_bytes} bytes")
 
     extension = Path(filename or "").suffix.lower()
-    if extension not in context.allowed:
+    entry = context.allowed.get(extension)
+    if entry is None:
         raise UnsupportedFileTypeError("This file type is not allowed")
 
-    detected = _sniff(source)
-    if detected not in _EXTENSION_FOR_TYPE or detected != context.allowed[extension]:
+    detected = _sniff(source, context.sniff_bytes)
+    if not _matches(source, detected, entry):
         raise UnsupportedFileTypeError("The file content does not match its extension")
 
     tmp_dir = _storage_root() / TMP_DIR_NAME
     tmp_dir.mkdir(mode=0o750, parents=True, exist_ok=True)
     tmp_path = tmp_dir / f"{uuid.uuid4()}.tmp"
     try:
-        _encode_image(source, detected, tmp_path)
+        if entry.reencode:
+            _encode_image(source, detected, tmp_path)
+        else:
+            _stage_as_received(source, tmp_path)
         os.chmod(tmp_path, 0o640)
         checksum, size = _hash_file(tmp_path)
     except BaseException:
@@ -244,7 +388,7 @@ def _prepare(
         checksum=checksum,
         size_bytes=size,
         content_type=detected,
-        extension=_EXTENSION_FOR_TYPE[detected],
+        extension=entry.disk_extension,
         display_name=sanitize_display_name(filename),
     )
 
@@ -373,6 +517,39 @@ async def attach_setting_file(
     raise AssertionError("unreachable")  # pragma: no cover
 
 
+async def attach_project_file(
+    db: AsyncSession,
+    *,
+    upload: UploadFile,
+    project_id: uuid.UUID,
+    uploaded_by: User,
+    context: UploadContext = PROJECT_DOCUMENT_CONTEXT,
+) -> File:
+    """Stores an upload as a new file of a project. Unlike a setting slot nothing is
+    replaced: every upload adds an attachment, even one with the same name or content."""
+    prepared = await prepare_upload(upload, context)
+    written: Path | None = None
+    try:
+        stored, written = await _store_content(db, prepared)
+        file = File(
+            stored_file_id=stored.id,
+            kind="project",
+            uploaded_by=uploaded_by.id,
+            original_filename=prepared.display_name,
+        )
+        db.add(file)
+        await db.flush()
+        db.add(ProjectFile(file_id=file.id, kind="project", project_id=project_id))
+        await db.commit()
+    except BaseException:
+        await db.rollback()
+        await _cleanup_failed(prepared, written)
+        raise
+    # Only still present when the content was already stored.
+    await _discard(prepared.tmp_path)
+    return await _load_file(db, file.id)
+
+
 async def _cleanup_failed(prepared: PreparedUpload, written: Path | None) -> None:
     """A failed upload must leave nothing behind on disk."""
     if written is not None:
@@ -454,7 +631,11 @@ async def user_can_access_file(db: AsyncSession, user: User, file: File) -> bool
     """Access is decided by the object the file is attached to, never by the file or
     its uploader, so it cannot drift from that object's own role rules. Each new
     attachable kind adds one branch."""
-    kind: Literal["setting"] = file.kind  # type: ignore[assignment]
+    kind: Literal["setting", "project"] = file.kind  # type: ignore[assignment]
+    role_names = {role.name for role in user.roles}
     if kind == "setting":
-        return any(role.name == "administrator" for role in user.roles)
+        return "administrator" in role_names
+    if kind == "project":
+        # The literal role: holding `administrator` alone grants nothing here.
+        return "project_admin" in role_names
     return False  # pragma: no cover - unknown kinds get no access
