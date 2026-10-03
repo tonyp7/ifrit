@@ -78,5 +78,21 @@
   "Project Managers": "Project Managers",
   "Select Project Managers…": "Select Project Managers…",
   "Search project managers…": "Search project managers…",
-  "No project managers found.": "No project managers found."
+  "No project managers found.": "No project managers found.",
+  "Supporting Documents": "Supporting Documents",
+  "Upload File...": "Upload File...",
+  "Uploading {{name}}…": "Uploading {{name}}…",
+  "{{name}} uploaded.": "{{name}} uploaded.",
+  "Add tag": "Add tag",
+  "Tag": "Tag",
+  "Search tags…": "Search tags…",
+  "No matching tags.": "No matching tags.",
+  "Failed to load documents.": "Failed to load documents.",
+  "Failed to download file.": "Failed to download file.",
+  "Failed to update tags.": "Failed to update tags.",
+  "Failed to delete file.": "Failed to delete file.",
+  "Delete file {{name}}": "Delete file {{name}}",
+  "Delete file {{name}}?": "Delete file {{name}}?",
+  "The file and its tags will be permanently deleted from this project.": "The file and its tags will be permanently deleted from this project.",
+  "Remove tag {{tag}}": "Remove tag {{tag}}"
 }

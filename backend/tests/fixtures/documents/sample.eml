@@ -1,0 +1,9 @@
+From: a@example.com
+To: b@example.com
+Subject: Hi
+Date: Mon, 1 Jan 2026 10:00:00 +0000
+Message-ID: <1@example.com>
+MIME-Version: 1.0
+Content-Type: text/plain
+
+Body

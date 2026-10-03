@@ -13,3 +13,12 @@ class FileOut(BaseModel):
     content_type: str
     size_bytes: int
     uploaded_at: datetime
+
+
+class FileTagOut(BaseModel):
+    id: uuid.UUID
+    name: str
+
+
+class ProjectFileOut(FileOut):
+    tags: list[FileTagOut]

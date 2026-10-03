@@ -648,7 +648,7 @@ def upgrade() -> None:
         ),
         sa.Column("deleted_at", sa.DateTime(timezone=True), nullable=True),
         sa.UniqueConstraint("id", "kind", name="uq_files_id_kind"),
-        sa.CheckConstraint("kind IN ('setting')", name="ck_files_kind"),
+        sa.CheckConstraint("kind IN ('setting', 'project')", name="ck_files_kind"),
     )
     # Instance-wide slots named in code (so there is no row to reference): the CHECK on
     # setting_key is what rules out an unknown slot.
@@ -676,10 +676,79 @@ def upgrade() -> None:
     for statement in triggers.SETTING_FILES_TRIGGER_STATEMENTS:
         op.execute(statement)
 
+    # Files attached to a project.
+    op.create_table(
+        "project_files",
+        sa.Column("file_id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("kind", sa.Text(), nullable=False, server_default="project"),
+        sa.Column(
+            "project_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("projects.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.ForeignKeyConstraint(
+            ["file_id", "kind"],
+            ["files.id", "files.kind"],
+            ondelete="CASCADE",
+            name="fk_project_files_file_id_kind",
+        ),
+        sa.CheckConstraint("kind = 'project'", name="ck_project_files_kind"),
+    )
+    op.create_index("ix_project_files_project_id", "project_files", ["project_id"])
+    for statement in triggers.PROJECT_FILES_TRIGGER_STATEMENTS:
+        op.execute(statement)
+
+    # The fixed vocabulary a project file can be tagged with. Stored trimmed, lowercase and
+    # single-spaced, which the CHECK enforces for every writer.
+    op.create_table(
+        "file_tags",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column("name", sa.Text(), nullable=False, unique=True),
+        sa.CheckConstraint(
+            r"name <> '' AND name = btrim(lower(regexp_replace(name, '\s+', ' ', 'g')))",
+            name="ck_file_tags_name_normalized",
+        ),
+    )
+    op.create_table(
+        "project_file_tags",
+        sa.Column(
+            "file_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("project_files.file_id", ondelete="CASCADE"),
+            primary_key=True,
+        ),
+        sa.Column(
+            "tag_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("file_tags.id", ondelete="RESTRICT"),
+            primary_key=True,
+        ),
+    )
+    op.create_index("ix_project_file_tags_tag_id", "project_file_tags", ["tag_id"])
+    # Literal copy of the vocabulary, deliberately not imported from the models.
+    for name in (
+        "contract",
+        "purchase order",
+        "statement of work",
+        "proposal",
+        "master service agreement",
+        "non-disclosure agreement",
+        "invoice",
+        "addendum",
+    ):
+        op.execute(
+            sa.text("INSERT INTO file_tags (id, name) VALUES (gen_random_uuid(), :name)")
+            .bindparams(name=name)
+        )
+
 
 def downgrade() -> None:
     for statement in triggers.DROP_STATEMENTS:
         op.execute(statement)
+    op.drop_table("project_file_tags")
+    op.drop_table("file_tags")
+    op.drop_table("project_files")
     op.drop_table("setting_files")
     op.drop_table("files")
     op.drop_table("stored_files")

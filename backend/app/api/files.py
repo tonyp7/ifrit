@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import get_current_user
 from app.core.db import get_db
 from app.models.user import User
-from app.services import file_storage_service
+from app.services import file_storage_service, project_file_service
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +44,26 @@ async def download_file(
     if not await asyncio.to_thread(path.is_file):
         logger.error("Stored content for file %s is missing from disk", file_id)
         raise _NOT_FOUND
+
+    if file.kind == "project":
+        # A deleted project's files are gone as far as anyone can tell, like the project.
+        if not await project_file_service.is_file_of_active_project(db, file.id):
+            raise _NOT_FOUND
+        # Content that could not be re-encoded can be anything the uploader chose, so it
+        # is only ever handed over as a download: never displayed in the app's own
+        # origin, where an HTML or SVG file could run as the signed-in user. The policy
+        # is a second lock for a client that opens the response anyway.
+        return FileResponse(
+            path,
+            media_type=file.stored_file.detected_content_type,
+            filename=file.original_filename,
+            content_disposition_type="attachment",
+            headers={
+                "X-Content-Type-Options": "nosniff",
+                "Content-Security-Policy": "sandbox; default-src 'none'",
+                "Cache-Control": "private, no-cache",
+            },
+        )
 
     return FileResponse(
         path,
