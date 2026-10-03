@@ -3,7 +3,7 @@ from collections import defaultdict
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import ColumnElement, select
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -48,7 +48,7 @@ def _timedelta_to_hours(delta: timedelta) -> Decimal:
     return (Decimal(total_minutes) / Decimal(60)).quantize(Decimal("0.01"))
 
 
-def _eligibility_filters() -> tuple:
+def _eligibility_filters() -> tuple[ColumnElement[bool], ...]:
     return (
         ServiceLine.is_active.is_(True),
         Project.is_active.is_(True),
