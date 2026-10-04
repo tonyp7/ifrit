@@ -15,5 +15,11 @@
   "Couldn't load the logo.": "Couldn't load the logo.",
   "Remove logo?": "Remove logo?",
   "The organization logo will be deleted.": "The organization logo will be deleted.",
-  "Removing…": "Removing…"
+  "Removing…": "Removing…",
+  "PDF Report Export": "PDF Report Export",
+  "Insert organization logo in exported PDF": "Insert organization logo in exported PDF",
+  "Logo height, in mm": "Logo height, in mm",
+  "Couldn't load the PDF export settings.": "Couldn't load the PDF export settings.",
+  "PDF export settings saved": "PDF export settings saved",
+  "The setting didn't save. Check your connection and try again.": "The setting didn't save. Check your connection and try again."
 }
