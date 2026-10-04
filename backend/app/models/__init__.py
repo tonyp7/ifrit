@@ -1,4 +1,5 @@
 from app.models import triggers
+from app.models.app_setting import AppSetting
 from app.models.company import Address, Company, PartyIdentifier
 from app.models.currency import Currency
 from app.models.file import (
@@ -17,6 +18,7 @@ triggers.attach()
 
 __all__ = [
     "Address",
+    "AppSetting",
     "Company",
     "Currency",
     "File",

@@ -1,4 +1,7 @@
+from typing import Any
+
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import require_roles
@@ -6,7 +9,7 @@ from app.core.db import get_db
 from app.models.file import File
 from app.models.user import User
 from app.schemas.file import FileOut
-from app.services import file_storage_service
+from app.services import app_settings, file_storage_service
 
 # Instance-wide settings are managed by administrators only.
 _admin_only = Depends(require_roles("administrator"))
@@ -60,3 +63,76 @@ async def delete_org_logo(db: AsyncSession = Depends(get_db)) -> None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="No logo uploaded"
         )
+
+
+# Scalar settings. These routes come after the fixed `/org-logo` ones, which must keep
+# winning over the `{group}` path parameter.
+
+
+def _unknown_group() -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND, detail="Unknown settings group"
+    )
+
+
+def _invalid(err: ValidationError) -> HTTPException:
+    # The same {loc, msg, type} shape FastAPI uses for its own 422s, which is what the
+    # frontend turns into a message. Pydantic's `input` is left out: it echoes the value.
+    detail = [
+        {"loc": list(e["loc"]), "msg": e["msg"], "type": e["type"]}
+        for e in err.errors()
+    ]
+    return HTTPException(
+        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=detail
+    )
+
+
+@router.get("")
+async def get_all_settings(
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, dict[str, Any]]:
+    groups = await app_settings.get_all_groups(db)
+    return {name: group.model_dump() for name, group in groups.items()}
+
+
+@router.get("/{group}")
+async def get_settings_group(
+    group: str, db: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
+    try:
+        current = await app_settings.get_group(db, group)
+    except app_settings.UnknownSettingGroupError as err:
+        raise _unknown_group() from err
+    return current.model_dump()
+
+
+@router.patch("/{group}")
+async def patch_settings_group(
+    group: str,
+    patch: dict[str, Any],
+    user: User = _admin_only,
+    db: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    try:
+        updated: BaseModel = await app_settings.update_group(db, group, patch, user.id)
+    except app_settings.UnknownSettingGroupError as err:
+        raise _unknown_group() from err
+    except ValidationError as err:
+        raise _invalid(err) from err
+    return updated.model_dump()
+
+
+@router.delete("/{group}/{key}")
+async def reset_setting(
+    group: str, key: str, db: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
+    try:
+        current = await app_settings.reset_key(db, group, key)
+    except app_settings.UnknownSettingGroupError as err:
+        raise _unknown_group() from err
+    except app_settings.UnknownSettingKeyError as err:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Unknown setting",
+        ) from err
+    return current.model_dump()

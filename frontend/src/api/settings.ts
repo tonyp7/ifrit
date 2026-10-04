@@ -1,5 +1,6 @@
 import { apiClient } from "@/api/client";
 import type { StoredFileInfo } from "@/types/file";
+import type { PdfExportSettings } from "@/types/settings";
 
 export const ORG_LOGO_PATH = "/settings/org-logo";
 
@@ -20,4 +21,15 @@ export function uploadOrgLogo(file: File, onProgress?: (percent: number) => void
 
 export function deleteOrgLogo() {
   return apiClient.delete<void>(ORG_LOGO_PATH);
+}
+
+const PDF_EXPORT_PATH = "/settings/pdf-export";
+
+export function getPdfExportSettings() {
+  return apiClient.get<PdfExportSettings>(PDF_EXPORT_PATH);
+}
+
+/** Changes only the settings sent; the response is the whole updated group. */
+export function patchPdfExportSettings(patch: Partial<PdfExportSettings>) {
+  return apiClient.patch<PdfExportSettings>(PDF_EXPORT_PATH, patch);
 }

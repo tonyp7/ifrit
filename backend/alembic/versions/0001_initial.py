@@ -676,6 +676,40 @@ def upgrade() -> None:
     for statement in triggers.SETTING_FILES_TRIGGER_STATEMENTS:
         op.execute(statement)
 
+    # Instance-wide scalar settings, one row per (group, key). The registry in code decides
+    # which keys exist, so adding a setting needs no migration. The seed rows hold the code
+    # defaults; a missing row would read as the default anyway.
+    op.create_table(
+        "app_settings",
+        sa.Column("group_name", sa.String(length=100), primary_key=True),
+        sa.Column("key", sa.String(length=100), primary_key=True),
+        sa.Column("value", postgresql.JSONB(), nullable=False),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
+        sa.Column(
+            "updated_by",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("users.id", ondelete="SET NULL"),
+            nullable=True,
+        ),
+        sa.CheckConstraint(
+            "jsonb_typeof(value) IN ('boolean', 'number', 'string')",
+            name="ck_app_settings_scalar_value",
+        ),
+    )
+    op.execute(
+        """
+        INSERT INTO app_settings (group_name, key, value) VALUES
+          ('pdf-export', 'export_logo',    'true'::jsonb),
+          ('pdf-export', 'logo_height_mm', '20'::jsonb)
+        ON CONFLICT (group_name, key) DO NOTHING
+        """
+    )
+
     # Files attached to a project.
     op.create_table(
         "project_files",
@@ -746,6 +780,7 @@ def upgrade() -> None:
 def downgrade() -> None:
     for statement in triggers.DROP_STATEMENTS:
         op.execute(statement)
+    op.drop_table("app_settings")
     op.drop_table("project_file_tags")
     op.drop_table("file_tags")
     op.drop_table("project_files")
