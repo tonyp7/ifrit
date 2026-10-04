@@ -70,6 +70,58 @@ describe("PdfExportCardView", () => {
     expect(html).toContain("justify-between");
   });
 
+  // Opening tag of the element holding the control or label at `at`: the row it sits in.
+  function rowTagAt(html: string, at: number) {
+    const start = html.lastIndexOf("<div", at);
+    return html.slice(start, html.indexOf(">", start) + 1);
+  }
+
+  it("puts the switch first on its row with its label directly after it", () => {
+    const html = render();
+
+    const switchAt = html.indexOf('role="switch"');
+    const labelAt = html.indexOf("Insert organization logo in exported PDF");
+    expect(switchAt).toBeGreaterThan(-1);
+    expect(labelAt).toBeGreaterThan(switchAt);
+
+    // The label belongs to the switch, and only the switch's own markup lies between them.
+    const switchId = /role="switch"[^>]*\sid="([^"]+)"|\sid="([^"]+)"[^>]*role="switch"/.exec(
+      html,
+    );
+    const id = switchId?.[1] ?? switchId?.[2];
+    expect(html).toContain(`for="${id}"`);
+    const between = html.slice(switchAt, html.lastIndexOf("<label", labelAt));
+    expect(between).not.toContain("<label");
+    expect(between.match(/<div/g)).toBeNull();
+  });
+
+  it("does not spread the switch and its label to the two ends of the row", () => {
+    const html = render();
+
+    expect(rowTagAt(html, html.indexOf('role="switch"'))).not.toContain("justify-between");
+    // The slider's row keeps its label on the left and the value on the right.
+    expect(rowTagAt(html, html.indexOf("Logo height, in mm"))).toContain("justify-between");
+  });
+
+  it("lets the label dim with the switch", () => {
+    const html = render();
+
+    // The label dims through `peer-disabled`, which only applies to a label that follows
+    // the disabled switch (a `peer`) in the markup, so both halves are checked.
+    const switchTag = /<[^>]*role="switch"[^>]*>/.exec(html)?.[0] ?? "";
+    const labelTag =
+      /<label[^>]*>(?=Insert organization logo in exported PDF)/.exec(html)?.[0] ?? "";
+    expect(switchTag).toMatch(/class="[^"]*\bpeer\b/);
+    expect(labelTag).toContain("peer-disabled:opacity-70");
+    expect(html.indexOf(switchTag)).toBeLessThan(html.indexOf(labelTag));
+
+    // And the switch really is disabled in the states the label has to follow.
+    expect(
+      isDisabled(render({ loading: true, exportLogo: null, heightMm: null }), "switch"),
+    ).toBe(true);
+    expect(isDisabled(render({ saving: true }), "switch")).toBe(true);
+  });
+
   it("offers 1 to 60 mm", () => {
     const html = render({ heightMm: 20 });
 

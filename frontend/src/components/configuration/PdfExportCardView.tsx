@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Field, FieldLabel } from "@/components/ui/field";
 import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
@@ -62,8 +63,10 @@ export function PdfExportCardView({
         <CardTitle className="text-lg font-medium">{t("PDF Report Export")}</CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-6">
-        <div className="flex items-center justify-between gap-4">
-          <Label htmlFor={switchId}>{t("Insert organization logo in exported PDF")}</Label>
+        {/* Switch first, label right beside it, like the other switches and checkboxes in
+            the app. The label has to come after the switch: the label's own disabled styling
+            keys off a preceding disabled `peer`, which is why it could not dim before. */}
+        <Field orientation="horizontal">
           <Switch
             id={switchId}
             checked={exportLogo ?? false}
@@ -73,7 +76,10 @@ export function PdfExportCardView({
               onExportLogoChange(checked);
             }}
           />
-        </div>
+          <FieldLabel htmlFor={switchId}>
+            {t("Insert organization logo in exported PDF")}
+          </FieldLabel>
+        </Field>
 
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between gap-4">
