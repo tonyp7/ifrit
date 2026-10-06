@@ -34,5 +34,8 @@
   "Saving…": "Saving…",
   "Close": "Close",
   "Yes": "Yes",
-  "No": "No"
+  "No": "No",
+  "This page couldn't be loaded": "This page couldn't be loaded",
+  "The app may have been updated. Reload to get the latest version.": "The app may have been updated. Reload to get the latest version.",
+  "Reload": "Reload"
 }

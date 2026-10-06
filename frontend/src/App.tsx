@@ -1,19 +1,45 @@
+import { lazy } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 
 import { AppLayout } from "@/components/AppLayout";
 import { ConfigurationLayout } from "@/components/ConfigurationLayout";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { RequireRoles } from "@/components/RequireRoles";
-import { CompaniesListPage } from "@/pages/CompaniesListPage";
-import { CompanyFormPage } from "@/pages/CompanyFormPage";
-import { ConfigurationGeneralPage } from "@/pages/ConfigurationGeneralPage";
 import { LoginPage } from "@/pages/LoginPage";
-import { ProjectFormPage } from "@/pages/ProjectFormPage";
-import { ProjectsPage } from "@/pages/ProjectsPage";
-import { ReportingPage } from "@/pages/ReportingPage";
 import { TimesheetPage } from "@/pages/TimesheetPage";
-import { UserFormPage } from "@/pages/UserFormPage";
-import { UsersPage } from "@/pages/UsersPage";
+
+// Login and the timesheet are what every user opens, so they (and the layouts and route
+// guards around them) are in the main bundle. Every other page is role-gated or occasional
+// and is downloaded the first time it is visited: a user without the role is redirected by
+// the guard before the page renders, so they never download it at all. The pages keep their
+// named exports, hence the `default` wrapper `lazy` needs. The Suspense fallback and the
+// error boundary for a failed download are in AppLayout and ConfigurationLayout.
+const ReportingPage = lazy(() =>
+  import("@/pages/ReportingPage").then((m) => ({ default: m.ReportingPage })),
+);
+const ProjectsPage = lazy(() =>
+  import("@/pages/ProjectsPage").then((m) => ({ default: m.ProjectsPage })),
+);
+const ProjectFormPage = lazy(() =>
+  import("@/pages/ProjectFormPage").then((m) => ({ default: m.ProjectFormPage })),
+);
+const ConfigurationGeneralPage = lazy(() =>
+  import("@/pages/ConfigurationGeneralPage").then((m) => ({
+    default: m.ConfigurationGeneralPage,
+  })),
+);
+const CompaniesListPage = lazy(() =>
+  import("@/pages/CompaniesListPage").then((m) => ({ default: m.CompaniesListPage })),
+);
+const CompanyFormPage = lazy(() =>
+  import("@/pages/CompanyFormPage").then((m) => ({ default: m.CompanyFormPage })),
+);
+const UsersPage = lazy(() =>
+  import("@/pages/UsersPage").then((m) => ({ default: m.UsersPage })),
+);
+const UserFormPage = lazy(() =>
+  import("@/pages/UserFormPage").then((m) => ({ default: m.UserFormPage })),
+);
 
 export default function App() {
   return (
