@@ -1,0 +1,70 @@
+# Acknowledgments
+
+Ifrit's own source code is released under the Apache License 2.0 (see `LICENSE`). That license does
+not cover the third-party material listed here, which is used under the license named in each entry.
+
+This file is where credit for third-party material is recorded and kept. It gives, for each asset,
+what its license asks for: who made it, where it came from, under which license, what was changed,
+and which files in this repository carry it.
+
+## Adding an asset
+
+Before a third-party asset that requires attribution is merged (an icon, an image, a font, a
+dataset, a snippet of someone else's code), add an entry below, copying the template at the end.
+Do not merge the asset without it. Keep the credit in the asset's own file too where the format
+allows (for example a header comment), so the notice travels with the file.
+
+## Assets
+
+### Browser icon "time-clock-fire"
+
+| | |
+|---|---|
+| Title | "time-clock-fire", from the "Ultimate color icons" set |
+| Author | Streamline |
+| Source | https://icon-sets.iconify.design/streamline-ultimate-color/time-clock-fire/ (the set is published at https://github.com/webalys-hq/streamline-vectors) |
+| Retrieved | 2026-10-06, from Iconify |
+| License | Creative Commons Attribution 4.0 International (CC BY 4.0): https://creativecommons.org/licenses/by/4.0/ |
+| Copyright notice | None supplied by the licensor |
+| Warranty | Provided as is, without warranties; see section 5 of the license |
+| Used for | The app's browser tab icon (favicon) and iOS home screen icon |
+| Files | `frontend/public/favicon.svg`, `frontend/public/favicon.ico`, `frontend/public/apple-touch-icon.png` |
+
+Changes made to the original icon:
+
+1. `favicon.svg`: the `width` and `height` attributes were changed from `1em` to `24`, and a header
+   comment with this credit was added. The `viewBox`, the shapes and the colors are unchanged.
+2. `favicon.ico`: the SVG was rendered at 16, 32 and 48 pixels and packed into one ICO file (a
+   change of format).
+3. `apple-touch-icon.png`: the SVG was rendered at 144 pixels and centered on an opaque white
+   180 x 180 pixel square (a change of format and an added background).
+
+The two files in 2 and 3 can be regenerated from the SVG, from the repository root:
+
+```shell
+for n in 16 32 48; do rsvg-convert -w $n -h $n frontend/public/favicon.svg -o $n.png; done
+magick 16.png 32.png 48.png frontend/public/favicon.ico
+rsvg-convert -w 144 -h 144 frontend/public/favicon.svg -o 144.png
+magick -size 180x180 xc:white 144.png -gravity center -composite \
+  -background white -alpha remove -alpha off PNG24:frontend/public/apple-touch-icon.png
+```
+
+## Template for a new entry
+
+```markdown
+### Short name of the asset
+
+| | |
+|---|---|
+| Title | |
+| Author | |
+| Source | |
+| Retrieved | |
+| License | (name and link) |
+| Copyright notice | (as supplied, or "None supplied by the licensor") |
+| Warranty | (what the license says about warranties, with the section) |
+| Used for | |
+| Files | (every file in this repository that carries it) |
+
+Changes made to the original: (every modification, or "None".)
+```
