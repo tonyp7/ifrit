@@ -80,12 +80,12 @@ class Project(Base):
     # soft-deleted clears the link (the user must pick a valid one before saving); the
     # write schema (ProjectWrite) still requires it.
     vendor_company_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("companies.id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("companies.id"), nullable=True, index=True
     )
     # Any active company, is_vendor or not. Can be the same company as vendor_company_id
     # (inter-company/self-billing): intentional. Nullable for the same reason as above.
     client_company_id: Mapped[uuid.UUID | None] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("companies.id"), nullable=True
+        UUID(as_uuid=True), ForeignKey("companies.id"), nullable=True, index=True
     )
     vendor_company: Mapped["Company | None"] = relationship(
         foreign_keys=[vendor_company_id]

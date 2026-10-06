@@ -234,11 +234,14 @@ async def test_deleting_the_author_keeps_the_setting_with_no_author(
         db_session, "pdf-export", {"logo_height_mm": 25}, admin.id
     )
 
-    # Users are deactivated, not deleted, in the app; this is the database-level
-    # guarantee if one is ever removed. The role links go first, as in a real delete.
-    await db_session.execute(delete(user_roles).where(user_roles.c.user_id == admin.id))
+    # Users are deactivated, not deleted, in the app; this is the database-level guarantee
+    # if one is ever removed. Their role links go with them (ON DELETE CASCADE).
     await db_session.execute(delete(User).where(User.id == admin.id))
     await db_session.commit()
+    links = await db_session.execute(
+        select(user_roles).where(user_roles.c.user_id == admin.id)
+    )
+    assert links.first() is None
 
     row = await _row(db_session, "logo_height_mm")
     assert row is not None

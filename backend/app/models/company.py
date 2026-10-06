@@ -59,8 +59,13 @@ class PartyIdentifier(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
+    # Indexed: a company's identifiers/addresses are always read by its id, and the cascade
+    # delete needs the index to find them.
     company_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=True),
+        ForeignKey("companies.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     id_type: Mapped[IdentifierType] = mapped_column(String(20), nullable=False)
     # Required (app-level) for legal_registration/peppol_participant: ISO 6523 ICD/EAS code.
@@ -98,8 +103,13 @@ class Address(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
+    # Indexed: a company's identifiers/addresses are always read by its id, and the cascade
+    # delete needs the index to find them.
     company_id: Mapped[uuid.UUID] = mapped_column(
-        UUID(as_uuid=True), ForeignKey("companies.id", ondelete="CASCADE"), nullable=False
+        UUID(as_uuid=True),
+        ForeignKey("companies.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
     )
     address_type: Mapped[AddressType] = mapped_column(String(15), nullable=False)
     line1: Mapped[str] = mapped_column(String(255), nullable=False)
