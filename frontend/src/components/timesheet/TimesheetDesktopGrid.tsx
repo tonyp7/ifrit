@@ -95,22 +95,49 @@ export function TimesheetDesktopGrid({
   const { t } = useTranslation(["timesheet"]);
 
   // Month view crams up to 31 day columns into the same viewport Week view only needs
-  // 7 for. Budget at a 1920px-wide window: 1830px available (56 nav rail, 32 padding,
-  // 2 border) vs 208 (first) + 64 (Total) + 31 x 48 (day floor) = 1760, so it fits
-  // without scrolling. The first column MUST be capped (`max-w-*`): its `truncate`
-  // lines do nothing in an auto-layout table cell otherwise, and the column grew to
-  // fit the longest project/service line/consultant text (e.g. 356px on Reporting,
-  // overflowing by 80px). overflow-x-auto below stays as a fallback for narrower
-  // windows. Full text of a truncated name is on hover (`title`).
+  // 7 for, so it sizes its columns differently: the table is `table-fixed`, the first
+  // and Total columns have set widths and the day columns (no width of their own) split
+  // what is left equally, so a wider window gives wider days instead of empty space.
+  // A table-wide `min-width` (first + Total + 36px per day) stops them shrinking below
+  // a readable cell, and overflow-x-auto below takes over from there, the sticky first
+  // and last columns staying in view. Around the table the page spends 90px (56 nav
+  // rail, 32 padding, 2 border), so with the 36px floor a full month fits from a
+  // 1446px window up, which is why the first column is 176px (--grid-first) below a
+  // 1600px window and 208px from there: at 1600px it still leaves each day about 40px.
+  // Names that no longer fit are truncated with the full text on hover (`title`); the
+  // fixed layout is also what makes `truncate` work, as the cell takes the column's
+  // width instead of growing to the longest text (356px on Reporting once).
+  // Week view keeps its original automatic layout and widths: it already fits.
   const isMonth = periodType === "month";
-  const dayColWidth = isMonth ? "min-w-12" : "min-w-16";
-  const firstColWidth = isMonth ? "w-52 min-w-52 max-w-52" : "w-60 min-w-60 max-w-60";
-  const lastColWidth = isMonth ? "min-w-16" : "min-w-20";
+  const dayColWidth = isMonth ? undefined : "min-w-16";
+  const firstColWidth = isMonth ? "w-[var(--grid-first)]" : "w-60 min-w-60 max-w-60";
+  const lastColWidth = isMonth ? "w-16" : "min-w-20";
+  // A day cell is a td around a number input, and its paddings and the input's 2px of
+  // (transparent) border are spent from the column's width: 18px of it at the old
+  // p-1/p-1, which at 36px would leave "12.5" (27px of text) 18px. Month keeps 2px of td
+  // padding per side and none on the input, leaving 30px; vertical padding is unchanged
+  // so the rows keep their height.
+  const dayHeadPadding = isMonth ? "px-1 py-2" : "p-2";
+  const dayCellPadding = isMonth ? "px-0.5 py-1" : "p-1";
+  const dayInputPadding = isMonth ? "px-0 py-1" : "p-1";
+  const dayTotalPadding = isMonth ? "px-0.5 py-2" : "p-2";
 
   return (
     <div className="hidden flex-col gap-4 p-4 md:flex">
-      <div className="overflow-x-auto rounded-md border">
-        <table className="w-full border-collapse text-sm">
+      <div
+        className={cn(
+          "overflow-x-auto rounded-md border",
+          isMonth && "[--grid-first:11rem] min-[1600px]:[--grid-first:13rem]",
+        )}
+      >
+        <table
+          className={cn("w-full border-collapse text-sm", isMonth && "table-fixed")}
+          style={
+            isMonth
+              ? { minWidth: `calc(var(--grid-first) + 4rem + ${days.length} * 2.25rem)` }
+              : undefined
+          }
+        >
           <thead>
             <tr>
               <th
@@ -127,7 +154,8 @@ export function TimesheetDesktopGrid({
                   <th
                     key={dayKey}
                     className={cn(
-                      "sticky top-0 z-20 border-b p-2 text-center font-medium",
+                      "sticky top-0 z-20 border-b text-center font-medium",
+                      dayHeadPadding,
                       dayColWidth,
                       isWeekend(day) && "bg-muted/40",
                       !isWeekend(day) && "bg-background",
@@ -242,7 +270,7 @@ export function TimesheetDesktopGrid({
                   return (
                     <td
                       key={dayKey}
-                      className={cn("border-b p-1 text-center", backgroundClass)}
+                      className={cn("border-b text-center", dayCellPadding, backgroundClass)}
                     >
                       <input
                         type="number"
@@ -277,7 +305,8 @@ export function TimesheetDesktopGrid({
                         }}
                         aria-label={t("Hours")}
                         className={cn(
-                          "w-full rounded border border-transparent bg-transparent p-1 text-center text-sm outline-none transition-colors",
+                          "w-full rounded border border-transparent bg-transparent text-center text-sm outline-none transition-colors",
+                          dayInputPadding,
                           // At-rest + hover affordance for editable cells only (see
                           // conversation before this change): reuses this project's
                           // own tokens: bg-muted is already used for weekend shading
@@ -326,7 +355,8 @@ export function TimesheetDesktopGrid({
                   <td
                     key={dayKey}
                     className={cn(
-                      "p-2 text-center font-medium",
+                      "text-center font-medium",
+                      dayTotalPadding,
                       isWeekend(day) && "bg-muted/40",
                     )}
                   >
