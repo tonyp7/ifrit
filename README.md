@@ -159,3 +159,8 @@ uv run alembic upgrade head                               # apply it
 ```
 
 To start over on a **development** database, drop and recreate the database, then run `uv run alembic upgrade head` again. This destroys all of its data, so never do it on a database you care about.
+
+## License and Acknowledgments
+
+Ifrit is released under the [Apache License 2.0](LICENSE). Third-party material that needs credit,
+such as the app's icon, is listed with its author and license in [ACKNOWLEDGMENTS](ACKNOWLEDGMENTS).
