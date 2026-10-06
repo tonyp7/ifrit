@@ -6,9 +6,6 @@
 
 Ifrit Timesheet Tracker is a modern open-source timesheet tracking and reporting application that can be used by agencies, consultancies and other companies using timesheets as core to their business.
 
-:warning: **This app is still in pre-release**
-This means that frequent breaking changes can and will happen. Database migrations may be squashed into the initial script for simplicity. No release tag & semver is currently available.
-
 ## Features
 
  - Time tracking: Fill in timesheets with a fully responsive modern UI interface
@@ -87,6 +84,40 @@ A fresh instance of ifrit has no user. The first user (administrator role) can b
 docker compose exec app python -m scripts.seed_admin
 ```
 
+## Releases and Upgrading
+
+Ifrit follows [semantic versioning](https://semver.org). Each release is a `vX.Y.Z` tag on GitHub, and publishes a container image to the GitHub Container Registry:
+
+| Image | What it is |
+|---|---|
+| `ghcr.io/tonyp7/ifrit:1.0.0` | Exact. Recommended for production. |
+| `ghcr.io/tonyp7/ifrit:1.0` | The latest patch release of 1.0. |
+| `ghcr.io/tonyp7/ifrit:1` | The latest 1.x release. |
+| `ghcr.io/tonyp7/ifrit:latest` | The current state of `main`, which can be ahead of the last release. Not recommended for production. |
+
+The provided `docker-compose.yml` builds the image from your checkout, so to run a specific release, check out its tag:
+
+```shell
+git fetch --tags
+git checkout v1.0.0
+docker compose up -d --build
+```
+
+If you run your own compose file instead, use `image: ghcr.io/tonyp7/ifrit:1.0.0` in place of the `build:` section of the `app` service, with the same environment variables and storage volume as `docker-compose.yml`.
+
+### Upgrading
+
+1. Read the [changelog](CHANGELOG.md) for the release you are moving to.
+2. **Back up first.** Dump the database, and copy the `ifrit-storage` volume, which holds the uploaded files:
+
+   ```shell
+   docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > ifrit-backup.sql
+   ```
+
+3. Check out the new tag (or change the image tag) and run `docker compose up -d --build`.
+
+Database migrations are applied automatically each time the container starts, so there is no separate migration step. Migrations only go forward: to return to an earlier release, restore your backup.
+
 ## Running the app locally
 
 If you wish to contribute to Ifrit's codebase or you do not want to use Docker, you can also run Ifrit locally. In this case, the simplest way is to launch the FastAPI backend with uv and launch the Vite frontend with pnpm.
@@ -120,9 +151,11 @@ pnpm dev                                 # http://localhost:5173
 
 ### Maintenance
 
-Ifrit uses alembic to manage database migrations. Accordingly, you can use typical features at your own risks.
+Ifrit uses Alembic to manage database migrations. A released migration is never edited: every schema change is a new numbered migration in `backend/alembic/versions/`.
 
 ```shell
-uv run alembic stamp base # reset bookkeeping
-uv run alembic upgrade head # recreates tables fresh
+uv run alembic revision --autogenerate -m "description"   # generate a migration, then review it
+uv run alembic upgrade head                               # apply it
 ```
+
+To start over on a **development** database, drop and recreate the database, then run `uv run alembic upgrade head` again. This destroys all of its data, so never do it on a database you care about.
