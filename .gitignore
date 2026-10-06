@@ -13,6 +13,7 @@
 !/.dockerignore
 !/.gitignore
 !/LICENSE
+!/CHANGELOG.md
 
 # --- Ignored build/temp/cache files  ---
 
