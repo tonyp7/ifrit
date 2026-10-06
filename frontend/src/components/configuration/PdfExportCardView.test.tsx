@@ -122,6 +122,38 @@ describe("PdfExportCardView", () => {
     expect(isDisabled(render({ saving: true }), "switch")).toBe(true);
   });
 
+  // The markup of the first element whose opening tag carries `className`, balanced over
+  // nested divs, so a test can ask what lies inside it.
+  function elementWithClass(html: string, className: string) {
+    const start = html.search(new RegExp(`<div[^>]*class="[^"]*\\b${className}\\b`));
+    if (start === -1) return "";
+    let depth = 0;
+    const tags = /<(\/?)div\b/g;
+    tags.lastIndex = start;
+    for (let m = tags.exec(html); m; m = tags.exec(html)) {
+      depth += m[1] ? -1 : 1;
+      if (depth === 0) return html.slice(start, html.indexOf(">", m.index) + 1);
+    }
+    return "";
+  }
+
+  it("caps the slider and its label row together, at the full width on a narrow screen", () => {
+    const html = render({ heightMm: 20 });
+
+    const capped = elementWithClass(html, "max-w-sm");
+    expect(capped).not.toBe("");
+    // Both the label row (with the value) and the slider are inside the one wrapper...
+    expect(capped).toContain("Logo height, in mm");
+    expect(capped).toContain('data-testid="logo-height-value"');
+    expect(capped).toContain('role="slider"');
+    // ...which fills the card where the card is narrower than the cap...
+    const openingTag = capped.slice(0, capped.indexOf(">") + 1);
+    expect(openingTag).toMatch(/\bw-full\b/);
+    // ...and the switch row is not part of it.
+    expect(capped).not.toContain('role="switch"');
+    expect(capped).not.toContain("Insert organization logo");
+  });
+
   it("offers 1 to 60 mm", () => {
     const html = render({ heightMm: 20 });
 

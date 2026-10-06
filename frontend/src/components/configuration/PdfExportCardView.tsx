@@ -81,7 +81,10 @@ export function PdfExportCardView({
           </FieldLabel>
         </Field>
 
-        <div className="flex flex-col gap-3">
+        {/* Capped, label row included, so on a wide screen the slider does not run the width
+            of the card and the value stays at the slider's right end rather than the card's;
+            on a narrow screen `w-full` makes it fill the card as before. */}
+        <div className="flex w-full max-w-sm flex-col gap-3">
           <div className="flex items-center justify-between gap-4">
             <Label id={heightLabelId}>{t("Logo height, in mm")}</Label>
             <span
