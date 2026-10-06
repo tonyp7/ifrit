@@ -25,8 +25,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.project import Project
 from app.models.user import User
 from app.schemas.time_entry import TimesheetReportRowOut
-from app.services import file_storage_service
+from app.services import app_settings, file_storage_service
 from app.services.time_entry_service import _pm_project_ids, list_time_entries_report
+from app.settings_registry import PdfExportSettings
 
 logger = logging.getLogger(__name__)
 
@@ -141,31 +142,49 @@ def _heat_color(hours: Decimal) -> tuple[int, int, int]:
     return red, green, blue
 
 
-_LOGO_MAX_WIDTH_MM = 112.5
-_LOGO_MAX_HEIGHT_MM = 40.0
+# Widest the logo may be drawn. The page content is 281 mm wide and the title ("Timesheet
+# Report", 22 pt bold) takes about 70 mm of its left side, so this leaves the title room and a
+# gap. It only limits very wide logos at large heights, which are scaled down proportionally.
+_LOGO_MAX_WIDTH_MM = 180.0
 # The title block, from the top of the accent bar to the bottom of the subtitle: the 3 mm
 # between bar and title, the title line and the subtitle line of _build_pdf. A logo taller than
 # this pushes the block down by the difference (a test pins this to the real layout).
 _TITLE_BLOCK_HEIGHT_MM = 3.0 + 11.0 + 7.0
-# Long edge of the logo as embedded: about 270 dpi across the full 112.5 mm box width, crisp in
-# print, while a 25-megapixel upload would otherwise be embedded whole in every export.
-_LOGO_MAX_EDGE_PX = 1200
+# Resolution the logo is embedded at: crisp in print, while a 25-megapixel upload would
+# otherwise be embedded whole in every export.
+_LOGO_DPI = 300
+_MM_PER_INCH = 25.4
+
+
+def _logo_size_mm(width_px: int, height_px: int, height_mm: float) -> tuple[float, float]:
+    """The logo's size on the page: exactly `height_mm` high and as wide as its own aspect
+    ratio makes it, never stretched or cropped. A logo that would be wider than the page
+    allows is scaled down proportionally to the widest allowed, so its height is then below
+    `height_mm`."""
+    width_mm = height_mm * width_px / height_px
+    if width_mm > _LOGO_MAX_WIDTH_MM:
+        return _LOGO_MAX_WIDTH_MM, _LOGO_MAX_WIDTH_MM * height_px / width_px
+    return width_mm, height_mm
 
 
 @dataclass(frozen=True)
 class _PreparedLogo:
-    """A logo ready to embed in the PDF, with its pixel size (which placement needs)."""
+    """A logo ready to embed in the PDF: the image, its pixel size and the size it is drawn
+    at on the page (which placement needs)."""
 
     data: bytes
     width_px: int
     height_px: int
+    width_mm: float
+    height_mm: float
 
 
-def _prepare_logo(data: bytes) -> _PreparedLogo:
-    """Shrinks the stored logo to what the PDF needs: long edge at most 1200 px (never
-    enlarged, aspect ratio kept). A JPEG stays a JPEG (no transparency to lose, and
-    photographs stay small); anything else, WebP included, becomes a PNG, which keeps
-    transparency and is read by fpdf2 without any extra format support.
+def _prepare_logo(data: bytes, height_mm: float) -> _PreparedLogo:
+    """Prepares the stored logo for drawing `height_mm` high: works out its size on the page
+    (see _logo_size_mm) and shrinks the image to about 300 dpi of that size, never enlarged,
+    aspect ratio kept. A JPEG stays a JPEG (no transparency to lose, and photographs stay
+    small); anything else, WebP included, becomes a PNG, which keeps transparency and is read
+    by fpdf2 without any extra format support.
 
     Raises Pillow's decode errors (UnidentifiedImageError, OSError, ...) for bytes that are
     not a readable image; the caller decides what that means for the export.
@@ -180,13 +199,23 @@ def _prepare_logo(data: bytes) -> _PreparedLogo:
             has_alpha = "A" in image.getbands() or "transparency" in image.info
             image = image.convert("RGBA" if has_alpha else "RGB")
         image = image.copy()
-    image.thumbnail((_LOGO_MAX_EDGE_PX, _LOGO_MAX_EDGE_PX), Image.Resampling.LANCZOS)
+    width_mm, drawn_height_mm = _logo_size_mm(image.width, image.height, height_mm)
+    # thumbnail() only ever shrinks, so a small logo is not upsampled.
+    image.thumbnail(
+        (
+            max(1, round(width_mm / _MM_PER_INCH * _LOGO_DPI)),
+            max(1, round(drawn_height_mm / _MM_PER_INCH * _LOGO_DPI)),
+        ),
+        Image.Resampling.LANCZOS,
+    )
     buffer = io.BytesIO()
     if keep_jpeg:
         image.convert("RGB").save(buffer, format="JPEG", quality=90)
     else:
         image.save(buffer, format="PNG", optimize=True)
-    return _PreparedLogo(buffer.getvalue(), image.width, image.height)
+    return _PreparedLogo(
+        buffer.getvalue(), image.width, image.height, width_mm, drawn_height_mm
+    )
 
 
 class _TimesheetBordersLayout(TableBordersLayout):
@@ -242,13 +271,6 @@ _WEEKEND_INDICES = {5, 6}  # Saturday, Sunday, per _WEEKDAY_LETTERS' Monday-firs
 _CELL_PADDING_MM = 1.8  # top and bottom of every cell, for breathing room between rows
 
 
-def _logo_size_mm(logo: _PreparedLogo) -> tuple[float, float]:
-    """The logo's size on the page: as large as fits the 112.5 x 40 mm box at its own aspect
-    ratio (never stretched or cropped)."""
-    width = min(_LOGO_MAX_WIDTH_MM, _LOGO_MAX_HEIGHT_MM * logo.width_px / logo.height_px)
-    return width, width * logo.height_px / logo.width_px
-
-
 def _build_pdf(
     rows: list[TimesheetReportRowOut],
     days: list[date],
@@ -274,7 +296,7 @@ def _build_pdf(
         # full height. Flush right at the margin (not centred in its box, which would leave a
         # narrow logo floating inside it), with its top where the accent bar's top is without a
         # logo.
-        logo_w, logo_h = _logo_size_mm(logo)
+        logo_w, logo_h = logo.width_mm, logo.height_mm
         pdf.image(
             io.BytesIO(logo.data),
             x=pdf.w - pdf.r_margin - logo_w,
@@ -597,7 +619,7 @@ def _build_xlsx(rows: list[TimesheetReportRowOut], days: list[date]) -> bytes:
     return buffer.getvalue()
 
 
-async def _load_logo(db: AsyncSession) -> _PreparedLogo | None:
+async def _load_logo(db: AsyncSession, height_mm: float) -> _PreparedLogo | None:
     """The organization logo, ready to embed, or None when there is none or it cannot be used.
 
     The logo is optional decoration, so unlike the font (a wrong font silently changes the
@@ -609,7 +631,7 @@ async def _load_logo(db: AsyncSession) -> _PreparedLogo | None:
         data = await file_storage_service.read_setting_file_bytes(db, "org_logo")
         if data is None:
             return None
-        return await asyncio.to_thread(_prepare_logo, data)
+        return await asyncio.to_thread(_prepare_logo, data, height_mm)
     except (
         OSError,  # missing or unreadable disk file; also Pillow's UnidentifiedImageError
         ValueError,
@@ -622,6 +644,18 @@ async def _load_logo(db: AsyncSession) -> _PreparedLogo | None:
         # carry the storage path.
         logger.warning("Organization logo left out of the PDF export: %s", type(err).__name__)
         return None
+
+
+async def _load_pdf_logo(db: AsyncSession) -> _PreparedLogo | None:
+    """The logo to draw in the PDF, following the saved `pdf-export` settings: None when the
+    administrator switched it off (the logo file is then not even read) or when none can be
+    used, otherwise ready to embed at the saved height."""
+    settings = await app_settings.get_group(db, "pdf-export")
+    if not isinstance(settings, PdfExportSettings):
+        raise TypeError("the pdf-export group is not registered as PdfExportSettings")
+    if not settings.export_logo:
+        return None
+    return await _load_logo(db, settings.logo_height_mm)
 
 
 async def build_report_export(
@@ -660,7 +694,7 @@ async def build_report_export(
     )
 
     if export_format == "pdf":
-        file_bytes = _build_pdf(rows, days, period_label, await _load_logo(db))
+        file_bytes = _build_pdf(rows, days, period_label, await _load_pdf_logo(db))
     elif export_format == "xlsx":
         file_bytes = _build_xlsx(rows, days)
     else:
