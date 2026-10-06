@@ -1,6 +1,9 @@
+import { Suspense } from "react";
 import { useTranslation } from "react-i18next";
 import { Link, Outlet, useLocation } from "react-router-dom";
 
+import { PageLoadErrorBoundary } from "@/components/PageLoadErrorBoundary";
+import { PageLoading } from "@/components/PageLoading";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { CONFIGURATION_TABS, configurationTabForPath } from "@/config/configurationTabs";
 
@@ -24,7 +27,13 @@ export function ConfigurationLayout() {
           ))}
         </TabsList>
       </Tabs>
-      <Outlet />
+      {/* The tab bar stays while a tab's page downloads or fails to: without a boundary here
+          the nearest one is the app-wide layout's, which would replace this whole area. */}
+      <PageLoadErrorBoundary resetKey={pathname}>
+        <Suspense fallback={<PageLoading />}>
+          <Outlet />
+        </Suspense>
+      </PageLoadErrorBoundary>
     </div>
   );
 }
