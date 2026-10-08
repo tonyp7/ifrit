@@ -75,7 +75,7 @@ jobs:
       # Keep in step with the pnpm pinned in docker/Dockerfile.
       - uses: pnpm/action-setup@v6
         with:
-          version: 11.18.0
+          version: 12.6.0
       - uses: actions/setup-node@v7
         with:
           node-version: 22
