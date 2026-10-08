@@ -4,6 +4,25 @@ All notable changes to Ifrit Timesheet Tracker are documented here. The format f
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org).
 
+## [1.1.0] - 8 Oct 2026
+
+### Added
+- A favicon, in SVG with `.ico` and Apple touch icon fallbacks, so the app is recognizable in
+  browser tabs, bookmarks and on home screens.
+- An ACKNOWLEDGMENTS file crediting the third-party software the project builds on.
+- A "Reload" prompt when a page fails to load, which happens when a tab left open across an update
+  asks for files that no longer exist. Navigation stays on screen and the message clears when you
+  move to another page.
+
+### Changed
+- Pages you can only reach with a role (reporting, projects, companies, users and the
+  configuration screens) now load on demand. The initial download is about half the size (232 kB to
+  118 kB gzipped), which speeds up the login page and first load, especially on mobile.
+
+### Fixed
+- The desktop timesheet grid now fits inside shorter screens, including MacBook Air logical
+  resolutions below 1080p, instead of spilling past the viewport.
+
 ## [1.0.0] - 6 Oct 2026
 
 The first release.

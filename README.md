@@ -90,8 +90,8 @@ Ifrit follows [semantic versioning](https://semver.org). Each release is a `vX.Y
 
 | Image | What it is |
 |---|---|
-| `ghcr.io/tonyp7/ifrit:1.0.0` | Exact. Recommended for production. |
-| `ghcr.io/tonyp7/ifrit:1.0` | The latest patch release of 1.0. |
+| `ghcr.io/tonyp7/ifrit:1.1.0` | Exact. Recommended for production. |
+| `ghcr.io/tonyp7/ifrit:1.1` | The latest patch release of 1.1. |
 | `ghcr.io/tonyp7/ifrit:1` | The latest 1.x release. |
 | `ghcr.io/tonyp7/ifrit:latest` | The current state of `main`, which can be ahead of the last release. Not recommended for production. |
 
@@ -99,11 +99,11 @@ The provided `docker-compose.yml` builds the image from your checkout, so to run
 
 ```shell
 git fetch --tags
-git checkout v1.0.0
+git checkout v1.1.0
 docker compose up -d --build
 ```
 
-If you run your own compose file instead, use `image: ghcr.io/tonyp7/ifrit:1.0.0` in place of the `build:` section of the `app` service, with the same environment variables and storage volume as `docker-compose.yml`.
+If you run your own compose file instead, use `image: ghcr.io/tonyp7/ifrit:1.1.0` in place of the `build:` section of the `app` service, with the same environment variables and storage volume as `docker-compose.yml`.
 
 ### Upgrading
 
