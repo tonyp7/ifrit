@@ -36,9 +36,10 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     # The tests create and use `ifrit_test` next to this database. None of these is a secret.
+    # The JWT key must be at least 64 bytes: shorter ones make PyJWT warn on every token (HS512 test).
     env:
       DATABASE_URL: postgresql+asyncpg://ifrit:ifrit@localhost:5432/ifrit
-      JWT_SECRET_KEY: ci-only-insecure-secret-key
+      JWT_SECRET_KEY: ci-only-insecure-secret-key-0123456789abcdef0123456789abcdef0123456789abcdef
       JWT_ALGORITHM: HS256
       ACCESS_TOKEN_EXPIRE_MINUTES: "15"
       REFRESH_TOKEN_EXPIRE_MINUTES: "10080"
