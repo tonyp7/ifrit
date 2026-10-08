@@ -1,0 +1,87 @@
+# Runs the test suites, linters and the production build on every pull request (Dependabot's
+# included) and on pushes to main. Read-only and secret-free on purpose: it uses `pull_request`,
+# never `pull_request_target`, so code from a PR never runs with elevated rights.
+#
+# Not gated yet: `ruff format --check` and `mypy app`, which fail on existing code.
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+# Publishes nothing, so a superseded run can simply be cancelled.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:18
+        env:
+          POSTGRES_USER: ifrit
+          POSTGRES_PASSWORD: ifrit
+          POSTGRES_DB: ifrit
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ifrit -d ifrit"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    # The tests create and use `ifrit_test` next to this database. None of these is a secret.
+    # The JWT key must be at least 64 bytes: shorter ones make PyJWT warn on every token (HS512 test).
+    env:
+      DATABASE_URL: postgresql+asyncpg://ifrit:ifrit@localhost:5432/ifrit
+      JWT_SECRET_KEY: ci-only-insecure-secret-key-0123456789abcdef0123456789abcdef0123456789abcdef
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: "15"
+      REFRESH_TOKEN_EXPIRE_MINUTES: "10080"
+      CORS_ORIGINS: '["http://localhost:5173"]'
+      COOKIE_SECURE: "false"
+      SEED_ADMIN_EMAIL: admin@ifrit.local
+      SEED_ADMIN_PASSWORD: changeme123
+      STORAGE_ROOT: /tmp/ifrit-storage
+      MAX_UPLOAD_BYTES: "10485760"
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v7
+      # Shared library behind python-magic, which sniffs an upload's real content type.
+      - run: sudo apt-get update && sudo apt-get install -y libmagic1
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      # --locked fails if pyproject.toml and uv.lock disagree (e.g. a half-applied bump).
+      - run: uv sync --locked
+      - run: uv run ruff check .
+      - run: uv run pytest -q
+
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      # Keep in step with the pnpm pinned in docker/Dockerfile.
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 11.18.0
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
