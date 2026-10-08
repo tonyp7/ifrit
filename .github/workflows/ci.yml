@@ -55,7 +55,7 @@ jobs:
       - uses: actions/checkout@v7
       # Shared library behind python-magic, which sniffs an upload's real content type.
       - run: sudo apt-get update && sudo apt-get install -y libmagic1
-      - uses: astral-sh/setup-uv@v10
+      - uses: astral-sh/setup-uv@v10.2.0
         with:
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
