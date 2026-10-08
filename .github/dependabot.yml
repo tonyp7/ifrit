@@ -1,0 +1,52 @@
+# Automated dependency update PRs. Minor and patch updates are grouped so a week yields a few PRs;
+# majors arrive one per PR because they usually need code changes.
+#
+# Not covered, bump by hand:
+#   - the pnpm version pinned through `corepack prepare` in docker/Dockerfile (Dependabot cannot
+#     see it; keep it in step with frontend/pnpm-lock.yaml)
+#   - postgres and pgadmin in the compose files (a postgres major needs a data migration)
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      backend-minor-patch:
+        update-types: [minor, patch]
+    labels: [dependencies, backend]
+
+  # The npm ecosystem also reads pnpm-lock.yaml.
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      frontend-minor-patch:
+        update-types: [minor, patch]
+    labels: [dependencies, frontend]
+
+  - package-ecosystem: docker
+    directory: /docker
+    schedule:
+      interval: monthly
+    ignore:
+      # Python 3.12 on Debian Trixie and Node 22 are deliberate choices: take patches only.
+      - dependency-name: python
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+      - dependency-name: node
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
+    labels: [dependencies, docker]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    groups:
+      actions:
+        patterns: ["*"]
+    labels: [dependencies, ci]
