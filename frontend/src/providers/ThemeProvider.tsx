@@ -1,5 +1,4 @@
 import {
-  createContext,
   useCallback,
   useEffect,
   useMemo,
@@ -9,17 +8,8 @@ import {
 
 import { updateThemePreference } from "@/api/users";
 import { useAuth } from "@/hooks/useAuth";
+import { ThemeContext, type ResolvedTheme } from "@/providers/themeContext";
 import type { ThemePreference } from "@/types/user";
-
-type ResolvedTheme = "light" | "dark";
-
-export interface ThemeContextValue {
-  themePreference: ThemePreference;
-  resolvedTheme: ResolvedTheme;
-  setThemePreference: (preference: ThemePreference) => Promise<void>;
-}
-
-export const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function getSystemTheme(): ResolvedTheme {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
