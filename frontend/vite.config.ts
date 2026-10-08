@@ -35,5 +35,8 @@ export default defineConfig({
     // meant to catch a broken test glob/config silently "passing") — this repo
     // genuinely has no test files yet, so that's not a failure to report as one.
     passWithNoTests: true,
+    // Initializes a global i18next instance (real English JSON) so components that call
+    // useTranslation() can be rendered without a provider.
+    setupFiles: ["src/test/setup.ts"],
   },
 });
