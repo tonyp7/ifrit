@@ -28,9 +28,9 @@ FROM node:22-slim AS frontend-build
 WORKDIR /src
 
 # Pin the exact pnpm version rather than trusting whatever corepack defaults to,
-# for reproducible builds — bump alongside frontend/pnpm-lock.yaml's own pnpm
-# version if that ever changes.
-RUN corepack enable && corepack prepare pnpm@11.18.0 --activate
+# for reproducible builds. Keep it identical to the pnpm version in
+# .github/workflows/ci.yml (the lockfile records no pnpm version, only its own format).
+RUN corepack enable && corepack prepare pnpm@12.6.0 --activate
 
 # Dependencies first, in their own layer, so an app-code-only change doesn't bust
 # the (slow) install cache.
