@@ -1,19 +1,11 @@
-import { createContext, useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { useNavigate } from "react-router-dom";
 
 import * as authApi from "@/api/auth";
 import { ApiError } from "@/api/client";
 import { onSessionExpired } from "@/api/sessionEvents";
+import { AuthContext } from "@/providers/authContext";
 import type { User } from "@/types/user";
-
-export interface AuthContextValue {
-  user: User | null;
-  isLoading: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  logout: () => Promise<void>;
-}
-
-export const AuthContext = createContext<AuthContextValue | null>(null);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
