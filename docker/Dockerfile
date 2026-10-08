@@ -24,13 +24,13 @@
 # ---------------------------------------------------------------------------
 # Stage 1: frontend build — Vite SPA -> static dist/
 # ---------------------------------------------------------------------------
-FROM node:22-slim AS frontend-build
+FROM node:26-slim AS frontend-build
 WORKDIR /src
 
-# Pin the exact pnpm version rather than trusting whatever corepack defaults to,
-# for reproducible builds. Keep it identical to the pnpm version in
-# .github/workflows/ci.yml (the lockfile records no pnpm version, only its own format).
-RUN corepack enable && corepack prepare pnpm@12.6.0 --activate
+# Pin the exact pnpm version for reproducible builds, and keep it identical to the pnpm
+# version in .github/workflows/ci.yml (the lockfile records no pnpm version, only its own
+# format). Installed with npm because Node 25 and later no longer bundle corepack.
+RUN npm install -g pnpm@12.6.0
 
 # Dependencies first, in their own layer, so an app-code-only change doesn't bust
 # the (slow) install cache.

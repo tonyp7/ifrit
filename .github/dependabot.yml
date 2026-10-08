@@ -2,8 +2,9 @@
 # majors arrive one per PR because they usually need code changes.
 #
 # Not covered, bump by hand:
-#   - the pnpm version pinned through `corepack prepare` in docker/Dockerfile (Dependabot cannot
-#     see it; keep it in step with frontend/pnpm-lock.yaml)
+#   - the pnpm version, pinned in docker/Dockerfile (`npm install -g pnpm@...`) and in
+#     .github/workflows/ci.yml, which must stay identical (Dependabot cannot see either, and
+#     the lockfile records no pnpm version)
 #   - postgres and pgadmin in the compose files (a postgres major needs a data migration)
 version: 2
 updates:
@@ -35,7 +36,7 @@ updates:
     schedule:
       interval: monthly
     ignore:
-      # Python 3.12 on Debian Trixie and Node 22 are deliberate choices: take patches only.
+      # Python 3.12 on Debian Trixie and Node 26 are deliberate choices: take patches only.
       - dependency-name: python
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: node
