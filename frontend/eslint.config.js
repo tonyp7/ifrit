@@ -30,4 +30,12 @@ export default tseslint.config(
       "@typescript-eslint/no-explicit-any": "warn",
     },
   },
+  {
+    // shadcn's canonical Badge and Button export their cva() variants next to the
+    // component (alert-dialog.tsx reuses buttonVariants). Keeping the generated files
+    // unmodified lets `shadcn add --overwrite` diff cleanly, so the warning is
+    // silenced here instead of with a comment inside them.
+    files: ["src/components/ui/badge.tsx", "src/components/ui/button.tsx"],
+    rules: { "react-refresh/only-export-components": "off" },
+  },
 );
