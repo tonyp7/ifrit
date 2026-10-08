@@ -37,7 +37,7 @@
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
     "i18next": "^24.2.3",
-    "i18next-http-backend": "^2.7.3",
+    "i18next-http-backend": "^4.0.2",
     "lucide-react": "^0.468.0",
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
