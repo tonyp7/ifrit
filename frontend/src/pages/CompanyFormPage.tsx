@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
@@ -59,10 +59,11 @@ export function CompanyFormPage() {
     register,
     handleSubmit,
     reset,
-    watch,
+    control,
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: BLANK_VALUES });
+  const watchedIsVendor = useWatch({ control, name: "is_vendor" });
 
   const refreshCompany = () => {
     if (!routeCompanyId) return;
@@ -82,11 +83,19 @@ export function CompanyFormPage() {
       });
   };
 
+  // Pointed at a new company after showing an existing one: forget what was loaded. Done while
+  // rendering, by comparing with the previous route id, rather than in an effect, so the stale
+  // company is never painted. The form library's own state is reset in the effect below.
+  const [shownCompanyId, setShownCompanyId] = useState(routeCompanyId);
+  if (routeCompanyId !== shownCompanyId) {
+    setShownCompanyId(routeCompanyId);
+    if (!routeCompanyId) setCompany(null);
+  }
+
   useEffect(() => {
     if (routeCompanyId) {
       refreshCompany();
     } else {
-      setCompany(null);
       reset(BLANK_VALUES);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -167,7 +176,7 @@ export function CompanyFormPage() {
               <Field orientation="horizontal">
                 <Checkbox
                   id="is_vendor"
-                  checked={watch("is_vendor")}
+                  checked={watchedIsVendor}
                   onCheckedChange={(checked) => setValue("is_vendor", checked === true)}
                 />
                 <FieldLabel htmlFor="is_vendor">{t("Vendor")}</FieldLabel>

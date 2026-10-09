@@ -3,6 +3,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useSyncExternalStore,
   type ReactNode,
 } from "react";
 
@@ -11,12 +12,16 @@ import { useAuth } from "@/hooks/useAuth";
 import { ThemeContext, type ResolvedTheme } from "@/providers/themeContext";
 import type { ThemePreference } from "@/types/user";
 
+const DARK_SCHEME_QUERY = "(prefers-color-scheme: dark)";
+
 function getSystemTheme(): ResolvedTheme {
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return window.matchMedia(DARK_SCHEME_QUERY).matches ? "dark" : "light";
 }
 
-function resolveTheme(preference: ThemePreference): ResolvedTheme {
-  return preference === "system" ? getSystemTheme() : preference;
+function subscribeToSystemTheme(onChange: () => void) {
+  const media = window.matchMedia(DARK_SCHEME_QUERY);
+  media.addEventListener("change", onChange);
+  return () => media.removeEventListener("change", onChange);
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
@@ -28,25 +33,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     user?.theme_preference ?? "system",
   );
 
-  // Re-sync whenever the authenticated user changes (login, logout, session restore).
-  useEffect(() => {
+  // Re-sync whenever the authenticated user changes (login, logout, session restore). Done
+  // while rendering, by comparing with the user last synced from, rather than in an effect:
+  // an effect would first render with the stale preference and then render again.
+  const [syncedUser, setSyncedUser] = useState(user);
+  if (user !== syncedUser) {
+    setSyncedUser(user);
     setThemePreferenceState(user?.theme_preference ?? "system");
-  }, [user]);
+  }
 
-  const [resolvedTheme, setResolvedTheme] = useState<ResolvedTheme>(() =>
-    resolveTheme(themePreference),
-  );
-
-  useEffect(() => {
-    setResolvedTheme(resolveTheme(themePreference));
-
-    if (themePreference !== "system") return;
-
-    const media = window.matchMedia("(prefers-color-scheme: dark)");
-    const onChange = () => setResolvedTheme(getSystemTheme());
-    media.addEventListener("change", onChange);
-    return () => media.removeEventListener("change", onChange);
-  }, [themePreference]);
+  // The OS colour scheme is an external value, so it is read through a subscription. The
+  // resolved theme is then derived from it and the preference instead of being stored.
+  const systemTheme = useSyncExternalStore(subscribeToSystemTheme, getSystemTheme);
+  const resolvedTheme: ResolvedTheme = themePreference === "system" ? systemTheme : themePreference;
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", resolvedTheme === "dark");

@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { TriangleAlert } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useLocation, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
@@ -65,9 +65,9 @@ export function UserFormPage() {
   const isEditingSelf = !isNew && routeUserId === currentUser?.id;
 
   // The resolver reads `is_sso` from whatever values it's given at validation time
-  // (submit), not from `watch()` on this same form: a schema built from live
+  // (submit), not from `useWatch` on this same form: a schema built from live
   // watched values would be circular (useForm needs the resolver, the resolver
-  // would need useForm's watch). `isNew`/`originalIsSso` are plain state, not form
+  // would need useForm's control). `isNew`/`originalIsSso` are plain state, not form
   // values, so this has no such cycle.
   const schema = useMemo(
     () =>
@@ -106,14 +106,14 @@ export function UserFormPage() {
     register,
     handleSubmit,
     reset,
-    watch,
+    control,
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: initialValues });
 
-  const watchedIsSso = watch("is_sso");
-  const watchedRoles = watch("roles");
-  const watchedPassword = watch("password");
+  const watchedIsSso = useWatch({ control, name: "is_sso" });
+  const watchedRoles = useWatch({ control, name: "roles" });
+  const watchedPassword = useWatch({ control, name: "password" });
 
   // New + local: always needs a password. Edit + switching an SSO user back to
   // local: also needs one (their old password is long gone). Otherwise hidden:
@@ -122,6 +122,18 @@ export function UserFormPage() {
   const showPasswordField = isNew ? !watchedIsSso : originalIsSso && !watchedIsSso;
   // Only local -> SSO (not the reverse) needs the destructive warning.
   const showSsoWarning = !isNew && !originalIsSso && watchedIsSso;
+
+  // Pointed at a new user after showing an existing one: forget what was loaded. Done while
+  // rendering, by comparing with the previous route id, rather than in an effect, so the stale
+  // user is never painted. The form library's own state is reset in the effect below.
+  const [shownUserId, setShownUserId] = useState(routeUserId);
+  if (routeUserId !== shownUserId) {
+    setShownUserId(routeUserId);
+    if (!routeUserId) {
+      setUser(null);
+      setOriginalIsSso(false);
+    }
+  }
 
   useEffect(() => {
     if (routeUserId) {
@@ -141,8 +153,6 @@ export function UserFormPage() {
           setLoadError(err instanceof ApiError ? err.message : t("Failed to load user."));
         });
     } else {
-      setUser(null);
-      setOriginalIsSso(false);
       reset(initialValues);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps

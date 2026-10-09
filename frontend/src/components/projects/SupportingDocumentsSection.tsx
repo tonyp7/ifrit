@@ -66,14 +66,32 @@ export function SupportingDocumentsSection({
     }
   }, []);
 
-  useEffect(() => {
-    if (!projectId) {
-      dispatch({ type: "loaded", files: [] });
-      return;
-    }
+  // Empty the list when the section is pointed at a different project (or at none). Done while
+  // rendering, by comparing with the project last shown, rather than in an effect. The section is
+  // deliberately not keyed to the project: a new project is saved in the middle of an upload,
+  // which turns projectId from null into its id while the upload state has to survive.
+  const [shownProjectId, setShownProjectId] = useState(projectId);
+  if (projectId !== shownProjectId) {
+    setShownProjectId(projectId);
     dispatch({ type: "loaded", files: [] });
-    void refresh(projectId);
-  }, [projectId, refresh]);
+  }
+
+  useEffect(() => {
+    if (!projectId) return;
+    let cancelled = false;
+    listProjectFiles(projectId)
+      .then((loaded) => {
+        if (cancelled) return;
+        dispatch({ type: "loaded", files: loaded });
+        setLoadFailed(false);
+      })
+      .catch(() => {
+        if (!cancelled) setLoadFailed(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [projectId]);
 
   // The reason for a rejection is shown under the button; the toast repeats it where it
   // can't be missed.

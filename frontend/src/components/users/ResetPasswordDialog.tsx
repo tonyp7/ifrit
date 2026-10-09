@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 
@@ -51,7 +51,7 @@ export function ResetPasswordDialog({
   const {
     register,
     handleSubmit,
-    watch,
+    control,
     reset,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
@@ -59,14 +59,22 @@ export function ResetPasswordDialog({
     defaultValues: { new_password: "" },
   });
 
-  useEffect(() => {
+  // Each time the dialog opens it starts from a clean slate. The error message is state of this
+  // component, so it is cleared while rendering, by comparing with the previous `open`; the form
+  // library's own state is reset in an effect.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) {
       setFormError(null);
-      reset({ new_password: "" });
     }
+  }
+
+  useEffect(() => {
+    if (open) reset({ new_password: "" });
   }, [open, reset]);
 
-  const password = watch("new_password");
+  const password = useWatch({ control, name: "new_password" });
 
   async function onSubmit(values: FormValues) {
     setFormError(null);
