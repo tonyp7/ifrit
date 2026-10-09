@@ -16,3 +16,10 @@ const SERVICE_LINE_BORDER_COLORS = [
 export function serviceLineBorderColor(index: number): string {
   return SERVICE_LINE_BORDER_COLORS[index % SERVICE_LINE_BORDER_COLORS.length];
 }
+
+// Locked cells share one look across the desktop grid and the mobile view. The weekend
+// variant is a step stronger, so a locked Saturday/Sunday still reads as a weekend. The
+// classes are custom utilities defined in index.css.
+export function lockedCellClass(weekend: boolean): string {
+  return weekend ? "locked-cell-weekend" : "locked-cell";
+}
