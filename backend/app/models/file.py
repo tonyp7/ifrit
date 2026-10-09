@@ -156,7 +156,7 @@ class ProjectFile(Base):
     file: Mapped[File] = relationship()
     # Tags belong to this attachment, not to the stored bytes: the same content attached
     # to two projects keeps independent tags.
-    tags: Mapped[list["FileTag"]] = relationship(
+    tags: Mapped[list[FileTag]] = relationship(
         secondary="project_file_tags", order_by="FileTag.name"
     )
 

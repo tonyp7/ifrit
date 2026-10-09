@@ -19,7 +19,7 @@ class ProjectWrite(BaseModel):
     project_manager_ids: list[uuid.UUID] = []
 
     @model_validator(mode="after")
-    def check_name(self) -> "ProjectWrite":
+    def check_name(self) -> ProjectWrite:
         if not self.name.strip():
             raise ValueError("name must not be empty")
         return self
@@ -52,7 +52,7 @@ class ServiceLineWrite(BaseModel):
     user_ids: list[uuid.UUID] = []
 
     @model_validator(mode="after")
-    def check_amounts(self) -> "ServiceLineWrite":
+    def check_amounts(self) -> ServiceLineWrite:
         if self.quantity <= 0:
             raise ValueError("quantity must be greater than zero")
         if self.unit_price < 0:

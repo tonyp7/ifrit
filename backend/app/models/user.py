@@ -47,7 +47,7 @@ class Role(Base):
     # table trivially satisfies BCNF.
     name: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
 
-    users: Mapped[list["User"]] = relationship(
+    users: Mapped[list[User]] = relationship(
         secondary=user_roles, back_populates="roles"
     )
 

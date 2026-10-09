@@ -87,10 +87,10 @@ class Project(Base):
     client_company_id: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("companies.id"), nullable=True, index=True
     )
-    vendor_company: Mapped["Company | None"] = relationship(
+    vendor_company: Mapped[Company | None] = relationship(
         foreign_keys=[vendor_company_id]
     )
-    client_company: Mapped["Company | None"] = relationship(
+    client_company: Mapped[Company | None] = relationship(
         foreign_keys=[client_company_id]
     )
     # Must reference a currency with is_enabled = true (app-level check).
@@ -117,10 +117,10 @@ class Project(Base):
         onupdate=lambda: datetime.now(UTC),
     )
 
-    service_lines: Mapped[list["ServiceLine"]] = relationship(
+    service_lines: Mapped[list[ServiceLine]] = relationship(
         back_populates="project", cascade="all, delete-orphan"
     )
-    project_managers: Mapped[list["User"]] = relationship(
+    project_managers: Mapped[list[User]] = relationship(
         "User", secondary=project_manager_assignments
     )
 
@@ -164,7 +164,7 @@ class ServiceLine(Base):
     is_active: Mapped[bool] = mapped_column(default=True)
 
     project: Mapped[Project] = relationship(back_populates="service_lines")
-    users: Mapped[list["User"]] = relationship(
+    users: Mapped[list[User]] = relationship(
         "User", secondary=service_line_consultants
     )
 

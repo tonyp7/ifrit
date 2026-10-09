@@ -44,8 +44,13 @@ RUN pnpm build
 # Stage 2: backend build — installs the FastAPI app via uv, on Debian Trixie Slim
 # (a deliberate choice other parts of this Dockerfile depend on, e.g. Stage 3's
 # Debian-specific apt-get flow — don't switch base OS/arch without checking those)
+#
+# Stage 3 must use the same Python minor as this stage: the venv built here is copied
+# there and its interpreter links point at this stage's Python. Keep the two FROM lines
+# identical, and in step with `requires-python` in backend/pyproject.toml and the Python
+# set for the backend job in .github/workflows/ci.yml.
 # ---------------------------------------------------------------------------
-FROM python:3.12-slim-trixie AS backend-build
+FROM python:3.14-slim-trixie AS backend-build
 WORKDIR /app
 
 # Official, pinned uv distribution image — see https://docs.astral.sh/uv/guides/integration/docker/
@@ -66,7 +71,7 @@ RUN uv sync --frozen --no-dev
 # a plain entrypoint script (docker/entrypoint.sh) rather than a separate process
 # manager package.
 # ---------------------------------------------------------------------------
-FROM python:3.12-slim-trixie AS final
+FROM python:3.14-slim-trixie AS final
 
 # DEBIAN_FRONTEND=noninteractive is scoped to this RUN only (not ENV), so it
 # never leaks into the final image's runtime environment. Without it, apt-get

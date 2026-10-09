@@ -45,10 +45,10 @@ class Company(Base):
         onupdate=lambda: datetime.now(UTC),
     )
 
-    identifiers: Mapped[list["PartyIdentifier"]] = relationship(
+    identifiers: Mapped[list[PartyIdentifier]] = relationship(
         back_populates="company", cascade="all, delete-orphan"
     )
-    addresses: Mapped[list["Address"]] = relationship(
+    addresses: Mapped[list[Address]] = relationship(
         back_populates="company", cascade="all, delete-orphan"
     )
 
