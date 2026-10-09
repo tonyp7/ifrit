@@ -1,14 +1,27 @@
-import { Toaster as SonnerToaster, type ToasterProps } from "sonner";
+import { CircleCheck, Info, LoaderCircle, OctagonX, TriangleAlert } from "lucide-react";
+import { Toaster as Sonner } from "sonner";
 
 import { useTheme } from "@/hooks/useTheme";
 
-function Toaster(props: ToasterProps) {
+type ToasterProps = React.ComponentProps<typeof Sonner>;
+
+const Toaster = ({ ...props }: ToasterProps) => {
+  // The app has its own theme provider, so the theme comes from its hook instead of next-themes
+  // (which the registry's version imports): next-themes is not a dependency, and it would read a
+  // different theme state than the one that toggles the `dark` class.
   const { resolvedTheme } = useTheme();
 
   return (
-    <SonnerToaster
+    <Sonner
       theme={resolvedTheme}
       className="toaster group"
+      icons={{
+        success: <CircleCheck className="h-4 w-4" />,
+        info: <Info className="h-4 w-4" />,
+        warning: <TriangleAlert className="h-4 w-4" />,
+        error: <OctagonX className="h-4 w-4" />,
+        loading: <LoaderCircle className="h-4 w-4 animate-spin" />,
+      }}
       toastOptions={{
         classNames: {
           toast:
@@ -21,6 +34,6 @@ function Toaster(props: ToasterProps) {
       {...props}
     />
   );
-}
+};
 
 export { Toaster };
