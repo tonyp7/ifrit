@@ -4,6 +4,22 @@ All notable changes to Ifrit Timesheet Tracker are documented here. The format f
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org).
 
+## [1.1.1] - 9 Oct 2026
+
+### Changed
+- Python 3.14 is now the only supported version, in the container image and for running the
+  backend locally. Docker users need to do nothing.
+- The frontend now runs on current major versions of its main libraries (React Router 8,
+  TypeScript 6, Node 26, zod 4 and others), and the backend dependencies are refreshed.
+
+### Fixed
+- Form validation messages, for example for an empty password in the user form, show up
+  correctly again.
+- Sorting a list of users, companies or projects while on a later page now returns to the first
+  page with a single request, instead of fetching a stale page first.
+- The theme preference follows the signed-in user when you sign in or out, and "System" tracks
+  the operating system's colour scheme live.
+
 ## [1.1.0] - 8 Oct 2026
 
 ### Added
