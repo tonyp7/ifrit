@@ -5,7 +5,7 @@
 # processes.
 #
 # bash (not /bin/sh) specifically for `wait -n` below — Debian's default dash
-# doesn't support it, but bash ships in python:3.12-slim-trixie by default.
+# doesn't support it, but bash ships in python:3.14-slim-trixie by default.
 set -euo pipefail
 
 # Idempotent — alembic no-ops if already at head — so it's safe to run on every

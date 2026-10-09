@@ -16,7 +16,7 @@ class CompanyWrite(BaseModel):
     country_of_registration: str
 
     @model_validator(mode="after")
-    def check_legal_name_and_country(self) -> "CompanyWrite":
+    def check_legal_name_and_country(self) -> CompanyWrite:
         if not self.legal_name.strip():
             raise ValueError("legal_name must not be empty")
         if len(self.country_of_registration) != 2:
@@ -47,7 +47,7 @@ class PartyIdentifierWrite(BaseModel):
     valid_to: date | None = None
 
     @model_validator(mode="after")
-    def check_scheme_id_required(self) -> "PartyIdentifierWrite":
+    def check_scheme_id_required(self) -> PartyIdentifierWrite:
         if self.id_type in SCHEME_ID_REQUIRED_TYPES and not self.scheme_id:
             raise ValueError(f"scheme_id is required for id_type={self.id_type}")
         if not self.id_value.strip():
@@ -80,7 +80,7 @@ class AddressWrite(BaseModel):
     valid_to: date | None = None
 
     @model_validator(mode="after")
-    def check_required_fields(self) -> "AddressWrite":
+    def check_required_fields(self) -> AddressWrite:
         if not self.line1.strip():
             raise ValueError("line1 must not be empty")
         if not self.city.strip():

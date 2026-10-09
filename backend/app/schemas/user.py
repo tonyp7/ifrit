@@ -45,7 +45,7 @@ class UserCreate(BaseModel):
     )
 
     @model_validator(mode="after")
-    def check_fields(self) -> "UserCreate":
+    def check_fields(self) -> UserCreate:
         if not self.full_name.strip():
             raise ValueError("full_name must not be empty")
         if not self.name_id.strip():
@@ -78,7 +78,7 @@ class UserUpdate(BaseModel):
     )
 
     @model_validator(mode="after")
-    def check_fields(self) -> "UserUpdate":
+    def check_fields(self) -> UserUpdate:
         if not self.full_name.strip():
             raise ValueError("full_name must not be empty")
         if not self.name_id.strip():
@@ -94,7 +94,7 @@ class PasswordResetRequest(BaseModel):
     new_password: str = Field(min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH)
 
     @model_validator(mode="after")
-    def check_password(self) -> "PasswordResetRequest":
+    def check_password(self) -> PasswordResetRequest:
         _check_password_value(self.new_password)
         return self
 

@@ -2,7 +2,7 @@
 name = "ifrit-backend"
 version = "1.1.0"
 description = "Ifrit backend — FastAPI REST API"
-requires-python = ">=3.12"
+requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
@@ -34,13 +34,13 @@ dev = [
 
 [tool.ruff]
 line-length = 88
-target-version = "py312"
+target-version = "py314"
 
 [tool.ruff.lint.flake8-bugbear]
 extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path"]
 
 [tool.mypy]
-python_version = "3.12"
+python_version = "3.14"
 strict = true
 
 [[tool.mypy.overrides]]

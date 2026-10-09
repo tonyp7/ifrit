@@ -58,6 +58,9 @@ jobs:
       - run: sudo apt-get update && sudo apt-get install -y libmagic1
       - uses: astral-sh/setup-uv@v10.2.0
         with:
+          # Without this uv uses whatever Python the runner image ships. Keep it in step with
+          # `requires-python` in backend/pyproject.toml and the FROM lines in docker/Dockerfile.
+          python-version: "3.14"
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
       # --locked fails if pyproject.toml and uv.lock disagree (e.g. a half-applied bump).

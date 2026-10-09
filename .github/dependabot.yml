@@ -36,7 +36,7 @@ updates:
     schedule:
       interval: monthly
     ignore:
-      # Python 3.12 on Debian Trixie and Node 26 are deliberate choices: take patches only.
+      # Python 3.14 on Debian Trixie and Node 26 are deliberate choices: take patches only.
       - dependency-name: python
         update-types: ["version-update:semver-major", "version-update:semver-minor"]
       - dependency-name: node
