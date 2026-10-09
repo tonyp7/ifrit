@@ -86,13 +86,13 @@ export function UserFormPage() {
           if (!passwordRequired) return;
           if (values.password.length < 12) {
             ctx.addIssue({
-              code: z.ZodIssueCode.custom,
+              code: "custom",
               path: ["password"],
               message: t("Password must be at least 12 characters"),
             });
           } else if (values.password.length > 255) {
             ctx.addIssue({
-              code: z.ZodIssueCode.custom,
+              code: "custom",
               path: ["password"],
               message: t("Password must be at most 255 characters"),
             });
