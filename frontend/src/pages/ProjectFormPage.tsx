@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
@@ -92,10 +92,17 @@ export function ProjectFormPage() {
     register,
     handleSubmit,
     reset,
-    watch,
+    control,
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: BLANK_VALUES });
+
+  // Read with useWatch, which is a hook, so these sit with useForm above the early returns below.
+  const vendorId = useWatch({ control, name: "vendor_company_id" });
+  const clientId = useWatch({ control, name: "client_company_id" });
+  const currencyCode = useWatch({ control, name: "invoicing_currency" });
+  const projectType = useWatch({ control, name: "project_type" });
+  const status = useWatch({ control, name: "status" });
 
   useEffect(() => {
     listCompanies({ is_vendor: true })
@@ -132,12 +139,24 @@ export function ProjectFormPage() {
       });
   };
 
+  // Pointed at a new project after showing an existing one: forget what was loaded. Done while
+  // rendering, by comparing with the previous route id, rather than in an effect, so the stale
+  // project is never painted. The form library's own state is reset in the effect below. (The
+  // page is deliberately not keyed to the route: saving a new project navigates to its own id,
+  // and the page has to stay mounted through that, mid-upload.)
+  const [shownProjectId, setShownProjectId] = useState(routeProjectId);
+  if (routeProjectId !== shownProjectId) {
+    setShownProjectId(routeProjectId);
+    if (!routeProjectId) {
+      setProject(null);
+      setSelectedManagers([]);
+    }
+  }
+
   useEffect(() => {
     if (routeProjectId) {
       refreshProject();
     } else {
-      setProject(null);
-      setSelectedManagers([]);
       reset(BLANK_VALUES);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -236,13 +255,8 @@ export function ProjectFormPage() {
     return <p className="p-4 text-sm text-destructive">{loadError}</p>;
   }
 
-  const vendorId = watch("vendor_company_id");
-  const clientId = watch("client_company_id");
   const vendorInactive = !isReadOnly && isInactiveLink("vendor", vendorId);
   const clientInactive = !isReadOnly && isInactiveLink("client", clientId);
-  const currencyCode = watch("invoicing_currency");
-  const projectType = watch("project_type");
-  const status = watch("status");
   // Drives currency-aware decimal formatting for the Service Lines table and Total
   // value below (e.g. 2 decimals for USD, 0 for JPY).
   const selectedCurrency = currencies.find((c) => c.alpha_code === currencyCode);

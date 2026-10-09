@@ -1,6 +1,7 @@
 import {
   useTable,
   type ColumnDef,
+  type OnChangeFn,
   type SortingState,
 } from "@tanstack/react-table";
 import { MoreHorizontal, Plus } from "lucide-react";
@@ -60,6 +61,14 @@ export function CompaniesTable() {
   // memory, not the whole dataset.
   const [sorting, setSorting] = useState<SortingState>([]);
 
+  // A changed sort target/direction changes what "page 1" even means: same reasoning as the
+  // search-resets-page-to-1 reset above. Done in the change handler, not an effect, so the new
+  // sort and page 1 land in one render and no request is made with the new sort and the old page.
+  const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
+    setSorting(updater);
+    setPage(1);
+  };
+
   // Debounce the search input before it drives the actual (server-side) filter:
   // kept manual/server-driven rather than tanstack's client-side row filtering,
   // since results are paginated server-side.
@@ -71,18 +80,12 @@ export function CompaniesTable() {
     return () => clearTimeout(handle);
   }, [searchInput]);
 
-  // A changed sort target/direction changes what "page 1" even means: same
-  // reasoning as the search-resets-page-to-1 effect above.
-  useEffect(() => {
-    setPage(1);
-  }, [sorting]);
-
   useEffect(() => {
     let cancelled = false;
-    setError(null);
     listCompanies({ search: search || undefined, page, ...toSortParams(sorting) })
       .then((response) => {
         if (cancelled) return;
+        setError(null);
         setItems(response.items);
         setTotal(response.total);
         setPageSize(response.page_size);
@@ -192,7 +195,7 @@ export function CompaniesTable() {
     manualSorting: true,
     pageCount: Math.max(1, Math.ceil(total / pageSize)),
     state: { sorting },
-    onSortingChange: setSorting,
+    onSortingChange: handleSortingChange,
   });
 
   return (

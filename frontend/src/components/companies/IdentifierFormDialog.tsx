@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 
@@ -91,7 +91,7 @@ export function IdentifierFormDialog({
     register,
     handleSubmit,
     reset,
-    watch,
+    control,
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
@@ -99,15 +99,24 @@ export function IdentifierFormDialog({
     defaultValues: { ...BLANK_VALUES, ...initialValues },
   });
 
-  useEffect(() => {
+  // Each time the dialog opens it starts from a clean slate. The error message is state of this
+  // component, so it is cleared while rendering, by comparing with the previous `open`; the form
+  // library's own state is reset in an effect.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) {
       setFormError(null);
-      reset({ ...BLANK_VALUES, ...initialValues });
     }
+  }
+
+  useEffect(() => {
+    if (open) reset({ ...BLANK_VALUES, ...initialValues });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
-  const idType = watch("id_type");
+  const idType = useWatch({ control, name: "id_type" });
+  const watchedIsPrimary = useWatch({ control, name: "is_primary" });
 
   async function onSubmit(values: FormValues) {
     setFormError(null);
@@ -174,7 +183,7 @@ export function IdentifierFormDialog({
           <div className="flex items-center gap-2">
             <Checkbox
               id="is_primary"
-              checked={watch("is_primary")}
+              checked={watchedIsPrimary}
               onCheckedChange={(checked) => setValue("is_primary", checked === true)}
             />
             <Label htmlFor="is_primary">{t("Primary")}</Label>

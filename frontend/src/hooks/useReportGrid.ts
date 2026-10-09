@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -6,6 +6,7 @@ import { ApiError } from "@/api/client";
 import { setServiceLineLock, upsertTimeEntries } from "@/api/timeEntries";
 import { errorMessage } from "@/hooks/useTimesheetGrid";
 import { toDayKey } from "@/lib/timesheetDates";
+import { seedReportGrid } from "@/lib/timesheetGridSeed";
 import {
   cellKey,
   formatHours,
@@ -20,7 +21,7 @@ export interface UseReportGridOptions {
   // Reporting's row data, one row per (consultant, service_line) pair, already
   // sorted server-side (full_name, project_name, service_line_name,
   // service_line_id). A new array reference re-seeds all local state below (see
-  // the effect below), produced on every period/filter change.
+  // the re-seed below), produced on every period/filter change.
   rows: TimesheetReportRow[];
 }
 
@@ -37,7 +38,9 @@ export interface UseReportGridOptions {
 export function useReportGrid({ days, rows }: UseReportGridOptions) {
   const { t } = useTranslation(["timesheet"]);
 
-  const [entries, setEntries] = useState<Record<string, EntryCell>>({});
+  const [entries, setEntries] = useState<Record<string, EntryCell>>(
+    () => seedReportGrid(rows).entries,
+  );
   // Each cell's hours as they were when it gained focus: the baseline handleCellBlur
   // compares against to skip saves when nothing changed. A ref, not state: it must
   // not trigger renders and is only ever read from the blur handler.
@@ -46,11 +49,15 @@ export function useReportGrid({ days, rows }: UseReportGridOptions) {
   // backend's narrower is_assigned rule (see TimesheetReportRowOut): what
   // isUnassignedInPeriod below reads, instead of computing eligibility
   // client-side the way useTimesheetGrid does from a fetched eligible-lines list.
-  const [assignedByPair, setAssignedByPair] = useState<Record<string, boolean>>({});
+  const [assignedByPair, setAssignedByPair] = useState<Record<string, boolean>>(
+    () => seedReportGrid(rows).assignedByPair,
+  );
   // The row's project_status, for unassignedTooltip below: already sent on
   // every row (TimesheetReportRowOut.project_status), so this needs no extra
   // fetch or backend change.
-  const [projectStatusByPair, setProjectStatusByPair] = useState<Record<string, string>>({});
+  const [projectStatusByPair, setProjectStatusByPair] = useState<Record<string, string>>(
+    () => seedReportGrid(rows).projectStatusByPair,
+  );
 
   const serviceLines: ServiceLineRow[] = useMemo(
     () =>
@@ -65,25 +72,18 @@ export function useReportGrid({ days, rows }: UseReportGridOptions) {
     [rows],
   );
 
-  useEffect(() => {
-    const nextEntries: Record<string, EntryCell> = {};
-    const nextAssigned: Record<string, boolean> = {};
-    const nextStatus: Record<string, string> = {};
-    for (const row of rows) {
-      const pairKey = `${row.user_id}__${row.service_line_id}`;
-      nextAssigned[pairKey] = row.is_assigned;
-      nextStatus[pairKey] = row.project_status;
-      for (const item of row.entries) {
-        nextEntries[cellKey(row.user_id, item.service_line_id, item.date)] = {
-          hours: formatHours(Number(item.hours)),
-          is_locked: item.is_locked,
-        };
-      }
-    }
-    setEntries(nextEntries);
-    setAssignedByPair(nextAssigned);
-    setProjectStatusByPair(nextStatus);
-  }, [rows]);
+  // Re-seed all of the above whenever the report's rows are replaced (a period or filter
+  // change). Done while rendering, by comparing with the rows the state was last seeded from,
+  // rather than in an effect: an effect would first render the grid from the previous rows'
+  // state and then render again.
+  const [seededFromRows, setSeededFromRows] = useState(rows);
+  if (seededFromRows !== rows) {
+    const seed = seedReportGrid(rows);
+    setSeededFromRows(rows);
+    setEntries(seed.entries);
+    setAssignedByPair(seed.assignedByPair);
+    setProjectStatusByPair(seed.projectStatusByPair);
+  }
 
   const isUnassignedInPeriod = useCallback(
     (userId: string, serviceLineId: string) =>

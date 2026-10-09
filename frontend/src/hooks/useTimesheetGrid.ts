@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import { ApiError } from "@/api/client";
 import { upsertTimeEntries } from "@/api/timeEntries";
 import { toDayKey } from "@/lib/timesheetDates";
+import { seedTimesheetGrid } from "@/lib/timesheetGridSeed";
 import {
   cellKey,
   formatHours,
@@ -37,7 +38,7 @@ export function errorMessage(
 export interface UseTimesheetGridOptions {
   days: Date[];
   // Raw entries for exactly this owner over some window covering `days`, a new
-  // array reference re-seeds all local state below (see the effect below), so
+  // array reference re-seeds all local state below (see the re-seed below), so
   // callers should only produce a new one when they actually want a reset (a
   // period change, or an initial/refetched load), never on every render.
   initialEntries: TimeEntry[];
@@ -60,41 +61,33 @@ export function useTimesheetGrid({
 }: UseTimesheetGridOptions) {
   const { t } = useTranslation(["timesheet"]);
 
-  const [entries, setEntries] = useState<Record<string, EntryCell>>({});
+  const [entries, setEntries] = useState<Record<string, EntryCell>>(
+    () => seedTimesheetGrid(initialEntries, rowOwnerId).entries,
+  );
   // Each cell's hours as they were when it gained focus: the baseline handleCellBlur
   // compares against to skip saves when nothing changed. A ref, not state: it must
   // not trigger renders and is only ever read from the blur handler.
   const focusValueRef = useRef<Record<string, string>>({});
-  const [historicalServiceLines, setHistoricalServiceLines] = useState<ServiceLineRow[]>([]);
+  const [historicalServiceLines, setHistoricalServiceLines] = useState<ServiceLineRow[]>(
+    () => seedTimesheetGrid(initialEntries, rowOwnerId).historicalServiceLines,
+  );
   // Lines added via "Add service line" while *this* period is the one being
   // viewed: deliberately reset whenever `initialEntries` is re-seeded (a period
   // change), not session-wide.
   const [addedServiceLines, setAddedServiceLines] = useState<ServiceLineRow[]>([]);
 
-  useEffect(() => {
-    const nextEntries: Record<string, EntryCell> = {};
-    const seen = new Set<string>();
-    const historical: ServiceLineRow[] = [];
-    for (const item of initialEntries) {
-      nextEntries[cellKey(rowOwnerId, item.service_line_id, item.date)] = {
-        hours: formatHours(Number(item.hours)),
-        is_locked: item.is_locked,
-      };
-      if (!seen.has(item.service_line_id)) {
-        seen.add(item.service_line_id);
-        historical.push({
-          service_line_id: item.service_line_id,
-          service_line_name: item.service_line_name,
-          project_id: item.project_id,
-          project_name: item.project_name,
-          user_id: rowOwnerId,
-        });
-      }
-    }
-    setEntries(nextEntries);
-    setHistoricalServiceLines(historical);
+  // Re-seed all of the above whenever the fetched entries (or their owner) are replaced, and
+  // drop this period's added lines with them. Done while rendering, by comparing with what the
+  // state was last seeded from, rather than in an effect: an effect would first render the grid
+  // from the previous period's state and then render again.
+  const [seededFrom, setSeededFrom] = useState({ initialEntries, rowOwnerId });
+  if (seededFrom.initialEntries !== initialEntries || seededFrom.rowOwnerId !== rowOwnerId) {
+    const seed = seedTimesheetGrid(initialEntries, rowOwnerId);
+    setSeededFrom({ initialEntries, rowOwnerId });
+    setEntries(seed.entries);
+    setHistoricalServiceLines(seed.historicalServiceLines);
     setAddedServiceLines([]);
-  }, [initialEntries, rowOwnerId]);
+  }
 
   // Checks live `entries` state directly: kept correctly in sync on every
   // mutation (blur-save, blur-delete, and the clear-on-remove bulk call alike):

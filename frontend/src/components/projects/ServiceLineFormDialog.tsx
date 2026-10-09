@@ -1,7 +1,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Check, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import { useForm } from "react-hook-form";
+import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 import { z } from "zod";
 
@@ -137,7 +137,7 @@ export function ServiceLineFormDialog({
     register,
     handleSubmit,
     reset,
-    watch,
+    control,
     setValue,
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({
@@ -145,14 +145,22 @@ export function ServiceLineFormDialog({
     defaultValues: { ...BLANK_VALUES, ...formatInitialValues(initialValues) },
   });
 
-  useEffect(() => {
+  // Each time the dialog opens it starts from a clean slate. The error message, the consultant selection and the consultant search is state of this
+  // component, so it is cleared while rendering, by comparing with the previous `open`; the form
+  // library's own state is reset in an effect.
+  const [wasOpen, setWasOpen] = useState(open);
+  if (open !== wasOpen) {
+    setWasOpen(open);
     if (open) {
       setFormError(null);
-      reset({ ...BLANK_VALUES, ...formatInitialValues(initialValues) });
       setSelectedConsultants(initialConsultants ?? []);
       setConsultantSearch("");
       setConsultantResults([]);
     }
+  }
+
+  useEffect(() => {
+    if (open) reset({ ...BLANK_VALUES, ...formatInitialValues(initialValues) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
 
@@ -182,7 +190,7 @@ export function ServiceLineFormDialog({
     };
   }, [consultantPopoverOpen, consultantSearch]);
 
-  const uom = watch("uom");
+  const uom = useWatch({ control, name: "uom" });
 
   function toggleConsultant(consultant: ServiceLineConsultant) {
     setSelectedConsultants((prev) => {

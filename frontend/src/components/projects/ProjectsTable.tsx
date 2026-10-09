@@ -1,6 +1,7 @@
 import {
   useTable,
   type ColumnDef,
+  type OnChangeFn,
   type SortingState,
   type ColumnVisibilityState,
 } from "@tanstack/react-table";
@@ -79,6 +80,14 @@ export function ProjectsTable() {
   // memory, not the whole dataset.
   const [sorting, setSorting] = useState<SortingState>([]);
 
+  // A changed sort target/direction changes what "page 1" even means: same reasoning as the
+  // search-resets-page-to-1 reset above. Done in the change handler, not an effect, so the new
+  // sort and page 1 land in one render and no request is made with the new sort and the old page.
+  const handleSortingChange: OnChangeFn<SortingState> = (updater) => {
+    setSorting(updater);
+    setPage(1);
+  };
+
   useEffect(() => {
     const handle = setTimeout(() => {
       setSearch(searchInput);
@@ -87,18 +96,12 @@ export function ProjectsTable() {
     return () => clearTimeout(handle);
   }, [searchInput]);
 
-  // A changed sort target/direction changes what "page 1" even means: same
-  // reasoning as the search-resets-page-to-1 effect above.
-  useEffect(() => {
-    setPage(1);
-  }, [sorting]);
-
   useEffect(() => {
     let cancelled = false;
-    setError(null);
     listProjects({ search: search || undefined, page, ...toSortParams(sorting) })
       .then((response) => {
         if (cancelled) return;
+        setError(null);
         setItems(response.items);
         setTotal(response.total);
         setPageSize(response.page_size);
@@ -232,7 +235,7 @@ export function ProjectsTable() {
     pageCount: Math.max(1, Math.ceil(total / pageSize)),
     state: { columnVisibility, sorting },
     onColumnVisibilityChange: setColumnVisibility,
-    onSortingChange: setSorting,
+    onSortingChange: handleSortingChange,
   });
 
   return (
