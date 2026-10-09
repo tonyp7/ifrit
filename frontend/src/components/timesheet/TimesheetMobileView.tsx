@@ -5,7 +5,7 @@ import { LockServiceLineControl } from "@/components/timesheet/LockServiceLineCo
 import { RemoveServiceLineControl } from "@/components/timesheet/RemoveServiceLineControl";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
-import { serviceLineBorderColor } from "@/lib/timesheetColors";
+import { lockedCellClass, serviceLineBorderColor } from "@/lib/timesheetColors";
 import { formatFullDate, formatWeekdayShort, isToday, toDayKey } from "@/lib/timesheetDates";
 import { cellKey, formatHours } from "@/lib/timesheetHours";
 import { shouldShowAddLineHint } from "@/lib/timesheetServiceLines";
@@ -135,7 +135,7 @@ export function TimesheetMobileView({
                   "flex items-center gap-3 rounded-md border-l-4 bg-card p-3",
                   serviceLineBorderColor(index),
                   // Locked wins over unassigned if both apply.
-                  locked && "bg-red-100 dark:bg-red-950/40",
+                  locked && lockedCellClass(false),
                   unassigned && "bg-muted/60",
                 )}
               >

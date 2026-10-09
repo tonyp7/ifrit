@@ -3,7 +3,7 @@ import { useTranslation } from "react-i18next";
 import { AddServiceLineSelect } from "@/components/timesheet/AddServiceLineSelect";
 import { LockServiceLineControl } from "@/components/timesheet/LockServiceLineControl";
 import { RemoveServiceLineControl } from "@/components/timesheet/RemoveServiceLineControl";
-import { serviceLineBorderColor } from "@/lib/timesheetColors";
+import { lockedCellClass, serviceLineBorderColor } from "@/lib/timesheetColors";
 import {
   formatWeekdayNarrow,
   formatWeekdayShort,
@@ -252,14 +252,12 @@ export function TimesheetDesktopGrid({
                   // could combine: `cn()`/`tailwind-merge` treats same-property
                   // background-color utilities as conflicting and silently drops all but
                   // the last one, so e.g. `isWeekend && "bg-muted/40"` plus
-                  // `locked && "bg-red-100"` on the same weekend+locked cell would only
-                  // ever render the red, losing the weekend shading entirely. Each branch
+                  // `locked && "bg-slate-200"` on the same weekend+locked cell would only
+                  // ever render the slate, losing the weekend shading entirely. Each branch
                   // here already bakes the weekend variant in, so there's nothing left to
                   // merge/collide. Locked still wins over unassigned if both apply.
                   const backgroundClass = locked
-                    ? weekend
-                      ? "bg-red-200 dark:bg-red-900/50"
-                      : "bg-red-100 dark:bg-red-950/40"
+                    ? lockedCellClass(weekend)
                     : unassigned
                       ? weekend
                         ? "bg-muted/80"
