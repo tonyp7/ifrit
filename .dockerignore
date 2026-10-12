@@ -5,6 +5,11 @@
 .git/
 .github/
 
+# Documentation site
+docs/
+mkdocs.yml
+site/
+
 # Backend (Python / uv)
 backend/.venv/
 backend/__pycache__/

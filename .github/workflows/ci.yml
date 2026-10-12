@@ -88,3 +88,18 @@ jobs:
       - run: pnpm lint
       - run: pnpm test
       - run: pnpm build
+
+  # Builds the documentation site with the same strict command the deploy workflow uses, so a
+  # broken link or nav entry fails the pull request instead of the deploy. The docs toolchain
+  # (docs/pyproject.toml) is separate from the backend's and the app image never sees it.
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.14"
+          enable-cache: true
+          cache-dependency-glob: docs/uv.lock
+      - run: uv sync --locked --project docs
+      - run: uv run --project docs mkdocs build --strict

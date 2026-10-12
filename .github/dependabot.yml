@@ -19,6 +19,19 @@ updates:
         update-types: [minor, patch]
     labels: [dependencies, backend]
 
+  # The documentation site's own toolchain (MkDocs). Kept apart from /backend on purpose: its
+  # lockfile is not the one the application image is built from.
+  - package-ecosystem: uv
+    directory: /docs
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 5
+    groups:
+      docs-minor-patch:
+        update-types: [minor, patch]
+    labels: [dependencies, docs]
+
   # The npm ecosystem also reads pnpm-lock.yaml.
   - package-ecosystem: npm
     directory: /frontend

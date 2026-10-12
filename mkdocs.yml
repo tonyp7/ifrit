@@ -1,0 +1,37 @@
+site_name: Ifrit Timesheet Tracker
+site_description: Documentation for Ifrit, an open-source timesheet tracking and reporting application.
+site_url: https://docs.ifrit.day/
+repo_url: https://github.com/tonyp7/ifrit
+edit_uri: edit/main/docs/
+
+# The docs live in docs/ next to the Python project that builds them (docs/pyproject.toml).
+docs_dir: docs
+theme:
+  name: readthedocs
+
+# Broken links and nav entries that point nowhere fail the build, in CI and on deploy alike.
+strict: true
+
+# Everything that is not Markdown in docs/ is published as is (docs/static/img is wanted), so the
+# build tooling files that sit in the same folder have to be excluded explicitly.
+exclude_docs: |
+  pyproject.toml
+  uv.lock
+
+# Both ship with Python-Markdown (the library MkDocs is built on); no extra package is needed.
+# admonition: the "!!! note" call-outs. attr_list: sizing the logo image on the home page.
+markdown_extensions:
+  - admonition
+  - attr_list
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Self-hosting: self-hosting.md
+  - Configuration: configuration.md
+  - User guide:
+      - Roles: guide/roles.md
+      - Timesheet: guide/timesheet.md
+      - Reporting: guide/reporting.md
+      - Projects: guide/projects.md
+      - Administration: guide/administration.md
