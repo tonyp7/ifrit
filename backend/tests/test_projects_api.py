@@ -12,7 +12,7 @@ async def _login_manager(client, db_session) -> None:
         db_session,
         name_id="project_admin@example.com",
         password="project_admin-pass",
-        role_name="project_admin",
+        role_name="manager",
     )
     response = await client.post(
         "/api/auth/login",
@@ -64,7 +64,7 @@ async def test_list_projects_rejects_consultant(client, db_session) -> None:
 async def test_list_projects_rejects_administrator_without_manager_role(
     client, db_session
 ) -> None:
-    # `projects` is granted by the literal `project_admin` role only: not inferred from
+    # `projects` is granted by the literal `manager` role only: not inferred from
     # `administrator`.
     await create_user(
         db_session,
@@ -361,10 +361,10 @@ async def test_create_and_update_project_managers(client, db_session) -> None:
     await _login_manager(client, db_session)
     vendor, client_company, currency = await _setup_refs(db_session)
     pm1 = await create_user(
-        db_session, name_id="pm1@example.com", password="pw", role_name="project_manager"
+        db_session, name_id="pm1@example.com", password="pw", role_name="manager"
     )
     pm2 = await create_user(
-        db_session, name_id="pm2@example.com", password="pw", role_name="project_manager"
+        db_session, name_id="pm2@example.com", password="pw", role_name="manager"
     )
 
     create = await client.post(
@@ -422,7 +422,7 @@ async def test_duplicate_project_copies_project_managers(client, db_session) -> 
     await _login_manager(client, db_session)
     vendor, client_company, currency = await _setup_refs(db_session)
     pm = await create_user(
-        db_session, name_id="pm@example.com", password="pw", role_name="project_manager"
+        db_session, name_id="pm@example.com", password="pw", role_name="manager"
     )
 
     create = await client.post(
@@ -444,7 +444,7 @@ async def test_closed_project_blocks_project_manager_reassignment(
     await _login_manager(client, db_session)
     vendor, client_company, currency = await _setup_refs(db_session)
     pm = await create_user(
-        db_session, name_id="pm-closed@example.com", password="pw", role_name="project_manager"
+        db_session, name_id="pm-closed@example.com", password="pw", role_name="manager"
     )
 
     create = await client.post(
@@ -869,3 +869,56 @@ async def test_duplicate_project_clears_only_inactive_company_links(
     )
     assert fixed.status_code == 200
     assert fixed.json()["client_company_id"] == str(other_client.id)
+
+
+async def test_list_projects_mine_only_lists_projects_listing_the_caller(
+    client, db_session
+) -> None:
+    await _login_manager(client, db_session)
+    vendor, client_company, currency = await _setup_refs(db_session)
+    me = (await client.get("/api/auth/me")).json()["id"]
+
+    async def create(name: str, **overrides) -> str:
+        response = await client.post(
+            "/api/projects",
+            json=_project_payload(vendor, client_company, currency, name=name, **overrides),
+        )
+        assert response.status_code == 201
+        return response.json()["id"]
+
+    mine_draft = await create("Alpha mine", project_manager_ids=[me])
+    mine_closed = await create("Beta mine", project_manager_ids=[me], status="closed")
+    others = await create("Gamma others")
+    mine_deleted = await create("Delta mine", project_manager_ids=[me])
+    assert (await client.post(f"/api/projects/{mine_deleted}/deactivate")).status_code == 204
+
+    mine = (await client.get("/api/projects", params={"mine_only": True})).json()
+    # Draft and Closed count like Active; a deleted project never shows.
+    assert {p["id"] for p in mine["items"]} == {mine_draft, mine_closed}
+    assert mine["total"] == 2
+
+    searched = (
+        await client.get(
+            "/api/projects",
+            params={"mine_only": True, "search": "beta", "sort_by": "name"},
+        )
+    ).json()
+    assert [p["id"] for p in searched["items"]] == [mine_closed]
+    assert searched["total"] == 1
+
+    everything = (await client.get("/api/projects")).json()
+    assert {p["id"] for p in everything["items"]} == {mine_draft, mine_closed, others}
+    assert everything["total"] == 3
+
+
+async def test_creating_a_project_does_not_list_its_creator(client, db_session) -> None:
+    await _login_manager(client, db_session)
+    vendor, client_company, currency = await _setup_refs(db_session)
+
+    create = await client.post(
+        "/api/projects", json=_project_payload(vendor, client_company, currency)
+    )
+
+    assert create.json()["project_managers"] == []
+    mine = (await client.get("/api/projects", params={"mine_only": True})).json()
+    assert mine["total"] == 0

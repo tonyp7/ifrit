@@ -232,7 +232,7 @@ export function useTimesheetGrid({
           } else {
             // The only rejection reason this flow can hit is "locked" (eligibility
             // is never checked for an hours=0 item: see the backend's per-item
-            // logic): most plausibly a day a project_manager locked between
+            // logic): most plausibly a day a manager locked between
             // opening the confirmation dialog and clicking Confirm. The response
             // doesn't carry a fresh `entry` for a rejected item (only `ok`/`error`),
             // so patch `is_locked` in ourselves rather than leaving this cell's

@@ -1,7 +1,7 @@
 # Projects
 
-Projects are managed by users with the **project admin** role, from the **Projects** icon in the
-navigation bar. Administrators who are not also project admins do not see this screen.
+Projects are managed by users with the **manager** role, from the **Projects** icon in the
+navigation bar. Administrators who are not also managers do not see this screen.
 
 A project ties together a vendor, a client, the work to be done (service lines), the people who do
 it (consultants) and the people who oversee it (project managers).
@@ -11,13 +11,18 @@ it (consultants) and the people who oversee it (project managers).
 - The **vendor** and **client** are [companies](administration.md#companies). They must exist first,
   and the vendor must be flagged as a vendor. Ask an administrator to create them if needed.
 - **Consultants** and **project managers** are [users](administration.md#users) holding the
-  corresponding role.
+  consultant and manager role respectively.
 
 ## The project list
 
 The list shows active projects, 50 per page, with **Previous** and **Next** controls and the columns
 Name, Status, Client, Project Type and Creation Date. Use **New** to create a project, and each row's
 **Actions** menu to edit, duplicate or delete it.
+
+The **Only see my projects** switch next to the search box is **on** every time you open the
+screen: the list then shows only the projects you are listed on as a project manager, whatever
+their status. Turn it off to see every project. A project you create does not appear in your
+projects until you add yourself as one of its project managers.
 
 ## Project fields
 
@@ -43,8 +48,10 @@ You can move between any two statuses.
 ## Project managers
 
 Below the header fields, pick the users who manage this project. They are chosen from users who
-hold the project manager role; selections appear as chips and are saved together with the
-project. A project may have none, but then nobody sees its hours in Reporting.
+hold the manager role; selections appear as chips and are saved together with the project. Being
+listed grants nothing extra, since every manager can work on every project: it decides which
+projects **Only see my projects** shows, on this screen and in [Reporting](reporting.md). A project
+may have none.
 
 ## Service lines
 
@@ -72,7 +79,7 @@ line removes the assignment only; the hours they logged stay.
 ## Supporting documents
 
 Under the service lines, the **Supporting Documents** section keeps files related to the project.
-Only users with the project admin role can list, upload, tag, download and delete them.
+Only users with the manager role can list, upload, tag, download and delete them.
 
 - **Upload** with the Upload File button. The file must be within the size limit set for the
   installation (10 MiB by default) and of an accepted type; other files are rejected.

@@ -115,12 +115,7 @@ def test_the_migration_seeds_its_reference_data(scratch_database) -> None:
     command.upgrade(scratch_database, "head")
 
     roles = asyncio.run(_fetch("SELECT name FROM roles"))
-    assert {row["name"] for row in roles} == {
-        "administrator",
-        "project_admin",
-        "project_manager",
-        "consultant",
-    }
+    assert {row["name"] for row in roles} == {"administrator", "manager", "consultant"}
     (currencies,) = asyncio.run(
         _fetch(
             "SELECT count(*) AS total, count(*) FILTER (WHERE is_enabled) AS enabled "
@@ -152,3 +147,87 @@ def test_the_migration_can_be_undone_and_applied_again(scratch_database) -> None
 
     command.upgrade(scratch_database, "head")
     assert "app_settings" in _tables()
+
+
+# Users seeded on 0001 to check how 0002 folds the two project roles into `manager`.
+_PA_ONLY = "10000000-0000-0000-0000-000000000001"
+_PM_ONLY = "10000000-0000-0000-0000-000000000002"
+_BOTH = "10000000-0000-0000-0000-000000000003"
+_PROJECT = "20000000-0000-0000-0000-000000000001"
+_ADMIN_ROLE = "00000000-0000-0000-0000-000000000001"
+_PROJECT_ADMIN_ROLE = "00000000-0000-0000-0000-000000000002"
+_CONSULTANT_ROLE = "00000000-0000-0000-0000-000000000003"
+_PROJECT_MANAGER_ROLE = "00000000-0000-0000-0000-000000000004"
+
+
+async def _execute(*statements: str) -> None:
+    url = SCRATCH_URL
+    conn = await asyncpg.connect(
+        host=url.host,
+        port=url.port,
+        user=url.username,
+        password=url.password,
+        database=url.database,
+    )
+    try:
+        for statement in statements:
+            await conn.execute(statement)
+    finally:
+        await conn.close()
+
+
+def _roles_by_user() -> dict[str, set[str]]:
+    rows = asyncio.run(
+        _fetch(
+            "SELECT ur.user_id::text AS user_id, r.name FROM user_roles ur "
+            "JOIN roles r ON r.id = ur.role_id"
+        )
+    )
+    out: dict[str, set[str]] = {}
+    for row in rows:
+        out.setdefault(row["user_id"], set()).add(row["name"])
+    return out
+
+
+def test_the_role_merge_folds_both_project_roles_into_manager(scratch_database) -> None:
+    command.upgrade(scratch_database, "0001")
+    asyncio.run(
+        _execute(
+            f"""INSERT INTO users (id, name_id, full_name) VALUES
+                ('{_PA_ONLY}', 'pa@example.com', 'PA'),
+                ('{_PM_ONLY}', 'pm@example.com', 'PM'),
+                ('{_BOTH}', 'both@example.com', 'Both')""",
+            f"""INSERT INTO user_roles (user_id, role_id) VALUES
+                ('{_PA_ONLY}', '{_PROJECT_ADMIN_ROLE}'),
+                ('{_PA_ONLY}', '{_CONSULTANT_ROLE}'),
+                ('{_PM_ONLY}', '{_PROJECT_MANAGER_ROLE}'),
+                ('{_BOTH}', '{_PROJECT_ADMIN_ROLE}'),
+                ('{_BOTH}', '{_PROJECT_MANAGER_ROLE}'),
+                ('{_BOTH}', '{_ADMIN_ROLE}')""",
+            f"""INSERT INTO projects (id, name, invoicing_currency, project_type)
+                VALUES ('{_PROJECT}', 'P', 'EUR', 'time_and_material')""",
+            f"""INSERT INTO project_managers (project_id, user_id) VALUES
+                ('{_PROJECT}', '{_PM_ONLY}'), ('{_PROJECT}', '{_BOTH}')""",
+        )
+    )
+
+    command.upgrade(scratch_database, "0002")
+
+    assert _roles_by_user() == {
+        _PA_ONLY: {"manager", "consultant"},
+        _PM_ONLY: {"manager"},
+        _BOTH: {"manager", "administrator"},
+    }
+    (count,) = asyncio.run(_fetch("SELECT count(*) AS n FROM user_roles"))
+    assert count["n"] == 5  # one manager row each, nothing duplicated
+    managers = asyncio.run(_fetch("SELECT user_id::text AS user_id FROM project_managers"))
+    assert {row["user_id"] for row in managers} == {_PM_ONLY, _BOTH}
+
+    # The downgrade can't tell who held which role, so every manager gets both back.
+    command.downgrade(scratch_database, "0001")
+
+    assert _roles_by_user() == {
+        _PA_ONLY: {"project_admin", "project_manager", "consultant"},
+        _PM_ONLY: {"project_admin", "project_manager"},
+        _BOTH: {"project_admin", "project_manager", "administrator"},
+    }

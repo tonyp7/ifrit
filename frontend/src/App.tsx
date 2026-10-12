@@ -50,10 +50,10 @@ export default function App() {
           {/* The timesheet is the landing screen. There is deliberately no /timesheet
               route: it falls through to the catch-all below and lands here. */}
           <Route path="/" element={<TimesheetPage />} />
-          <Route element={<RequireRoles roles={["project_manager"]} />}>
+          <Route element={<RequireRoles roles={["manager"]} />}>
             <Route path="/reporting" element={<ReportingPage />} />
           </Route>
-          <Route element={<RequireRoles roles={["project_admin"]} />}>
+          <Route element={<RequireRoles roles={["manager"]} />}>
             <Route path="/projects" element={<ProjectsPage />} />
             <Route path="/projects/new" element={<ProjectFormPage />} />
             <Route path="/projects/:projectId" element={<ProjectFormPage />} />

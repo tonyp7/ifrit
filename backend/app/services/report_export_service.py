@@ -26,7 +26,7 @@ from app.models.project import Project
 from app.models.user import User
 from app.schemas.time_entry import TimesheetReportRowOut
 from app.services import app_settings, file_storage_service
-from app.services.time_entry_service import _pm_project_ids, list_time_entries_report
+from app.services.time_entry_service import list_time_entries_report
 from app.settings_registry import PdfExportSettings
 
 logger = logging.getLogger(__name__)
@@ -61,7 +61,6 @@ def _period_label_and_slug_source(period_type: str, start_date: date) -> tuple[s
 
 async def _build_export_filename(
     db: AsyncSession,
-    project_manager: User,
     period_type: str,
     start_date: date,
     project_ids: list[uuid.UUID] | None,
@@ -72,14 +71,11 @@ async def _build_export_filename(
     parts = [slugify(slug_source)]
 
     # "Single Project selected" means the filter itself, not the query's actual
-    # result rows, but still checked against the caller's own scope, so a
-    # tampered/out-of-scope id can't leak a project name into the filename.
+    # result rows. Any manager may read any project, so its name is never a leak.
     if project_ids and len(project_ids) == 1:
-        pm_project_ids = await _pm_project_ids(db, project_manager.id)
-        if project_ids[0] in pm_project_ids:
-            project = await db.get(Project, project_ids[0])
-            if project is not None:
-                parts.append(slugify(project.name)[:30])
+        project = await db.get(Project, project_ids[0])
+        if project is not None:
+            parts.append(slugify(project.name)[:30])
 
     if consultant_ids and len(consultant_ids) == 1:
         user = await db.get(User, consultant_ids[0])
@@ -625,7 +621,7 @@ async def _load_logo(db: AsyncSession, height_mm: float) -> _PreparedLogo | None
     The logo is optional decoration, so unlike the font (a wrong font silently changes the
     report) a logo that is recorded but unreadable never fails an export: it is logged and the
     PDF is produced without it. Read as the system, not as the requesting user, so every
-    project manager who can export gets it, administrator or not.
+    manager who can export gets it, administrator or not.
     """
     try:
         data = await file_storage_service.read_setting_file_bytes(db, "org_logo")
@@ -660,7 +656,7 @@ async def _load_pdf_logo(db: AsyncSession) -> _PreparedLogo | None:
 
 async def build_report_export(
     db: AsyncSession,
-    project_manager: User,
+    caller: User,
     *,
     export_format: str,
     period_type: str,
@@ -670,6 +666,7 @@ async def build_report_export(
     service_line_ids: list[uuid.UUID] | None,
     consultant_ids: list[uuid.UUID] | None,
     statuses: list[str] | None,
+    mine_only: bool = False,
 ) -> tuple[bytes, str, str]:
     """Returns (file bytes, filename, content type). Always re-queries the
     database fresh via list_time_entries_report, never a client-supplied
@@ -677,20 +674,21 @@ async def build_report_export(
     in the browser can never appear in an export."""
     rows = await list_time_entries_report(
         db,
-        project_manager,
+        caller,
         start_date,
         end_date,
         project_ids,
         service_line_ids,
         consultant_ids,
         statuses,
+        mine_only,
     )
     day_count = (end_date - start_date).days
     days = [start_date + timedelta(days=i) for i in range(day_count + 1)]
 
     period_label, _slug_source = _period_label_and_slug_source(period_type, start_date)
     filename = await _build_export_filename(
-        db, project_manager, period_type, start_date, project_ids, consultant_ids, export_format
+        db, period_type, start_date, project_ids, consultant_ids, export_format
     )
 
     if export_format == "pdf":

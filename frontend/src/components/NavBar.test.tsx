@@ -6,7 +6,7 @@ import { NavBar } from "@/components/NavBar";
 
 vi.mock("@/hooks/useAuth", () => ({
   useAuth: () => ({
-    user: { roles: ["administrator", "project_admin", "project_manager"] },
+    user: { roles: ["administrator", "manager"] },
     logout: vi.fn(),
   }),
 }));

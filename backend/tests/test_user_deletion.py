@@ -25,10 +25,10 @@ async def _project_with_pm(client, db_session, *, status: str = "draft"):
         db_session, name_id="admin@example.com", password="pw", role_name="administrator"
     )
     await create_user(
-        db_session, name_id="padmin@example.com", password="pw", role_name="project_admin"
+        db_session, name_id="padmin@example.com", password="pw", role_name="manager"
     )
     pm = await create_user(
-        db_session, name_id="pm@example.com", password="pw", role_name="project_manager"
+        db_session, name_id="pm@example.com", password="pw", role_name="manager"
     )
     vendor = await create_company(db_session, legal_name="Vendor", is_vendor=True)
     customer = await create_company(db_session, legal_name="Customer")
@@ -117,7 +117,7 @@ async def test_trigger_rejects_inactive_user_as_project_manager(
 ) -> None:
     project_id, _pm, _admin = await _project_with_pm(client, db_session)
     ghost = await create_user(
-        db_session, name_id="ghost@example.com", password="pw", role_name="project_manager"
+        db_session, name_id="ghost@example.com", password="pw", role_name="manager"
     )
     ghost.is_active = False
     await db_session.commit()
@@ -134,13 +134,13 @@ async def test_trigger_rejects_inactive_user_as_project_manager(
 async def _service_line_with_consultant(client, db_session):
     """padmin-created project + one service line holding `c@example.com`."""
     await create_user(
-        db_session, name_id="padmin@example.com", password="pw", role_name="project_admin"
+        db_session, name_id="padmin@example.com", password="pw", role_name="manager"
     )
     consultant = await create_user(
         db_session, name_id="c@example.com", password="pw", role_name="consultant"
     )
     pm = await create_user(
-        db_session, name_id="pm@example.com", password="pw", role_name="project_manager"
+        db_session, name_id="pm@example.com", password="pw", role_name="manager"
     )
     vendor = await create_company(db_session, legal_name="Vendor", is_vendor=True)
     customer = await create_company(db_session, legal_name="Customer")

@@ -31,7 +31,7 @@ export interface TimeEntryUpsertInput {
   date: string;
   hours: string;
   // Omitted (or undefined) means "the caller's own entry". Only ever set by the
-  // Reporting screen, when a project_manager overrides a consultant's entry, to
+  // Reporting screen, when a manager overrides a consultant's entry, to
   // that consultant's id.
   user_id?: string;
 }
@@ -40,8 +40,8 @@ export interface TimeEntryUpsertInput {
 // request/response are always arrays, even for a single cell edit.
 // `entry`/`error` are mutually exclusive:
 // `entry` is set (or `null` for a successful delete) when `ok` is `true`; `error`
-// (`"locked"`, `"not_eligible"`, or `"not_authorized"`, a rejected project_manager
-// override) is set when `ok` is `false`.
+// (`"locked"`, `"not_eligible"`, or `"not_authorized"`, an override sent by a
+// user without the manager role) is set when `ok` is `false`.
 export interface TimeEntryUpsertResult {
   service_line_id: string;
   date: string;

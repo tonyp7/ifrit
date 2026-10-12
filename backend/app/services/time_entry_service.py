@@ -32,9 +32,8 @@ REPORT_PROJECT_STATUSES = {"draft", "active", "closed"}
 
 
 class NotAuthorizedError(Exception):
-    """Raised by `set_service_line_lock` when the caller isn't a project_manager
-    assigned to the target service line's project, or the target consultant isn't
-    assigned to it. Unlike a bulk PUT /time-entries item's per-item {ok: false}, this
+    """Raised by `set_service_line_lock` when the caller isn't a manager, or the
+    target consultant isn't assigned to the service line. Unlike a bulk PUT /time-entries item's per-item {ok: false}, this
     is a single-action endpoint: any failing check rejects the whole request, not a
     partial success."""
 
@@ -56,8 +55,8 @@ def _eligibility_filters() -> tuple[ColumnElement[bool], ...]:
     )
 
 
-def _is_project_manager(user: User) -> bool:
-    return any(role.name == "project_manager" for role in user.roles)
+def _is_manager(user: User) -> bool:
+    return any(role.name == "manager" for role in user.roles)
 
 
 async def _pm_project_ids(db: AsyncSession, project_manager_id: uuid.UUID) -> set[uuid.UUID]:
@@ -67,6 +66,17 @@ async def _pm_project_ids(db: AsyncSession, project_manager_id: uuid.UUID) -> se
         )
     )
     return {row[0] for row in result.all()}
+
+
+async def _report_scope(
+    db: AsyncSession, caller: User, mine_only: bool
+) -> set[uuid.UUID] | None:
+    """The project ids Reporting is limited to, or None for every project (deleted
+    ones included: Reporting is a historical record). Narrowing to the caller's own
+    projects is a view choice only; every manager may review every project."""
+    if not mine_only:
+        return None
+    return await _pm_project_ids(db, caller.id)
 
 
 async def _is_eligible(
@@ -193,7 +203,7 @@ async def _upsert_one(
     nothing and leaves `last_updated_by`/`updated_at` untouched). **Every path
     here checks `is_locked` first, unconditionally**: locked rows are immutable
     through this endpoint regardless of direction (delete or overwrite) or who's
-    calling; unlocking is exclusively a `project_manager`'s action via
+    calling; unlocking is exclusively a manager's action via
     PUT /time-entries/lock, never this one. This is enforced here, server-side,
     independent of whatever the frontend believes the lock state is: a disabled
     input is a UI courtesy, not a security boundary; nothing stops a direct API call
@@ -201,33 +211,18 @@ async def _upsert_one(
 
     `item.user_id` is the entry's *owner*: `None` (the only value My Timesheet's
     own calls ever send) means the caller's own entry; a different id is a
-    `project_manager`'s override of a consultant's entry. An override is authorized
-    per item, not once for the whole request: matching the "each item is processed
-    and persisted independently" rule this endpoint already follows for everything
-    else."""
+    manager's override of a consultant's entry. Any manager may override on any
+    project: being listed as one of a project's managers only decides what Reporting
+    shows by default, not what may be changed."""
     owner_id = item.user_id if item.user_id is not None else user.id
 
-    if owner_id != user.id:
-        if not _is_project_manager(user):
-            return TimeEntryUpsertResult(
-                service_line_id=item.service_line_id,
-                date=item.date,
-                ok=False,
-                error="not_authorized",
-            )
-        pm_project_ids = await _pm_project_ids(db, user.id)
-        service_line_project = (
-            await db.execute(
-                select(ServiceLine.project_id).where(ServiceLine.id == item.service_line_id)
-            )
-        ).scalar_one_or_none()
-        if service_line_project is None or service_line_project not in pm_project_ids:
-            return TimeEntryUpsertResult(
-                service_line_id=item.service_line_id,
-                date=item.date,
-                ok=False,
-                error="not_authorized",
-            )
+    if owner_id != user.id and not _is_manager(user):
+        return TimeEntryUpsertResult(
+            service_line_id=item.service_line_id,
+            date=item.date,
+            ok=False,
+            error="not_authorized",
+        )
 
     existing = await _fetch_existing(db, owner_id, item.service_line_id, item.date)
 
@@ -256,7 +251,7 @@ async def _upsert_one(
 
     if existing is not None and existing.time_entry == time_value:
         # Nothing changed: skip the write so `last_updated_by`/`updated_at` keep
-        # recording who last actually changed the hours. Otherwise a project_manager
+        # recording who last actually changed the hours. Otherwise a manager
         # who merely re-saves (or tabs through) a consultant's cell would take over
         # the audit trail. Lock and eligibility were already checked above, so
         # rejections behave exactly as before; only the no-op write is dropped.
@@ -348,19 +343,8 @@ async def set_service_line_lock(
     """PUT /time-entries/lock. Locks or unlocks every day in
     [start_date, end_date] for one (consultant, service line) pair: never per
     cell, never per day as separate actions from the caller's perspective."""
-    if not _is_project_manager(caller):
-        raise NotAuthorizedError("Only a project_manager can lock or unlock a service line")
-
-    pm_project_ids = await _pm_project_ids(db, caller.id)
-    service_line_project = (
-        await db.execute(
-            select(ServiceLine.project_id).where(ServiceLine.id == request.service_line_id)
-        )
-    ).scalar_one_or_none()
-    if service_line_project is None or service_line_project not in pm_project_ids:
-        raise NotAuthorizedError(
-            "You are not assigned as project manager on this service line's project"
-        )
+    if not _is_manager(caller):
+        raise NotAuthorizedError("Only a manager can lock or unlock a service line")
 
     if not await _is_eligible_ignoring_active_status(db, request.user_id, request.service_line_id):
         raise NotAuthorizedError(
@@ -460,33 +444,26 @@ async def _is_eligible_ignoring_active_status(
 
 
 async def list_report_filters(
-    db: AsyncSession, project_manager: User
+    db: AsyncSession, caller: User, mine_only: bool = False
 ) -> TimesheetReportFiltersOut:
     """GET /time-entries/report/filters. Not period-scoped: one fetch on mount,
     covering every project status (unlike list_eligible_service_lines, which is
     restricted to active projects/lines via _eligibility_filters())."""
-    pm_project_ids = await _pm_project_ids(db, project_manager.id)
-    if not pm_project_ids:
+    scope = await _report_scope(db, caller, mine_only)
+    if scope is not None and not scope:
         return TimesheetReportFiltersOut(projects=[], service_lines=[], consultants=[])
 
-    projects = (
-        (
-            await db.execute(
-                select(Project).where(Project.id.in_(pm_project_ids)).order_by(Project.name)
-            )
-        )
-        .scalars()
-        .all()
+    project_stmt = select(Project).order_by(Project.name)
+    service_line_stmt = (
+        select(ServiceLine, Project)
+        .join(Project, ServiceLine.project_id == Project.id)
+        .order_by(Project.name, ServiceLine.name)
     )
-
-    service_line_rows = (
-        await db.execute(
-            select(ServiceLine, Project)
-            .join(Project, ServiceLine.project_id == Project.id)
-            .where(Project.id.in_(pm_project_ids))
-            .order_by(Project.name, ServiceLine.name)
-        )
-    ).all()
+    if scope is not None:
+        project_stmt = project_stmt.where(Project.id.in_(scope))
+        service_line_stmt = service_line_stmt.where(Project.id.in_(scope))
+    projects = (await db.execute(project_stmt)).scalars().all()
+    service_line_rows = (await db.execute(service_line_stmt)).all()
 
     # Two-part consultant roster: anyone currently assigned to a line under one of
     # these projects (regardless of active status), unioned with anyone holding
@@ -494,17 +471,19 @@ async def list_report_filters(
     eligible_ids_stmt = (
         select(service_line_consultants.c.user_id)
         .join(ServiceLine, ServiceLine.id == service_line_consultants.c.service_line_id)
-        .where(ServiceLine.project_id.in_(pm_project_ids))
         .distinct()
     )
+    if scope is not None:
+        eligible_ids_stmt = eligible_ids_stmt.where(ServiceLine.project_id.in_(scope))
     eligible_ids = {row[0] for row in (await db.execute(eligible_ids_stmt)).all()}
 
     historical_ids_stmt = (
         select(TimeEntry.user_id)
         .join(ServiceLine, ServiceLine.id == TimeEntry.service_line_id)
-        .where(ServiceLine.project_id.in_(pm_project_ids))
         .distinct()
     )
+    if scope is not None:
+        historical_ids_stmt = historical_ids_stmt.where(ServiceLine.project_id.in_(scope))
     historical_ids = {row[0] for row in (await db.execute(historical_ids_stmt)).all()}
 
     consultant_ids = eligible_ids | historical_ids
@@ -542,13 +521,14 @@ async def list_report_filters(
 
 async def list_time_entries_report(
     db: AsyncSession,
-    project_manager: User,
+    caller: User,
     start_date: date,
     end_date: date,
     project_ids: list[uuid.UUID] | None,
     service_line_ids: list[uuid.UUID] | None,
     consultant_ids: list[uuid.UUID] | None,
     statuses: list[str] | None,
+    mine_only: bool = False,
 ) -> list[TimesheetReportRowOut]:
     """GET /time-entries/report. Row membership: a (consultant, service_line) pair
     shows if the consultant is currently assigned to the line (regardless of active
@@ -557,27 +537,21 @@ async def list_time_entries_report(
     assigned at all: the same union list_report_filters' consultant roster already
     computes, applied one level down to the pair, so a currently-assigned-but-
     zero-data-this-period pairing still gets a row. Every filter param narrows this
-    set further; an id outside the caller's own pm_project_ids scope contributes
-    nothing: never a 403, a GET shouldn't hard-fail on a stale/tampered filter id."""
-    pm_project_ids = await _pm_project_ids(db, project_manager.id)
+    set further; with `mine_only`, an id outside the caller's own projects
+    contributes nothing: never a 403, a GET shouldn't hard-fail on a stale/tampered
+    filter id."""
+    scope = await _report_scope(db, caller, mine_only)
     if project_ids:
-        pm_project_ids &= set(project_ids)
-    if not pm_project_ids:
+        scope = set(project_ids) if scope is None else scope & set(project_ids)
+    if scope is not None and not scope:
         return []
 
     effective_statuses = set(statuses) if statuses else REPORT_PROJECT_STATUSES
 
-    project_rows = (
-        (
-            await db.execute(
-                select(Project).where(
-                    Project.id.in_(pm_project_ids), Project.status.in_(effective_statuses)
-                )
-            )
-        )
-        .scalars()
-        .all()
-    )
+    project_stmt = select(Project).where(Project.status.in_(effective_statuses))
+    if scope is not None:
+        project_stmt = project_stmt.where(Project.id.in_(scope))
+    project_rows = (await db.execute(project_stmt)).scalars().all()
     projects_by_id = {p.id: p for p in project_rows}
     if not projects_by_id:
         return []

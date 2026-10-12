@@ -31,6 +31,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { MineOnlySwitch } from "@/components/MineOnlySwitch";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { DataTable } from "@/components/data-table/DataTable";
@@ -66,6 +67,8 @@ export function ProjectsTable() {
   const [page, setPage] = useState(1);
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
+  // "Only see my projects": on at every visit, never remembered.
+  const [mineOnly, setMineOnly] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ProjectListItem | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -88,6 +91,12 @@ export function ProjectsTable() {
     setPage(1);
   };
 
+  // Same reasoning as the sort reset just above: a different set of projects starts at page 1.
+  function handleMineOnlyChange(checked: boolean) {
+    setMineOnly(checked);
+    setPage(1);
+  }
+
   useEffect(() => {
     const handle = setTimeout(() => {
       setSearch(searchInput);
@@ -98,7 +107,7 @@ export function ProjectsTable() {
 
   useEffect(() => {
     let cancelled = false;
-    listProjects({ search: search || undefined, page, ...toSortParams(sorting) })
+    listProjects({ search: search || undefined, page, mineOnly, ...toSortParams(sorting) })
       .then((response) => {
         if (cancelled) return;
         setError(null);
@@ -113,7 +122,7 @@ export function ProjectsTable() {
     return () => {
       cancelled = true;
     };
-  }, [search, page, sorting, refreshToken, t]);
+  }, [search, page, sorting, mineOnly, refreshToken, t]);
 
   async function handleDuplicate(project: ProjectListItem) {
     try {
@@ -240,14 +249,20 @@ export function ProjectsTable() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between gap-2">
-        <Input
-          placeholder={t("Search by name…")}
-          value={searchInput}
-          onChange={(e) => setSearchInput(e.target.value)}
-          className="max-w-sm"
-        />
-        <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-2">
+        {/* Search and switch stay together. On a phone the search box takes the whole row
+            with the switch under it, and the Columns and + buttons wrap to their own row,
+            instead of all of them squeezing the search box to a sliver. */}
+        <div className="flex w-full flex-wrap items-center gap-x-4 gap-y-2 sm:w-auto">
+          <Input
+            placeholder={t("Search by name…")}
+            value={searchInput}
+            onChange={(e) => setSearchInput(e.target.value)}
+            className="w-full sm:w-96"
+          />
+          <MineOnlySwitch checked={mineOnly} onCheckedChange={handleMineOnlyChange} />
+        </div>
+        <div className="ml-auto flex gap-2">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="outline">

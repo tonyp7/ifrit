@@ -21,13 +21,13 @@ from app.services import company_service
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
-# Read-only lookups are also needed by the `projects` screen (project_admin-accessible,
+# Read-only lookups are also needed by the `projects` screen (manager-accessible,
 # not just `configuration`) to populate its vendor/client pickers. Every write below
 # stays administrator-only: that's genuine Companies-configuration management, not a
-# read a project_admin needs. Router-level `dependencies` used to gate everything to
-# administrator only, including these two GETs, which is why a project_admin hit a 403
+# read a manager needs. Router-level `dependencies` used to gate everything to
+# administrator only, including these two GETs, which is why a manager hit a 403
 # just loading the project form's dropdowns.
-_read_roles = Depends(require_roles("administrator", "project_admin"))
+_read_roles = Depends(require_roles("administrator", "manager"))
 _write_roles = Depends(require_roles("administrator"))
 
 

@@ -82,18 +82,12 @@ async def test_administrator_alone_grants_nothing(client, db_session) -> None:
     assert await _count(db_session, File) == 0
 
 
-async def test_project_manager_alone_grants_nothing(client, db_session) -> None:
-    project = await create_project(db_session)
-    await _login(client, db_session, "project_manager")
-    assert (await _post_file(client, project)).status_code == 403
-
-
 # --- upload and list ---------------------------------------------------------------
 
 
 async def test_upload_returns_the_new_file_and_lists_it(client, db_session) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
 
     response = await _post_file(client, project)
 
@@ -109,7 +103,7 @@ async def test_upload_returns_the_new_file_and_lists_it(client, db_session) -> N
 
 async def test_files_are_listed_oldest_first(client, db_session) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     names = ["b.pdf", "a.pdf", "c.pdf"]
     for name in names:
         assert (await _post_file(client, project, name)).status_code == 201
@@ -121,7 +115,7 @@ async def test_files_are_listed_oldest_first(client, db_session) -> None:
 
 async def test_the_same_name_can_be_uploaded_twice(client, db_session) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
 
     first = await _post_file(client, project)
     second = await _post_file(client, project)
@@ -136,7 +130,7 @@ async def test_stored_under_a_generated_path_with_the_allowlisted_extension(
     client, db_session, _storage_settings
 ) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
 
     response = await _post_file(client, project, "../../Contract.PDF")
 
@@ -149,7 +143,7 @@ async def test_stored_under_a_generated_path_with_the_allowlisted_extension(
 
 async def test_unknown_project_and_deleted_project_are_404(client, db_session) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     assert (
         await client.get(f"/api/projects/{uuid.uuid4()}/files")
     ).status_code == 404
@@ -164,7 +158,7 @@ async def test_disallowed_extension_is_415_and_persists_nothing(
     client, db_session, _storage_settings
 ) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
 
     response = await _post_file(client, project, "setup.exe", b"MZ\x90\x00")
 
@@ -178,7 +172,7 @@ async def test_content_that_disagrees_with_its_extension_is_415(
     client, db_session
 ) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
 
     response = await _post_file(client, project, "report.pdf", b"#!/bin/sh\necho hi\n")
 
@@ -188,7 +182,7 @@ async def test_content_that_disagrees_with_its_extension_is_415(
 
 async def test_oversized_upload_is_413_and_persists_nothing(client, db_session) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     data = _sample(".pdf")
     padded = data + b"\n" * (TEST_MAX_UPLOAD_BYTES + 1 - len(data))
 
@@ -204,7 +198,7 @@ async def test_oversized_upload_is_413_and_persists_nothing(client, db_session) 
 
 async def test_delete_removes_the_file_its_link_and_its_tags(client, db_session) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     file_id = (await _post_file(client, project)).json()["file_id"]
     tag = await _tag_id(db_session, "contract")
     await client.put(f"{_files_url(project)}/{file_id}/tags/{tag}")
@@ -222,7 +216,7 @@ async def test_delete_removes_the_file_its_link_and_its_tags(client, db_session)
 
 async def test_deleting_one_copy_keeps_the_other(client, db_session) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     first = (await _post_file(client, project)).json()["file_id"]
     await _post_file(client, project)
 
@@ -233,7 +227,7 @@ async def test_deleting_one_copy_keeps_the_other(client, db_session) -> None:
 
 async def test_deleting_an_unknown_file_is_404(client, db_session) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     response = await client.delete(f"{_files_url(project)}/{uuid.uuid4()}")
     assert response.status_code == 404
 
@@ -244,7 +238,7 @@ async def test_deleting_an_unknown_file_is_404(client, db_session) -> None:
 async def test_another_projects_file_id_is_404(client, db_session) -> None:
     project_a = await create_project(db_session, name="A")
     project_b = await create_project(db_session, name="B")
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     file_id = (await _post_file(client, project_a)).json()["file_id"]
     tag = await _tag_id(db_session, "contract")
 
@@ -265,7 +259,7 @@ async def test_another_projects_file_id_is_404(client, db_session) -> None:
 
 
 async def test_the_vocabulary_is_listed_by_name(client, db_session) -> None:
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
 
     body = (await client.get("/api/file-tags")).json()
 
@@ -285,7 +279,7 @@ async def test_the_vocabulary_is_listed_by_name(client, db_session) -> None:
 
 async def test_a_file_can_carry_several_tags(client, db_session) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     file_id = (await _post_file(client, project)).json()["file_id"]
     for name in ("contract", "addendum", "invoice"):
         tag = await _tag_id(db_session, name)
@@ -299,7 +293,7 @@ async def test_a_file_can_carry_several_tags(client, db_session) -> None:
 
 async def test_adding_a_tag_twice_leaves_it_once(client, db_session) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     file_id = (await _post_file(client, project)).json()["file_id"]
     tag = await _tag_id(db_session, "contract")
 
@@ -312,7 +306,7 @@ async def test_adding_a_tag_twice_leaves_it_once(client, db_session) -> None:
 
 async def test_removing_a_tag_the_file_lacks_is_not_an_error(client, db_session) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     file_id = (await _post_file(client, project)).json()["file_id"]
     tag = await _tag_id(db_session, "contract")
 
@@ -323,7 +317,7 @@ async def test_removing_a_tag_the_file_lacks_is_not_an_error(client, db_session)
 
 async def test_removing_a_tag_takes_it_off_the_file(client, db_session) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     file_id = (await _post_file(client, project)).json()["file_id"]
     tag = await _tag_id(db_session, "contract")
     await client.put(f"{_files_url(project)}/{file_id}/tags/{tag}")
@@ -335,7 +329,7 @@ async def test_removing_a_tag_takes_it_off_the_file(client, db_session) -> None:
 
 async def test_an_unknown_tag_is_404(client, db_session) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     file_id = (await _post_file(client, project)).json()["file_id"]
     ghost = uuid.uuid4()
 
@@ -352,7 +346,7 @@ async def test_identical_content_in_two_projects_keeps_separate_tags(
 ) -> None:
     project_a = await create_project(db_session, name="A")
     project_b = await create_project(db_session, name="B")
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     file_a = (await _post_file(client, project_a)).json()["file_id"]
     await _post_file(client, project_b)
     tag = await _tag_id(db_session, "contract")
@@ -376,7 +370,7 @@ async def test_a_closed_project_refuses_every_document_change(
     client, db_session, _storage_settings
 ) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     file_id = (await _post_file(client, project)).json()["file_id"]
     tag = await _tag_id(db_session, "contract")
     await client.put(f"{_files_url(project)}/{file_id}/tags/{tag}")
@@ -403,7 +397,7 @@ async def test_a_closed_project_refuses_every_document_change(
 
 async def test_reopening_restores_document_changes(client, db_session) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     await _close(db_session, project)
     assert (await _post_file(client, project)).status_code == 409
 
@@ -419,7 +413,7 @@ async def test_duplicating_a_project_does_not_copy_its_documents(
     client, db_session
 ) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     first = (await _post_file(client, project)).json()["file_id"]
     await _post_file(client, project, "second.docx", _sample(".docx"))
     tag = await _tag_id(db_session, "contract")
@@ -446,7 +440,7 @@ async def test_a_project_admin_downloads_a_project_file_as_an_attachment(
     client, db_session
 ) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     file_id = (await _post_file(client, project)).json()["file_id"]
 
     response = await client.get(_content_url(file_id))
@@ -464,7 +458,7 @@ async def test_a_signed_out_client_cannot_download_a_project_file(
     client, db_session
 ) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     file_id = (await _post_file(client, project)).json()["file_id"]
     client.cookies.clear()
 
@@ -473,7 +467,7 @@ async def test_a_signed_out_client_cannot_download_a_project_file(
 
 async def test_other_roles_cannot_download_a_project_file(client, db_session) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     file_id = (await _post_file(client, project)).json()["file_id"]
     client.cookies.clear()
     await create_user(
@@ -488,7 +482,7 @@ async def test_other_roles_cannot_download_a_project_file(client, db_session) ->
 
 async def test_html_and_svg_are_never_served_inline(client, db_session) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     for extension in (".html", ".svg", ".xml"):
         file_id = (
             await _post_file(client, project, f"page{extension}", _sample(extension))
@@ -504,7 +498,7 @@ async def test_html_and_svg_are_never_served_inline(client, db_session) -> None:
 
 async def test_a_hostile_file_name_cannot_break_the_header(client, db_session) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     name = 'evil";\r\nX-Injected: 1.pdf'
     file_id = (await _post_file(client, project, name)).json()["file_id"]
 
@@ -517,7 +511,7 @@ async def test_a_hostile_file_name_cannot_break_the_header(client, db_session) -
 
 async def test_a_deleted_file_is_404(client, db_session) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     file_id = (await _post_file(client, project)).json()["file_id"]
     await client.delete(f"{_files_url(project)}/{file_id}")
 
@@ -526,7 +520,7 @@ async def test_a_deleted_file_is_404(client, db_session) -> None:
 
 async def test_a_file_of_a_deleted_project_is_404(client, db_session) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     file_id = (await _post_file(client, project)).json()["file_id"]
     project.is_active = False
     await db_session.commit()
@@ -536,7 +530,7 @@ async def test_a_file_of_a_deleted_project_is_404(client, db_session) -> None:
 
 async def test_a_closed_projects_file_still_downloads(client, db_session) -> None:
     project = await create_project(db_session)
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     file_id = (await _post_file(client, project)).json()["file_id"]
     await _close(db_session, project)
 

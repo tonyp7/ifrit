@@ -637,5 +637,5 @@ async def user_can_access_file(db: AsyncSession, user: User, file: File) -> bool
         return "administrator" in role_names
     if kind == "project":
         # The literal role: holding `administrator` alone grants nothing here.
-        return "project_admin" in role_names
+        return "manager" in role_names
     return False  # pragma: no cover - unknown kinds get no access

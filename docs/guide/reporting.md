@@ -1,21 +1,21 @@
 # Reporting
 
-Reporting is for users with the **project manager** role. It shows the hours of every consultant
-on the projects you are assigned to manage, lets you correct them, lock a period and export what
-you see.
+Reporting is for users with the **manager** role. It shows the hours of every consultant, lets
+you correct them, lock a period and export what you see.
 
-You only ever see projects you are assigned to as project manager (a project admin assigns you,
-see [Projects](projects.md)). If you are assigned to none, the screen opens empty.
+You can review, correct and lock hours on **any** project. Being listed as one of a project's
+managers (see [Projects](projects.md)) only decides what you see by default.
 
 ## The screen
 
 The period selector works as on the [timesheet](timesheet.md): Week or Month, with arrows to move.
-Below it are the filters and the **Export** button, then the grid.
+Below it are the filters, the **Only see my projects** switch and the **Export** button, then
+the grid.
 
 Each row is one consultant on one service line, labelled with project, service line and consultant
 name. Rows are ordered by consultant name, then project, then service line.
 
-A consultant assigned to one of your service lines gets a row even when they logged nothing in the
+A consultant assigned to a service line in view gets a row even when they logged nothing in the
 period, so you can review and lock it. Someone who was removed from a line still appears for any
 period in which they have hours there.
 
@@ -29,11 +29,22 @@ Four filters narrow the grid:
 Filters combine (a row must match all of them), an unchecked filter means "no restriction", and
 your selections stay when you change period.
 
+## Only see my projects
+
+The **Only see my projects** switch, after the filters, is **on** every time you open Reporting.
+While it is on, the grid, the filter lists and exports cover only the projects you are listed on
+as a manager. If you are listed on none, the grid is empty.
+
+Turn it off to see every project, including deleted ones: Reporting keeps their hours as a
+historical record. Turning it back on removes any project, service line or consultant you had
+selected that is not part of your projects, along with their rows. Your Project Status selection
+stays.
+
 ## Correct hours
 
 Click an unlocked cell and edit it exactly as a consultant does; it saves when you leave the cell.
-The entry then records you as the person who last changed it. You can only edit rows of projects you
-manage, and never a locked cell: unlock the period first.
+The entry then records you as the person who last changed it. You can edit rows of any project, but
+never a locked cell: unlock the period first.
 
 ## Lock and unlock
 
@@ -59,8 +70,8 @@ Things to know:
 
 ## Export
 
-**Export** offers three formats. The file reflects the current period and filters, and is built from
-the saved data, so finish any edit before exporting.
+**Export** offers three formats. The file reflects the current period, filters and **Only see my
+projects** switch, and is built from the saved data, so finish any edit before exporting.
 
 | Format | Contents |
 |---|---|

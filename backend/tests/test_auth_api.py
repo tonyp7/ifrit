@@ -62,7 +62,7 @@ async def test_me_requires_auth(client) -> None:
 
 async def test_me_with_valid_session(client, db_session) -> None:
     await create_user(
-        db_session, name_id="jane@example.com", password="s3cret-pass", role_name="project_admin"
+        db_session, name_id="jane@example.com", password="s3cret-pass", role_name="manager"
     )
 
     await client.post(
@@ -71,7 +71,7 @@ async def test_me_with_valid_session(client, db_session) -> None:
     response = await client.get("/api/auth/me")
 
     assert response.status_code == 200
-    assert response.json()["roles"] == ["project_admin"]
+    assert response.json()["roles"] == ["manager"]
 
 
 async def _login(client, email="jane@example.com", password="s3cret-pass") -> None:

@@ -25,9 +25,9 @@ The slider keeps its value while the switch is off.
 
 ## Companies
 
-Companies are the vendors and clients that projects refer to. Both administrators and project
-admins can see the list (project admins need it to pick a project's vendor and client), but only
-administrators can create or change companies.
+Companies are the vendors and clients that projects refer to. Both administrators and managers
+can see the list (managers need it to pick a project's vendor and client), but only administrators
+can create or change companies.
 
 ### Fields
 
@@ -86,5 +86,5 @@ administrators exist.
 
 ### A leaver on a project
 
-A deactivated consultant stays on the service lines they were assigned to, so a project manager can
+A deactivated consultant stays on the service lines they were assigned to, so a manager can
 still review and lock their final timesheet in [Reporting](reporting.md).

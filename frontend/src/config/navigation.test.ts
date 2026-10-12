@@ -12,20 +12,16 @@ describe("navigation items per role", () => {
     expect(visibleLabels(["consultant"])).toEqual(["Timesheet"]);
   });
 
-  it("shows a project_manager Timesheet then Reporting", () => {
-    expect(visibleLabels(["project_manager"])).toEqual(["Timesheet", "Reporting"]);
+  it("shows a manager Timesheet, Reporting and Projects", () => {
+    expect(visibleLabels(["manager"])).toEqual(["Timesheet", "Reporting", "Projects"]);
   });
 
-  it("shows a project_admin Timesheet and Projects but no Reporting", () => {
-    expect(visibleLabels(["project_admin"])).toEqual(["Timesheet", "Projects"]);
-  });
-
-  it("shows an administrator without project_admin Timesheet and Configuration, not Projects", () => {
+  it("shows an administrator without manager Timesheet and Configuration only", () => {
     expect(visibleLabels(["administrator"])).toEqual(["Timesheet", "Configuration"]);
   });
 
   it("shows the union, in order, for combined roles", () => {
-    expect(visibleLabels(["administrator", "project_admin", "project_manager"])).toEqual([
+    expect(visibleLabels(["administrator", "manager"])).toEqual([
       "Timesheet",
       "Reporting",
       "Projects",
@@ -33,9 +29,10 @@ describe("navigation items per role", () => {
     ]);
   });
 
-  it("does not gate Reporting behind anything but project_manager", () => {
-    const reporting = NAV_ITEMS.find((item) => item.label === "Reporting");
-    expect(reporting?.requiredRoles).toEqual(["project_manager"]);
+  it("gates Reporting and Projects behind manager only", () => {
+    const required = (label: string) => NAV_ITEMS.find((item) => item.label === label)?.requiredRoles;
+    expect(required("Reporting")).toEqual(["manager"]);
+    expect(required("Projects")).toEqual(["manager"]);
   });
 });
 

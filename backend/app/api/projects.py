@@ -24,12 +24,12 @@ from app.services.project_service import (
     ServiceLineHasLoggedTimeError,
 )
 
-_project_admin = Depends(require_roles("project_admin"))
+_manager = Depends(require_roles("manager"))
 
 router = APIRouter(
     prefix="/projects",
     tags=["projects"],
-    dependencies=[_project_admin],
+    dependencies=[_manager],
 )
 
 
@@ -68,10 +68,19 @@ async def list_projects(
     page: int = Query(default=1, ge=1),
     sort_by: str | None = None,
     sort_dir: str | None = None,
+    mine_only: bool = False,
+    user: User = _manager,
     db: AsyncSession = Depends(get_db),
 ) -> ProjectListResponse:
+    """With `mine_only`, only the projects listing the caller as a project manager:
+    a view choice behind "Only see my projects", not an access rule."""
     rows, total = await project_service.list_projects(
-        db, search, page, sort_by=sort_by, sort_dir=sort_dir
+        db,
+        search,
+        page,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+        mine_only_for=user.id if mine_only else None,
     )
     return ProjectListResponse(
         items=[
@@ -256,7 +265,7 @@ async def list_project_files(
 async def upload_project_file(
     project_id: uuid.UUID,
     file: UploadFile,
-    user: User = _project_admin,
+    user: User = _manager,
     db: AsyncSession = Depends(get_db),
 ) -> ProjectFileOut:
     project = await _get_editable_project_or_404(db, project_id)

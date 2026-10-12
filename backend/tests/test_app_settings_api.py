@@ -42,7 +42,7 @@ async def test_signed_out_clients_get_401(client) -> None:
         assert response.status_code == 401
 
 
-@pytest.mark.parametrize("role", ["project_admin", "project_manager", "consultant"])
+@pytest.mark.parametrize("role", ["manager", "consultant"])
 async def test_other_roles_get_403(client, db_session, role) -> None:
     await _login(client, db_session, role)
     for response in await _every_endpoint(client):
