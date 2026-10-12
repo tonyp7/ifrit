@@ -1,0 +1,59 @@
+# Builds the documentation site (mkdocs.yml + docs/) and publishes it to GitHub Pages, served at
+# https://docs.ifrit.day/.
+#
+# Runs only for pushes to main that touch the docs, and on manual dispatch. Never on
+# `pull_request`: pull requests only get the secret-free strict build in ci.yml. This workflow
+# needs no secret of its own; the Pages deployment uses the workflow's token.
+#
+# One-time settings this relies on (repository and DNS, not code): Settings -> Pages -> Source:
+# GitHub Actions, the custom domain docs.ifrit.day, and a DNS CNAME `docs` -> tonyp7.github.io.
+name: Docs
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/docs.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A deployment that is already in flight must finish, so a newer push queues behind it instead of
+# cancelling it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v10.2.0
+        with:
+          python-version: "3.14"
+          enable-cache: true
+          cache-dependency-glob: docs/uv.lock
+      - run: uv sync --locked --project docs
+      # --strict: a broken link or nav entry fails here rather than publishing a broken site.
+      - run: uv run --project docs mkdocs build --strict
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v5

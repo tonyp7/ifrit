@@ -13,6 +13,7 @@
 !/.dockerignore
 !/.gitignore
 !/LICENSE
+!/mkdocs.yml
 !/CHANGELOG.md
 !/ACKNOWLEDGMENTS
 
@@ -39,6 +40,10 @@ frontend/*.local
 frontend/*.tsbuildinfo
 frontend/coverage/
 frontend/.eslintcache
+
+# Documentation site (MkDocs): built output and the docs toolchain's virtualenv
+/site/
+docs/.venv/
 
 # Logs (either stack)
 *.log

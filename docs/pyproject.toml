@@ -1,0 +1,18 @@
+# Toolchain for the documentation site only. Deliberately a project of its own, not a group in
+# backend/pyproject.toml: the application image is built from the backend lockfile, and a
+# docs dependency bump must never be able to change it.
+#
+#   uv sync --locked --project docs
+#   uv run --project docs mkdocs serve      # from the repo root; config is ../mkdocs.yml
+[project]
+name = "ifrit-docs"
+version = "0.0.0"
+description = "Build tooling for the Ifrit documentation site (not part of the application)"
+requires-python = ">=3.14"
+dependencies = [
+    "mkdocs>=1.6.1",
+]
+
+[tool.uv]
+# A set of tools to run, not a package to build or install.
+package = false

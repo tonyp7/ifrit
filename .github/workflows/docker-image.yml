@@ -10,6 +10,13 @@ name: Docker image
 on:
   push:
     branches: [main]
+    # A change that only touches the documentation site must not rebuild or republish the app
+    # image. Path filters apply to branch pushes only, never to tags, so a release tag still
+    # promotes as before (and still needs a `sha-<7>` image from a main build of that commit).
+    paths-ignore:
+      - 'docs/**'
+      - 'mkdocs.yml'
+      - '.github/workflows/docs.yml'
     tags: ['v*.*.*']
   workflow_dispatch:
 
