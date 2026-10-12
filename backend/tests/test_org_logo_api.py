@@ -45,7 +45,7 @@ async def test_signed_out_clients_get_401(client) -> None:
 
 
 async def test_non_administrators_get_403(client, db_session) -> None:
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
 
     assert (await client.get(LOGO_URL)).status_code == 403
     assert (
@@ -63,7 +63,7 @@ async def test_a_non_administrator_cannot_download_a_setting_file(
     ]
     await client.post("/api/auth/logout")
 
-    await _login(client, db_session, "project_admin")
+    await _login(client, db_session, "manager")
     response = await client.get(f"/api/files/{file_id}/content")
 
     assert response.status_code == 403

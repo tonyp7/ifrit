@@ -7,6 +7,7 @@ import {
   downloadProjectFile,
   listFileTags,
   listProjectFiles,
+  listProjects,
   removeProjectFileTag,
   uploadProjectFile,
 } from "@/api/projects";
@@ -56,5 +57,17 @@ describe("project file API calls", () => {
   it("downloads through the authenticated blob request, never a bare link", () => {
     void downloadProjectFile("f1");
     expect(apiClient.getBlob).toHaveBeenCalledWith("/files/f1/content");
+  });
+});
+
+describe("project list API call", () => {
+  it("always sends the 'Only see my projects' switch", () => {
+    void listProjects({ page: 1, mineOnly: true });
+    void listProjects({ page: 1, mineOnly: false, search: "acme" });
+    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/projects?page=1&mine_only=true");
+    expect(apiClient.get).toHaveBeenNthCalledWith(
+      2,
+      "/projects?search=acme&page=1&mine_only=false",
+    );
   });
 });

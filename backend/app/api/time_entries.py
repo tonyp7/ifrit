@@ -89,13 +89,15 @@ async def upsert_time_entries(
 
 @router.get("/report/filters", response_model=TimesheetReportFiltersOut)
 async def get_report_filters(
-    user: User = Depends(require_roles("project_manager")),  # noqa: B008
+    mine_only: bool = False,
+    user: User = Depends(require_roles("manager")),  # noqa: B008
     db: AsyncSession = Depends(get_db),
 ) -> TimesheetReportFiltersOut:
-    """Reporting screen's filter dropdowns: static, not period-scoped, one fetch
-    on mount. Covers every project status (unlike /eligible-service-lines), since
-    Reporting needs closed-project/inactive-line history reachable too."""
-    return await time_entry_service.list_report_filters(db, user)
+    """Reporting screen's filter dropdowns: static, not period-scoped, fetched on
+    mount and again whenever "Only see my projects" (`mine_only`) is toggled. Covers
+    every project status (unlike /eligible-service-lines), since Reporting needs
+    closed-project/inactive-line history reachable too."""
+    return await time_entry_service.list_report_filters(db, user, mine_only)
 
 
 @router.get("/report", response_model=TimesheetReportResponse)
@@ -106,13 +108,14 @@ async def get_time_entries_report(
     service_line_ids: list[uuid.UUID] | None = Query(default=None),
     consultant_ids: list[uuid.UUID] | None = Query(default=None),
     statuses: list[str] | None = Query(default=None),
-    user: User = Depends(require_roles("project_manager")),  # noqa: B008
+    mine_only: bool = False,
+    user: User = Depends(require_roles("manager")),  # noqa: B008
     db: AsyncSession = Depends(get_db),
 ) -> TimesheetReportResponse:
     """Reporting screen's row data: a flat, pre-sorted (consultant, service_line)
     list, not grouped by consultant. All four filter params are
-    optional; omitted means no restriction on that dimension. Any id outside the
-    caller's own project_manager scope is silently dropped, never a 403."""
+    optional; omitted means no restriction on that dimension. With `mine_only`, any
+    id outside the caller's own projects is silently dropped, never a 403."""
     validate_period(start_date, end_date)
     rows = await time_entry_service.list_time_entries_report(
         db,
@@ -123,6 +126,7 @@ async def get_time_entries_report(
         service_line_ids,
         consultant_ids,
         statuses,
+        mine_only,
     )
     return TimesheetReportResponse(items=rows)
 
@@ -137,7 +141,8 @@ async def export_time_entries_report(
     service_line_ids: list[uuid.UUID] | None = Query(default=None),
     consultant_ids: list[uuid.UUID] | None = Query(default=None),
     statuses: list[str] | None = Query(default=None),
-    user: User = Depends(require_roles("project_manager")),  # noqa: B008
+    mine_only: bool = False,
+    user: User = Depends(require_roles("manager")),  # noqa: B008
     db: AsyncSession = Depends(get_db),
 ) -> Response:
     """Reporting screen's export: deliberately the exact same filter params as
@@ -158,6 +163,7 @@ async def export_time_entries_report(
         service_line_ids=service_line_ids,
         consultant_ids=consultant_ids,
         statuses=statuses,
+        mine_only=mine_only,
     )
 
     return Response(

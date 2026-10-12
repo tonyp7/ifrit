@@ -24,7 +24,7 @@ class TimeEntryUpsert(BaseModel):
     date: date_
     hours: Decimal
     # None (the default, and the only value My Timesheet's own calls ever send) means
-    # "the caller's own entry"; a project_manager overriding a consultant's entry sets
+    # "the caller's own entry"; a manager overriding a consultant's entry sets
     # this to that consultant's id instead. Never resolved from anywhere but this field:
     # see time_entry_service._upsert_one's authorization check.
     user_id: uuid.UUID | None = None
@@ -58,9 +58,8 @@ class TimeEntryUpsertResult(BaseModel):
     request array is processed and reported independently, never all-or-nothing.
     `entry`/`error` are mutually exclusive: `entry` is set (or left `None` for a
     successful delete) when `ok` is `True`; `error` is set: `"locked"`,
-    `"not_eligible"`, or `"not_authorized"` (a `project_manager` override rejected
-    for lacking assignment to the target service line's project, or a non-
-    `project_manager` attempting an override at all), when `ok` is `False`."""
+    `"not_eligible"`, or `"not_authorized"` (an override sent by a user without the
+    `manager` role), when `ok` is `False`."""
 
     service_line_id: uuid.UUID
     date: date_

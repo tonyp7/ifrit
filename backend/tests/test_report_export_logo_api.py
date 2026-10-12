@@ -32,7 +32,7 @@ async def _setup(client, db_session) -> str:
     """An administrator who uploads a logo, and a project manager who is not an
     administrator. Returns the logo's file id; leaves the project manager signed in."""
     await _create(db_session, "admin@example.com", "administrator")
-    await _create(db_session, "pm@example.com", "project_manager")
+    await _create(db_session, "pm@example.com", "manager")
     await _login_as(client, "admin@example.com")
     upload = await client.put(
         LOGO_URL, files={"file": ("logo.png", png_bytes((120, 40)), "image/png")}
@@ -66,7 +66,7 @@ async def test_a_project_manager_without_the_administrator_role_gets_the_logo(
 
 
 async def test_a_pdf_without_an_uploaded_logo_has_no_image(client, db_session) -> None:
-    await _create(db_session, "pm@example.com", "project_manager")
+    await _create(db_session, "pm@example.com", "manager")
     await _login_as(client, "pm@example.com")
 
     response = await _export(client, "pdf")
@@ -112,7 +112,7 @@ async def test_an_undecodable_logo_still_exports_with_a_warning(
 
 
 async def test_excel_and_csv_exports_ignore_the_logo(client, db_session) -> None:
-    await _create(db_session, "pm@example.com", "project_manager")
+    await _create(db_session, "pm@example.com", "manager")
     await _login_as(client, "pm@example.com")
     csv_before = (await _export(client, "csv")).content
 
@@ -194,7 +194,7 @@ async def test_a_very_wide_logo_is_capped_at_the_width_limit(
     client, db_session, monkeypatch
 ) -> None:
     await _create(db_session, "admin@example.com", "administrator")
-    await _create(db_session, "pm@example.com", "project_manager")
+    await _create(db_session, "pm@example.com", "manager")
     await _login_as(client, "admin@example.com")
     wide = png_bytes((500, 100))
     assert (

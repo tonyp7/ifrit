@@ -35,10 +35,13 @@ export function setServiceLineLock(payload: ServiceLineLockRequest) {
   return apiClient.put<TimeEntry[]>("/time-entries/lock", payload);
 }
 
-// Reporting screen's filter dropdowns: static, not period-scoped, one fetch on
-// mount.
-export function getReportFilters() {
-  return apiClient.get<TimesheetReportFilters>("/time-entries/report/filters");
+// Reporting screen's filter dropdowns: static, not period-scoped, fetched on
+// mount and again whenever "Only see my projects" is toggled.
+export function getReportFilters(mineOnly: boolean) {
+  const query = new URLSearchParams({ mine_only: String(mineOnly) });
+  return apiClient.get<TimesheetReportFilters>(
+    `/time-entries/report/filters?${query.toString()}`,
+  );
 }
 
 export interface TimesheetReportParams {
@@ -48,20 +51,30 @@ export interface TimesheetReportParams {
   serviceLineIds?: string[];
   consultantIds?: string[];
   statuses?: string[];
+  // Always sent: the screen's "Only see my projects" switch. The server treats an
+  // omitted value as "every project", which the screen never means by default.
+  mineOnly: boolean;
+}
+
+function reportQuery(params: TimesheetReportParams, base: Record<string, string>) {
+  const query = new URLSearchParams({
+    ...base,
+    start_date: params.startDate,
+    end_date: params.endDate,
+    mine_only: String(params.mineOnly),
+  });
+  for (const id of params.projectIds ?? []) query.append("project_ids", id);
+  for (const id of params.serviceLineIds ?? []) query.append("service_line_ids", id);
+  for (const id of params.consultantIds ?? []) query.append("consultant_ids", id);
+  for (const status of params.statuses ?? []) query.append("statuses", status);
+  return query;
 }
 
 // Reporting screen's row data: a flat, pre-sorted (consultant, service_line)
 // list. All four filter arrays are optional; omitted/empty means no restriction
 // on that dimension.
 export function getTimesheetReport(params: TimesheetReportParams) {
-  const query = new URLSearchParams({
-    start_date: params.startDate,
-    end_date: params.endDate,
-  });
-  for (const id of params.projectIds ?? []) query.append("project_ids", id);
-  for (const id of params.serviceLineIds ?? []) query.append("service_line_ids", id);
-  for (const id of params.consultantIds ?? []) query.append("consultant_ids", id);
-  for (const status of params.statuses ?? []) query.append("statuses", status);
+  const query = reportQuery(params, {});
   return apiClient.get<TimesheetReportResponse>(`/time-entries/report?${query.toString()}`);
 }
 
@@ -80,15 +93,6 @@ export function exportTimesheetReport(
   format: TimesheetReportExportFormat,
   params: TimesheetReportExportParams,
 ) {
-  const query = new URLSearchParams({
-    format,
-    period_type: params.periodType,
-    start_date: params.startDate,
-    end_date: params.endDate,
-  });
-  for (const id of params.projectIds ?? []) query.append("project_ids", id);
-  for (const id of params.serviceLineIds ?? []) query.append("service_line_ids", id);
-  for (const id of params.consultantIds ?? []) query.append("consultant_ids", id);
-  for (const status of params.statuses ?? []) query.append("statuses", status);
+  const query = reportQuery(params, { format, period_type: params.periodType });
   return apiClient.getBlob(`/time-entries/report/export?${query.toString()}`);
 }

@@ -67,10 +67,13 @@ async def list_projects(
     page: int,
     sort_by: str | None = None,
     sort_dir: str | None = None,
+    mine_only_for: uuid.UUID | None = None,
 ) -> tuple[list[tuple[Project, str | None, str | None]], int]:
     """Returns (project, vendor_company_name, client_company_name) tuples: the list
     screen shows company names, not raw ids. Names are None for a project with no
-    company link (see Project.vendor_company_id)."""
+    company link (see Project.vendor_company_id). `mine_only_for` narrows the list to
+    projects listing that user as a project manager, applied to the count too so
+    the page count matches."""
     vendor = aliased(Company)
     client = aliased(Company)
 
@@ -86,9 +89,12 @@ async def list_projects(
         "created_at": Project.created_at,
     }
 
-    base = select(Project).where(Project.is_active.is_(True))
+    filters = [Project.is_active.is_(True)]
     if search:
-        base = base.where(Project.name.ilike(f"%{search}%"))
+        filters.append(Project.name.ilike(f"%{search}%"))
+    if mine_only_for is not None:
+        filters.append(Project.project_managers.any(User.id == mine_only_for))
+    base = select(Project).where(*filters)
 
     total = (
         await db.execute(select(func.count()).select_from(base.subquery()))
@@ -98,10 +104,8 @@ async def list_projects(
         select(Project, vendor.legal_name, client.legal_name)
         .outerjoin(vendor, Project.vendor_company_id == vendor.id)
         .outerjoin(client, Project.client_company_id == client.id)
-        .where(Project.is_active.is_(True))
+        .where(*filters)
     )
-    if search:
-        stmt = stmt.where(Project.name.ilike(f"%{search}%"))
     order = resolve_sort(sortable_columns, sort_by, sort_dir, default=Project.created_at.desc())
     stmt = (
         # `Project.id` is a stable tie-breaker: see app/services/sorting.py.
@@ -276,11 +280,10 @@ async def _resolve_consultants(
 async def _resolve_project_managers(
     db: AsyncSession, user_ids: list[uuid.UUID]
 ) -> list[User]:
-    """Same shape as _resolve_consultants above, checking `project_manager` instead
-    of `consultant`. Holding the role is the only eligibility check; there is
+    """Same shape as _resolve_consultants above, checking `manager` instead of
+    `consultant`. Holding the role is the only eligibility check; there is
     deliberately no minimum-one or empty-assignment guard: a project with zero
-    project managers is valid, it simply can't have its timesheets validated by
-    anyone yet."""
+    project managers is valid, it simply shows up in nobody's "my projects" view."""
     if not user_ids:
         return []
     result = await db.execute(
@@ -295,10 +298,8 @@ async def _resolve_project_managers(
         )
     for user in users:
         role_names = {role.name for role in user.roles}
-        if not user.is_active or "project_manager" not in role_names:
-            raise InvalidReferenceError(
-                f"User {user.id} is not an active project_manager"
-            )
+        if not user.is_active or "manager" not in role_names:
+            raise InvalidReferenceError(f"User {user.id} is not an active manager")
     return users
 
 
@@ -370,7 +371,7 @@ async def delete_service_line(
     # against it, with no cascade and no warning. `_has_logged_time` is an
     # existence check, not filtered by value: a locked 0-hour gap-fill row (see
     # set_service_line_lock) still counts, since it exists precisely because a
-    # project_manager took a real, recorded action on it, not because anyone
+    # manager took a real, recorded action on it, not because anyone
     # actually logged zero hours.
     #
     # `draft` isn't exempt from this check the way it used to be, a draft project

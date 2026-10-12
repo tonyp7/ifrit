@@ -64,7 +64,7 @@ From here, an administrator typically:
 
 1. creates the [companies](guide/administration.md#companies) (your own as vendor, and your clients),
 2. creates the [users](guide/administration.md#users) and gives them roles,
-3. lets a project administrator set up [projects](guide/projects.md).
+3. lets a manager set up [projects](guide/projects.md).
 
 ## Stopping and removing
 

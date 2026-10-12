@@ -202,7 +202,7 @@ export function useReportGrid({ days, rows }: UseReportGridOptions) {
     }
 
     // Nothing changed since focus (a plain tab-through, or an edit that normalizes
-    // back to the same value): no save. Matters most here: a project_manager
+    // back to the same value): no save. Matters most here: a manager
     // tabbing through a consultant's row must not take over last_updated_by.
     if (isUnchangedHours(baseline, corrected)) return;
 

@@ -147,8 +147,8 @@ async def update_user(
         user.hashed_password = hash_password(data.password)
         user.token_version += 1
 
-    if "project_manager" not in data.roles and any(
-        role.name == "project_manager" for role in user.roles
+    if "manager" not in data.roles and any(
+        role.name == "manager" for role in user.roles
     ):
         # Same invariant as deactivation: only holders of the role can be assigned.
         await _clear_project_manager_assignments(db, user.id)

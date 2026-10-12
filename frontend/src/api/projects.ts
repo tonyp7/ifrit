@@ -13,10 +13,13 @@ export function listProjects(params: {
   page?: number;
   sort_by?: string;
   sort_dir?: "asc" | "desc";
+  // "Only see my projects": always sent, the server's default is every project.
+  mineOnly: boolean;
 }) {
   const query = new URLSearchParams();
   if (params.search) query.set("search", params.search);
   query.set("page", String(params.page ?? 1));
+  query.set("mine_only", String(params.mineOnly));
   if (params.sort_by) query.set("sort_by", params.sort_by);
   if (params.sort_dir) query.set("sort_dir", params.sort_dir);
   return apiClient.get<ProjectListResponse>(`/projects?${query.toString()}`);

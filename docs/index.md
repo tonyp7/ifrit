@@ -9,8 +9,8 @@ any company where timesheets are at the core of the business.
 
 - **Time tracking.** Consultants fill in their hours on a responsive timesheet, by week or by month,
   on a desktop or a phone.
-- **Projects.** Project administrators create projects with service lines and assign people to them.
-- **Management.** Project managers review the hours of the people on their projects, correct them,
+- **Projects.** Managers create projects with service lines and assign people to them.
+- **Management.** Managers review the hours of the people on their projects, correct them,
   lock a period once it is final and export it.
 - **Companies.** Vendor and client companies are recorded once and reused across projects.
 - **Reports.** Export the hours of individual contributors, whole projects or any combination as

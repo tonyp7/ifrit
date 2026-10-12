@@ -43,8 +43,9 @@ service_line_consultants = Table(
     ),
 )
 
-# Users (holding the project_manager role) assigned to review/lock a project's
-# timesheets. Only reflects current assignment, not history. Named
+# Users (holding the manager role) listed as a project's managers. A label, not a
+# permission: every manager may work on every project, and this only decides what their
+# "Only see my projects" views show. Only reflects current assignment, not history. Named
 # `project_manager_assignments`, distinct from `Project.project_managers` below (the
 # relationship attribute): same distinct-names precaution as
 # `service_line_consultants`/`ServiceLine.users` above, since `secondary=project_managers`

@@ -25,19 +25,19 @@ export const NAV_ITEMS: NavItem[] = [
     to: "/",
     label: "Timesheet",
     icon: CalendarClock,
-    requiredRoles: ["consultant", "project_admin", "project_manager", "administrator"],
+    requiredRoles: ["consultant", "manager", "administrator"],
   },
   {
     to: "/reporting",
     label: "Reporting",
     icon: FileChartColumn,
-    requiredRoles: ["project_manager"],
+    requiredRoles: ["manager"],
   },
   {
     to: "/projects",
     label: "Projects",
     icon: NotebookTabs,
-    requiredRoles: ["project_admin"],
+    requiredRoles: ["manager"],
   },
   {
     to: "/configuration",

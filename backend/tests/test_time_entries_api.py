@@ -74,7 +74,7 @@ async def _setup_project_with_consultant_and_pm(
         db_session, name_id=consultant_name_id, password="pw", role_name="consultant"
     )
     await create_user(
-        db_session, name_id=pm_name_id, password="pw", role_name="project_manager"
+        db_session, name_id=pm_name_id, password="pw", role_name="manager"
     )
     await client.post(
         "/api/auth/login",
@@ -121,7 +121,7 @@ async def _login_manager_first(client, db_session) -> None:
         db_session,
         name_id="project_admin@example.com",
         password="project_admin-pw",
-        role_name="project_admin",
+        role_name="manager",
     )
 
 
@@ -543,7 +543,7 @@ async def test_lock_rejects_non_project_manager(client, db_session) -> None:
             client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
         )
     )
-    await _login_as(client, "project_admin@example.com", "project_admin-pw")
+    await _login_as(client, "c@example.com")
     response = await client.put(
         "/api/time-entries/lock",
         json={
@@ -557,7 +557,7 @@ async def test_lock_rejects_non_project_manager(client, db_session) -> None:
     assert response.status_code == 403
 
 
-async def test_lock_rejects_project_manager_without_project_assignment(
+async def test_lock_allows_manager_not_listed_on_the_project(
     client, db_session
 ) -> None:
     await _login_manager_first(client, db_session)
@@ -567,8 +567,9 @@ async def test_lock_rejects_project_manager_without_project_assignment(
         )
     )
     await create_user(
-        db_session, name_id="other-pm@example.com", password="pw", role_name="project_manager"
+        db_session, name_id="other-pm@example.com", password="pw", role_name="manager"
     )
+    # Being listed as a project's manager is a view filter, not a permission.
     await _login_as(client, "other-pm@example.com")
     response = await client.put(
         "/api/time-entries/lock",
@@ -580,7 +581,7 @@ async def test_lock_rejects_project_manager_without_project_assignment(
             "locked": True,
         },
     )
-    assert response.status_code == 403
+    assert response.status_code == 200
 
 
 async def test_lock_rejects_unassigned_consultant(client, db_session) -> None:
@@ -837,7 +838,7 @@ async def test_override_rejects_non_project_manager(client, db_session) -> None:
     assert response.json()[0]["error"] == "not_authorized"
 
 
-async def test_override_rejects_project_manager_without_project_assignment(
+async def test_override_allows_manager_not_listed_on_the_project(
     client, db_session
 ) -> None:
     await _login_manager_first(client, db_session)
@@ -847,7 +848,7 @@ async def test_override_rejects_project_manager_without_project_assignment(
         )
     )
     await create_user(
-        db_session, name_id="other-pm2@example.com", password="pw", role_name="project_manager"
+        db_session, name_id="other-pm2@example.com", password="pw", role_name="manager"
     )
     await _login_as(client, "other-pm2@example.com")
     response = await client.put(
@@ -861,9 +862,8 @@ async def test_override_rejects_project_manager_without_project_assignment(
             }
         ],
     )
-    assert response.status_code == 207
-    assert response.json()[0]["ok"] is False
-    assert response.json()[0]["error"] == "not_authorized"
+    assert response.status_code == 200
+    assert response.json()[0]["ok"] is True
 
 
 async def test_override_respects_lock(client, db_session) -> None:
@@ -926,7 +926,7 @@ async def test_report_filters_requires_project_manager_role(client, db_session) 
     await _setup_project_with_consultant_and_pm(
         client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
     )
-    await _login_as(client, "project_admin@example.com", "project_admin-pw")
+    await _login_as(client, "c@example.com")
     response = await client.get("/api/time-entries/report/filters")
     assert response.status_code == 403
 
@@ -953,9 +953,9 @@ async def test_report_filters_includes_closed_project_and_inactive_line(
     assert service_line_id in {sl["service_line_id"] for sl in body["service_lines"]}
 
 
-async def test_report_excludes_projects_outside_scope(client, db_session) -> None:
-    """A consultant on a project the project_manager is NOT assigned to never shows
-    up in the (unfiltered) report."""
+async def test_report_mine_only_excludes_projects_not_listed(client, db_session) -> None:
+    """A consultant on a project the manager is NOT listed on shows up in the report
+    only without `mine_only`: the listing narrows the view, never the access."""
     await _login_manager_first(client, db_session)
     _project_id, service_line_id, _consultant_id, _pm_id = (
         await _setup_project_with_consultant_and_pm(
@@ -997,13 +997,18 @@ async def test_report_excludes_projects_outside_scope(client, db_session) -> Non
     )
 
     await _login_as(client, "pm@example.com")
-    response = await client.get(
-        "/api/time-entries/report",
-        params={"start_date": "2026-08-01", "end_date": "2026-08-31"},
-    )
-    items = response.json()["items"]
-    assert {r["service_line_id"] for r in items} == {service_line_id}
-    assert outside_id not in {r["user_id"] for r in items}
+    period = {"start_date": "2026-08-01", "end_date": "2026-08-31"}
+    mine = (
+        await client.get("/api/time-entries/report", params={**period, "mine_only": True})
+    ).json()["items"]
+    assert {r["service_line_id"] for r in mine} == {service_line_id}
+    assert outside_id not in {r["user_id"] for r in mine}
+
+    everything = (await client.get("/api/time-entries/report", params=period)).json()[
+        "items"
+    ]
+    assert outside_id in {r["user_id"] for r in everything}
+    assert len({r["service_line_id"] for r in everything}) == 2
 
 
 async def test_report_requires_project_manager_role(client, db_session) -> None:
@@ -1011,7 +1016,7 @@ async def test_report_requires_project_manager_role(client, db_session) -> None:
     await _setup_project_with_consultant_and_pm(
         client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
     )
-    await _login_as(client, "project_admin@example.com", "project_admin-pw")
+    await _login_as(client, "c@example.com")
     response = await client.get(
         "/api/time-entries/report",
         params={"start_date": "2026-08-01", "end_date": "2026-08-31"},
@@ -1232,7 +1237,7 @@ async def test_report_sort_order(client, db_session) -> None:
         full_name="Alice Anderson",
     )
     pm = await create_user(
-        db_session, name_id="pm@example.com", password="pw", role_name="project_manager"
+        db_session, name_id="pm@example.com", password="pw", role_name="manager"
     )
     await _login_as(client, "project_admin@example.com", "project_admin-pw")
     vendor = await create_company(db_session, legal_name="Acme Vendor", is_vendor=True)
@@ -1279,7 +1284,7 @@ async def test_export_requires_project_manager_role(client, db_session) -> None:
     await _setup_project_with_consultant_and_pm(
         client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
     )
-    await _login_as(client, "project_admin@example.com", "project_admin-pw")
+    await _login_as(client, "c@example.com")
     response = await client.get(
         "/api/time-entries/report/export",
         params={
@@ -1465,7 +1470,7 @@ async def test_export_escapes_formula_injection_in_project_service_line_consulta
         full_name='=HYPERLINK("http://evil.example","click")',
     )
     pm = await create_user(
-        db_session, name_id="pm@example.com", password="pw", role_name="project_manager"
+        db_session, name_id="pm@example.com", password="pw", role_name="manager"
     )
     await _login_as(client, "project_admin@example.com", "project_admin-pw")
     vendor = await create_company(db_session, legal_name="Acme Vendor", is_vendor=True)
@@ -1570,7 +1575,7 @@ async def test_export_filename_single_project_and_consultant(client, db_session)
     )
 
 
-async def test_export_filename_ignores_out_of_scope_project(client, db_session) -> None:
+async def test_export_filename_names_a_project_the_caller_does_not_manage(client, db_session) -> None:
     await _login_manager_first(client, db_session)
     await _setup_project_with_consultant_and_pm(
         client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
@@ -1605,9 +1610,10 @@ async def test_export_filename_ignores_out_of_scope_project(client, db_session) 
         },
     )
     assert response.status_code == 200
-    # Out-of-scope project id contributes nothing to the filename: falls back
-    # to period-only, same as no project selected at all.
-    assert response.headers["content-disposition"] == 'attachment; filename="august-2026.pdf"'
+    assert (
+        response.headers["content-disposition"]
+        == 'attachment; filename="august-2026_outside-scope-project.pdf"'
+    )
 
 
 async def test_export_week_period_filename_includes_iso_year(client, db_session) -> None:
@@ -1686,3 +1692,170 @@ async def test_lock_rejects_unbounded_or_inverted_range(client, db_session) -> N
             },
         )
         assert response.status_code == 422
+
+
+# --- "Only see my projects" (mine_only) on Reporting and export ---------------------
+
+
+async def _add_unlisted_project(client, db_session) -> tuple[str, str, str]:
+    """A second project, with its own consultant and 2 hours logged in August 2026,
+    that pm@example.com is NOT listed on. Leaves the client signed in as that
+    consultant."""
+    await create_user(
+        db_session,
+        name_id="outside@example.com",
+        password="pw",
+        role_name="consultant",
+        full_name="Out Sider",
+    )
+    await _login_as(client, "project_admin@example.com", "project_admin-pw")
+    vendor = await create_company(db_session, legal_name="Unlisted Vendor", is_vendor=True)
+    client_company = await create_company(db_session, legal_name="Unlisted Client")
+    currency = (await client.get("/api/currencies")).json()
+    outside_id = next(
+        u["id"]
+        for u in (await client.get("/api/users", params={"page": 1})).json()["items"]
+        if u["name_id"] == "outside@example.com"
+    )
+    project = await client.post(
+        "/api/projects",
+        json={
+            "name": "Unlisted Project",
+            "vendor_company_id": str(vendor.id),
+            "client_company_id": str(client_company.id),
+            "invoicing_currency": currency[0]["alpha_code"],
+            "project_type": "time_and_material",
+            "status": "active",
+        },
+    )
+    project_id = project.json()["id"]
+    line = await client.post(
+        f"/api/projects/{project_id}/service-lines",
+        json={
+            "name": "Unlisted Line",
+            "quantity": "5",
+            "uom": "hours",
+            "unit_price": "50.00",
+            "user_ids": [outside_id],
+        },
+    )
+    line_id = line.json()["id"]
+    await _login_as(client, "outside@example.com")
+    await client.put(
+        "/api/time-entries",
+        json=[{"service_line_id": line_id, "date": "2026-08-06", "hours": "2"}],
+    )
+    return project_id, line_id, outside_id
+
+
+async def test_report_filters_mine_only_lists_only_listed_projects(
+    client, db_session
+) -> None:
+    await _login_manager_first(client, db_session)
+    listed_id, _line, consultant_id, _pm = await _setup_project_with_consultant_and_pm(
+        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+    )
+    _unlisted_id, _unlisted_line, _outside = await _add_unlisted_project(client, db_session)
+
+    await _login_as(client, "pm@example.com")
+    body = (
+        await client.get("/api/time-entries/report/filters", params={"mine_only": True})
+    ).json()
+    assert [p["project_id"] for p in body["projects"]] == [listed_id]
+    assert {sl["project_id"] for sl in body["service_lines"]} == {listed_id}
+    assert [c["user_id"] for c in body["consultants"]] == [consultant_id]
+
+
+async def test_report_filters_without_mine_only_include_every_project_even_deleted(
+    client, db_session
+) -> None:
+    await _login_manager_first(client, db_session)
+    listed_id, _line, _consultant, _pm = await _setup_project_with_consultant_and_pm(
+        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+    )
+    unlisted_id, unlisted_line, outside_id = await _add_unlisted_project(client, db_session)
+    # Reporting is a historical record: a deleted project stays reachable.
+    await _login_as(client, "project_admin@example.com", "project_admin-pw")
+    assert (await client.post(f"/api/projects/{unlisted_id}/deactivate")).status_code == 204
+
+    await _login_as(client, "pm@example.com")
+    body = (await client.get("/api/time-entries/report/filters")).json()
+    assert {p["project_id"] for p in body["projects"]} == {listed_id, unlisted_id}
+    assert unlisted_line in {sl["service_line_id"] for sl in body["service_lines"]}
+    assert outside_id in {c["user_id"] for c in body["consultants"]}
+
+    rows = (
+        await client.get(
+            "/api/time-entries/report",
+            params={"start_date": "2026-08-01", "end_date": "2026-08-31"},
+        )
+    ).json()["items"]
+    assert unlisted_line in {r["service_line_id"] for r in rows}
+
+
+async def test_report_mine_only_drops_an_unlisted_project_id(client, db_session) -> None:
+    await _login_manager_first(client, db_session)
+    await _setup_project_with_consultant_and_pm(
+        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+    )
+    unlisted_id, unlisted_line, _outside = await _add_unlisted_project(client, db_session)
+
+    await _login_as(client, "pm@example.com")
+    params = {
+        "start_date": "2026-08-01",
+        "end_date": "2026-08-31",
+        "project_ids": [unlisted_id],
+    }
+    mine = await client.get("/api/time-entries/report", params={**params, "mine_only": True})
+    assert mine.status_code == 200
+    assert mine.json()["items"] == []
+
+    everything = (await client.get("/api/time-entries/report", params=params)).json()
+    assert {r["service_line_id"] for r in everything["items"]} == {unlisted_line}
+
+
+async def test_export_follows_mine_only(client, db_session) -> None:
+    await _login_manager_first(client, db_session)
+    await _setup_project_with_consultant_and_pm(
+        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+    )
+    await _add_unlisted_project(client, db_session)
+
+    await _login_as(client, "pm@example.com")
+    params = {
+        "format": "csv",
+        "period_type": "month",
+        "start_date": "2026-08-01",
+        "end_date": "2026-08-31",
+    }
+    mine = await client.get(
+        "/api/time-entries/report/export", params={**params, "mine_only": True}
+    )
+    assert "Unlisted Project" not in mine.content.decode("utf-8")
+
+    everything = await client.get("/api/time-entries/report/export", params=params)
+    assert "Unlisted Project,Unlisted Line,Out Sider,2026-08-06,2.0" in (
+        everything.content.decode("utf-8").splitlines()
+    )
+
+
+async def test_export_filename_has_no_project_part_for_an_unknown_project(
+    client, db_session
+) -> None:
+    await _login_manager_first(client, db_session)
+    await _setup_project_with_consultant_and_pm(
+        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+    )
+    await _login_as(client, "pm@example.com")
+    response = await client.get(
+        "/api/time-entries/report/export",
+        params={
+            "format": "pdf",
+            "period_type": "month",
+            "start_date": "2026-08-01",
+            "end_date": "2026-08-31",
+            "project_ids": ["00000000-0000-0000-0000-00000000dead"],
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["content-disposition"] == 'attachment; filename="august-2026.pdf"'

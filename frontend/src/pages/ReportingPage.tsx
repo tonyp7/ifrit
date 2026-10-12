@@ -15,6 +15,7 @@ import {
   FiletypePdfIcon,
   FiletypeXlsxIcon,
 } from "@/components/reporting/ExportFormatIcons";
+import { MineOnlySwitch } from "@/components/MineOnlySwitch";
 import { ProjectStatusFilterDropdown } from "@/components/reporting/ProjectStatusFilterDropdown";
 import { ReportFilterDropdown } from "@/components/reporting/ReportFilterDropdown";
 import { TimesheetDesktopGrid } from "@/components/timesheet/TimesheetDesktopGrid";
@@ -31,6 +32,7 @@ import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { useReportGrid } from "@/hooks/useReportGrid";
 import { downloadBlob } from "@/lib/download";
+import { pruneSelection } from "@/lib/reportFilters";
 import {
   defaultPeriodDate,
   defaultPeriodType,
@@ -45,7 +47,7 @@ import {
 } from "@/lib/timesheetDates";
 import type { PeriodType, TimesheetReportFilters, TimesheetReportRow } from "@/types/timesheet";
 
-// Reporting screen: a project_manager's cross-consultant view over timesheets,
+// Reporting screen: a manager's cross-consultant view over timesheets,
 // filterable by Consultants/Projects/Service Lines/Project Status, built on the
 // exact same shared grid mechanism My Timesheet uses (see
 // useReportGrid's own comment for how it differs from useTimesheetGrid).
@@ -64,20 +66,45 @@ export function ReportingPage() {
   const [consultantIds, setConsultantIds] = useState<string[]>([]);
   const [statuses, setStatuses] = useState<string[]>([]);
 
+  // "Only see my projects": on at every visit, never remembered. `requestedMineOnly`
+  // is what the switch shows; `mineOnly` is what the rows and exports use, and only
+  // catches up once the options for the new scope have arrived and the selection has
+  // been pruned to them, so the rows are never fetched with the new scope and a
+  // selection the new options no longer offer.
+  const [requestedMineOnly, setRequestedMineOnly] = useState(true);
+  const [mineOnly, setMineOnly] = useState(true);
+
   const [rows, setRows] = useState<TimesheetReportRow[]>([]);
 
   const days = useMemo(() => getPeriodDays(periodType, periodDate), [periodType, periodDate]);
 
-  // Static, not period-scoped: one fetch on mount, never re-fetched on period or
-  // filter changes: each dropdown always lists the caller's full set and is never
-  // narrowed by the other filters.
+  // Static, not period-scoped: fetched on mount and again for each switch toggle,
+  // never on period or filter changes: each dropdown always lists the full set for
+  // the chosen scope and is never narrowed by the other filters.
   useEffect(() => {
-    getReportFilters()
-      .then(setFilterOptions)
+    // A quick double toggle can resolve out of order: only the latest request may
+    // land.
+    let stale = false;
+    getReportFilters(requestedMineOnly)
+      .then((options) => {
+        if (stale) return;
+        const pruned = pruneSelection({ projectIds, serviceLineIds, consultantIds }, options);
+        setFilterOptions(options);
+        setProjectIds(pruned.projectIds);
+        setServiceLineIds(pruned.serviceLineIds);
+        setConsultantIds(pruned.consultantIds);
+        setMineOnly(requestedMineOnly);
+      })
       .catch((err: unknown) => {
+        if (stale) return;
         toast.error(err instanceof ApiError ? err.message : t("Failed to load filters."));
       });
-  }, [t]);
+    return () => {
+      stale = true;
+    };
+    // Only a scope change refetches: the selection is read for pruning, not watched.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [requestedMineOnly, t]);
 
   useEffect(() => {
     const start = toDayKey(days[0]);
@@ -89,13 +116,23 @@ export function ReportingPage() {
       serviceLineIds,
       consultantIds,
       statuses,
+      mineOnly,
     })
       .then((res) => setRows(res.items))
       .catch((err: unknown) => {
         toast.error(err instanceof ApiError ? err.message : t("Failed to load timesheets."));
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [periodType, periodDate, projectIds, serviceLineIds, consultantIds, statuses, t]);
+  }, [
+    periodType,
+    periodDate,
+    projectIds,
+    serviceLineIds,
+    consultantIds,
+    statuses,
+    mineOnly,
+    t,
+  ]);
 
   const {
     entries,
@@ -151,6 +188,7 @@ export function ReportingPage() {
         serviceLineIds,
         consultantIds,
         statuses,
+        mineOnly,
       });
       downloadBlob(blob, filename ?? `timesheet-report.${format}`);
     } catch (err) {
@@ -206,6 +244,7 @@ export function ReportingPage() {
             onChange={setServiceLineIds}
           />
           <ProjectStatusFilterDropdown selected={statuses} onChange={setStatuses} />
+          <MineOnlySwitch checked={requestedMineOnly} onCheckedChange={setRequestedMineOnly} />
         </div>
 
         <DropdownMenu>

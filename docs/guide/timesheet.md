@@ -23,7 +23,7 @@ periods; they simply reappear in any period where they hold hours.
 ### Add a service line
 
 Choose **Add service line** and pick one from the list. Only service lines that you are assigned to,
-on projects that are **Active**, are offered. If a line you expect is missing, ask a project admin to
+on projects that are **Active**, are offered. If a line you expect is missing, ask a manager to
 assign you to it, or to set its project to Active.
 
 ### Remove a service line
@@ -46,7 +46,7 @@ or not on a half hour is corrected automatically to a valid value when you leave
 | State | Meaning |
 |---|---|
 | **Open** | You can edit it. |
-| **Locked** | A project manager froze this period for you. It is read-only and shown with a distinct fill, even if you are no longer assigned. Only a project manager can unlock it. |
+| **Locked** | A manager froze this period for you. It is read-only and shown with a distinct fill, even if you are no longer assigned. Only a manager can unlock it. |
 | **Unassigned** | You are no longer assigned to this line, or its project is not Active. It is read-only and greyed out; hover for the reason. |
 
 A locked cell takes precedence over an unassigned one.

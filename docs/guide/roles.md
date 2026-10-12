@@ -1,14 +1,13 @@
 # Roles
 
-Every user has one or more of four roles. What a user sees and can do is the union of their roles.
-Roles are matched literally: being an `administrator` does not make someone a `project_admin`, and
-the other way round.
+Every user has one or more of three roles. What a user sees and can do is the union of their roles.
+Roles are matched literally: being an `administrator` does not make someone a `manager`, and the
+other way round.
 
 | Role | Purpose | Screens it adds |
 |---|---|---|
 | **Consultant** | Logs hours on service lines they are assigned to. | Timesheet (every user has it) |
-| **Project manager** | Reviews, corrects, locks and exports the hours of the people on the projects they manage. | Reporting |
-| **Project admin** | Creates and maintains projects, their service lines, assignments and documents. | Projects |
+| **Manager** | Creates and maintains projects, their service lines, assignments and documents, and reviews, corrects, locks and exports hours. On every project: being listed as a project's manager only decides what "Only see my projects" shows. | Reporting, Projects |
 | **Administrator** | Manages users, companies and application-wide settings. | Configuration |
 
 ## Navigation
@@ -19,8 +18,7 @@ roles give you, each as an icon with a tooltip:
 | Roles | Bar |
 |---|---|
 | Consultant | Timesheet, profile |
-| Project manager | Timesheet, Reporting, profile |
-| Project admin | Timesheet, Projects, profile |
+| Manager | Timesheet, Reporting, Projects, profile |
 | Administrator | Timesheet, Configuration, profile |
 | Several roles | Everything each of them grants |
 
@@ -38,9 +36,17 @@ devices.
   are deactivated, not erased, so past hours and reports stay intact.
 - **Hours** are entered in half-hour steps, from 0 to 24 per service line per day.
 
+## Upgrading from separate project roles
+
+Earlier versions had two roles, **project admin** (Projects) and **project manager** (Reporting,
+limited to the projects they were assigned to). Upgrading merges them into **manager** for
+everyone who held either one. Someone who held only one of them therefore gains the other's
+screens, and every manager can now act on every project. Before upgrading, an administrator should
+review the users who held only one of the two roles.
+
 ## Which guide to read
 
 - [Timesheet](timesheet.md): logging hours, for everyone with the consultant role.
-- [Reporting](reporting.md): review, correction, locking and export, for project managers.
-- [Projects](projects.md): projects, service lines, assignments and documents, for project admins.
+- [Reporting](reporting.md): review, correction, locking and export, for managers.
+- [Projects](projects.md): projects, service lines, assignments and documents, for managers.
 - [Administration](administration.md): users, companies and settings, for administrators.

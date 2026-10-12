@@ -9,7 +9,7 @@ from app.services import project_file_service
 router = APIRouter(
     prefix="/file-tags",
     tags=["file-tags"],
-    dependencies=[Depends(require_roles("project_admin"))],
+    dependencies=[Depends(require_roles("manager"))],
 )
 
 

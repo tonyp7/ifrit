@@ -21,7 +21,7 @@ async def _login_manager(client, db_session) -> None:
         db_session,
         name_id="project_admin@example.com",
         password="project_admin-pass",
-        role_name="project_admin",
+        role_name="manager",
     )
     response = await client.post(
         "/api/auth/login",

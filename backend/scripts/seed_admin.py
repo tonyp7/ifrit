@@ -3,15 +3,10 @@ before a real user-management flow exists. Credentials come from env vars
 (SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD); do not run against production data
 with the default password.
 
-Assigned `administrator`, `project_admin`, and `project_manager` roles, `projects` access
-is granted by the literal `project_admin` role only, not inferred from `administrator`, so
-an administrator-only bootstrap account would have no way to reach `projects` to
-verify/manage anything there. `project_manager` is included for the same reason: it's the
-only way to reach the `Reporting` sub-destination, and this bootstrap account is meant to
-be able to exercise every screen. Note `project_manager`'s actual authority is scoped to
-projects that user is assigned to, holding the role alone is what's needed to reach the
-nav entry point, not to see non-empty data there unless this account is also assigned as a
-project manager on a real project.
+Assigned `administrator` and `manager` roles: the `projects` and `Reporting` screens are
+granted by the literal `manager` role only, not inferred from `administrator`, so an
+administrator-only bootstrap account would have no way to reach them, and this bootstrap
+account is meant to be able to exercise every screen.
 
 Usage (from backend/): uv run python -m scripts.seed_admin
 """
@@ -25,7 +20,7 @@ from app.core.config import settings
 from app.core.db import async_session_factory
 from app.models.user import Role, User
 
-_BOOTSTRAP_ROLE_NAMES = ["administrator", "project_admin", "project_manager"]
+_BOOTSTRAP_ROLE_NAMES = ["administrator", "manager"]
 
 
 async def seed_admin() -> None:
