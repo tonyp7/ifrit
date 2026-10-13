@@ -10,9 +10,20 @@ import { ApiError } from "@/api/client";
 import { listCompanies } from "@/api/companies";
 import { listCurrencies } from "@/api/currencies";
 import { createProject, getProject, updateProject } from "@/api/projects";
+import { BillingMilestonesSection } from "@/components/projects/BillingMilestonesSection";
 import { ProjectManagersPicker } from "@/components/projects/ProjectManagersPicker";
 import { ServiceLinesTable } from "@/components/projects/ServiceLinesTable";
 import { SupportingDocumentsSection } from "@/components/projects/SupportingDocumentsSection";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field";
@@ -26,6 +37,7 @@ import {
 } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
+import { typeChangeNeedsConfirmation } from "@/lib/billingMilestones";
 import { formatMoney } from "@/lib/format";
 import type { CompanyListItem } from "@/types/company";
 import type { Currency } from "@/types/currency";
@@ -68,6 +80,9 @@ export function ProjectFormPage() {
   // chips can render a full_name without an extra fetch (same split as
   // ServiceLineFormDialog's selectedConsultants/user_ids).
   const [selectedManagers, setSelectedManagers] = useState<ProjectManager[]>([]);
+  // A type picked away from Fixed Price, waiting for the user to confirm that the project's
+  // billing milestones go on the next save.
+  const [pendingType, setPendingType] = useState<ProjectType | null>(null);
 
   const isReadOnly = project?.status === "closed";
 
@@ -214,6 +229,47 @@ export function ProjectFormPage() {
         () => resolve(null),
       )();
     });
+  }
+
+  /**
+   * Like `ensureSaved`, for billing milestones: these also need the *saved* project to be
+   * Fixed Price, so a project whose type was only just switched to Fixed Price on the form is
+   * saved first, the same way a new project is.
+   */
+  function ensureSavedAsFixedPrice(): Promise<string | null> {
+    if (!project) return ensureSaved();
+    if (project.project_type === "fixed_price") return Promise.resolve(project.id);
+    return new Promise((resolve) => {
+      void handleSubmit(
+        async (values) => {
+          setFormError(null);
+          try {
+            const updated = await updateProject(project.id, values);
+            setProject(updated);
+            resolve(updated.id);
+          } catch (err) {
+            setFormError(err instanceof ApiError ? err.message : t("Failed to save project."));
+            resolve(null);
+          }
+        },
+        () => resolve(null),
+      )();
+    });
+  }
+
+  /**
+   * Leaving Fixed Price drops the project's billing milestones on the next save: ask first
+   * when the saved project has any. Nothing is deleted here; confirming only changes the
+   * picker, so Close still backs out of it.
+   */
+  function handleTypeChange(value: string) {
+    const next = value as ProjectType;
+    const savedMilestones = project?.billing_milestones.length ?? 0;
+    if (typeChangeNeedsConfirmation(projectType, next, savedMilestones)) {
+      setPendingType(next);
+    } else {
+      setValue("project_type", next);
+    }
   }
 
   /**
@@ -383,7 +439,7 @@ export function ProjectFormPage() {
                   <Select
                     disabled={isReadOnly}
                     value={projectType}
-                    onValueChange={(value) => setValue("project_type", value as ProjectType)}
+                    onValueChange={handleTypeChange}
                   >
                     <SelectTrigger id="project_type">
                       <SelectValue />
@@ -460,6 +516,23 @@ export function ProjectFormPage() {
                 readOnly={isReadOnly}
               />
 
+              {/* Follows the type on the form, not the saved one: switching away hides the
+                  milestones (they go on the next save), switching back shows them again. */}
+              {projectType === "fixed_price" && (
+                <>
+                  <Separator />
+                  <BillingMilestonesSection
+                    projectId={project?.id ?? null}
+                    milestones={project?.billing_milestones ?? []}
+                    contractValue={project?.total_value ?? "0"}
+                    minorUnit={selectedCurrency?.minor_unit}
+                    onChanged={refreshProject}
+                    ensureSaved={ensureSavedAsFixedPrice}
+                    readOnly={isReadOnly}
+                  />
+                </>
+              )}
+
               {formError && <p className="text-sm text-destructive">{formError}</p>}
 
               <Separator />
@@ -477,6 +550,33 @@ export function ProjectFormPage() {
           </form>
         </CardContent>
       </Card>
+
+      <AlertDialog
+        open={pendingType !== null}
+        onOpenChange={(open) => !open && setPendingType(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>{t("Change the project type?")}</AlertDialogTitle>
+            <AlertDialogDescription>
+              {t(
+                "Changing project type will remove all billing milestones upon next save. Are you sure you want to continue?",
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>{t("Cancel", { ns: "common" })}</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                if (pendingType) setValue("project_type", pendingType);
+                setPendingType(null);
+              }}
+            >
+              {t("Change type")}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }

@@ -32,7 +32,7 @@ projects until you add yourself as one of its project managers.
 | **Vendor** | An active company flagged as a vendor. |
 | **Client** | Any active company. It can be the same company as the vendor. |
 | **Invoicing currency** | Chosen from the enabled currencies. |
-| **Type** | Time & Material, Fixed Price or Capped T&M. It is recorded with the project and does not change how hours are tracked. |
+| **Type** | Time & Material, Fixed Price or Capped T&M. It does not change how hours are tracked. Only Fixed Price projects have [billing milestones](#billing-milestones). |
 | **Status** | Draft, Active or Closed. |
 
 ### Status
@@ -87,10 +87,47 @@ Only users with the manager role can list, upload, tag, download and delete them
   master service agreement, non-disclosure agreement, invoice, addendum.
 - A closed project's documents stay downloadable but cannot be changed.
 
+## Billing milestones
+
+A **Fixed Price** project is billed in agreed installments, for example 30% at kick-off and 40% at
+delivery. Record them in the **Billing Milestones** section, which appears below the supporting
+documents only when the project type is Fixed Price.
+
+Each milestone has:
+
+- a **description**,
+- an optional **due date**, picked from a calendar and removable with **Clear date**,
+- a **value** in the project's currency.
+
+The table also shows each milestone's **%**: its share of the contract value, which is the
+project's total from its service lines. Only the value is saved. If the service lines change, the
+% shown changes and the value stays the same. Below the table, a **total** adds up the values.
+When that total differs from the contract value, a warning says so. It is only a reminder and
+never stops you saving.
+
+- **Add** opens a dialog. Type either a **%**, and the value is worked out from the contract value
+  and rounded to the currency (for example to whole yen), or a **value**, and the % follows. The %
+  field is unavailable while the project has no service lines.
+- Each row's **Actions** menu lets you **edit**, **duplicate** (the copy is added at the end) or
+  **delete** a milestone. Deleting asks for confirmation and removes the milestone for good.
+- **Reorder** milestones by dragging the handle at the start of a row. On a phone, press and hold
+  the handle first. With a keyboard, focus the handle, press Space, move with the arrow keys and
+  press Space again. The order is saved immediately.
+- On a **Closed** project the milestones are shown but cannot be changed.
+
+Changing the type of a project that has milestones away from Fixed Price asks you to confirm,
+because the milestones are **removed when you next save the project**. Until you save, nothing is
+lost: close the form without saving, or switch the type back to Fixed Price, and they are still
+there.
+
+Changing the project's **currency** keeps the values as they were. They are shown with the new
+currency's decimals. Correct any milestone that no longer fits by editing it.
+
 ## Duplicate and delete
 
 - **Duplicate** creates a new project in **Draft** status from an existing one (even a closed one),
-  copying the name, vendor, client, currency, type, project managers and every active service line
-  with its assigned consultants. Supporting documents and their tags are not copied.
+  copying the name, vendor, client, currency, type, project managers, every active service line
+  with its assigned consultants, and every billing milestone in its order. Supporting documents
+  and their tags are not copied.
 - **Delete** asks for confirmation and deactivates the project. It disappears from the list and
   cannot be restored from the application.

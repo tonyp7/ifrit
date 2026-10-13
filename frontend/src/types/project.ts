@@ -59,6 +59,25 @@ export interface ServiceLineInput {
   user_ids: string[];
 }
 
+// An agreed billing installment of a Fixed Price project. Only `value` is stored: the
+// percentage shown next to it is always derived from the project's current contract
+// value, so it follows service line changes while the value stays put.
+export interface BillingMilestone {
+  id: string;
+  project_id: string;
+  description: string;
+  // A plain calendar date, `YYYY-MM-DD`: parse it with `parseDayKey`, never `new Date()`.
+  due_date: string | null;
+  value: string;
+  position: number;
+}
+
+export interface BillingMilestoneInput {
+  description: string;
+  due_date: string | null;
+  value: string;
+}
+
 export interface ProjectListItem {
   id: string;
   name: string;
@@ -98,6 +117,8 @@ export interface ProjectDetail {
   updated_at: string;
   service_lines: ServiceLine[];
   project_managers: ProjectManager[];
+  // In saved order. Always empty unless the project is Fixed Price.
+  billing_milestones: BillingMilestone[];
   total_value: string;
 }
 
