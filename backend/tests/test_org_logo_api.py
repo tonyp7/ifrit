@@ -1,5 +1,6 @@
 import io
 import uuid
+from typing import Any
 
 from PIL import Image
 from sqlalchemy import func, select
@@ -22,7 +23,7 @@ async def _login(client, db_session, role: str) -> None:
     assert response.status_code == 200
 
 
-def _logo(data: bytes, name: str, content_type: str = "image/png") -> dict:
+def _logo(data: bytes, name: str, content_type: str = "image/png") -> dict[str, Any]:
     return {"file": (name, data, content_type)}
 
 
@@ -148,7 +149,7 @@ async def test_unknown_file_returns_404(client, db_session) -> None:
 # --- rejections leave the current logo unchanged ---------------------------------
 
 
-async def _assert_rejected(client, db_session, files: dict, status: int) -> None:
+async def _assert_rejected(client, db_session, files: dict[str, Any], status: int) -> None:
     current = (await client.get(LOGO_URL)).json()
     response = await client.put(LOGO_URL, files=files)
     assert response.status_code == status, response.text

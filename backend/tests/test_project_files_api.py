@@ -1,10 +1,11 @@
 import uuid
 from pathlib import Path
+from typing import Any
 
 from sqlalchemy import func, select
 
 from app.models.file import File, FileTag, ProjectFile, ProjectFileTag, StoredFile
-from app.models.project import Project
+from app.models.project import Project, ProjectStatus
 from tests.conftest import TEST_MAX_UPLOAD_BYTES
 from tests.factories import create_project, create_user, ensure_role
 
@@ -31,7 +32,7 @@ def _sample(extension: str) -> bytes:
     return (SAMPLES / f"sample{extension}").read_bytes()
 
 
-def _upload(name: str, data: bytes) -> dict:
+def _upload(name: str, data: bytes) -> dict[str, Any]:
     return {"file": (name, data, "application/octet-stream")}
 
 
@@ -361,7 +362,9 @@ async def test_identical_content_in_two_projects_keeps_separate_tags(
 # --- closed projects ---------------------------------------------------------------------
 
 
-async def _close(db_session, project: Project, status: str = "closed") -> None:
+async def _close(
+    db_session, project: Project, status: ProjectStatus = "closed"
+) -> None:
     project.status = status
     await db_session.commit()
 

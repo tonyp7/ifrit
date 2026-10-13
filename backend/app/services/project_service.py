@@ -1,7 +1,7 @@
 import uuid
 from decimal import ROUND_HALF_UP, Decimal
 
-from sqlalchemy import func, select
+from sqlalchemy import ColumnElement, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import aliased, selectinload
 
@@ -124,7 +124,7 @@ async def list_projects(
         "created_at": Project.created_at,
     }
 
-    filters = [Project.is_active.is_(True)]
+    filters: list[ColumnElement[bool]] = [Project.is_active.is_(True)]
     if search:
         filters.append(Project.name.ilike(f"%{search}%"))
     if mine_only_for is not None:

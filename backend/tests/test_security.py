@@ -95,4 +95,4 @@ def test_token_signed_with_other_algorithm_rejected() -> None:
 def test_settings_reject_unsupported_jwt_algorithm(algorithm: str) -> None:
     valid = settings.model_dump()
     with pytest.raises(ValidationError):
-        Settings(**{**valid, "jwt_algorithm": algorithm})
+        Settings.model_validate({**valid, "jwt_algorithm": algorithm})

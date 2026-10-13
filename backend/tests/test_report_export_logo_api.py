@@ -3,6 +3,7 @@ import io
 import logging
 import re
 import zipfile
+from typing import Any
 
 import pytest
 
@@ -80,6 +81,7 @@ async def test_a_deleted_logo_file_still_exports_with_a_warning(
 ) -> None:
     await _setup(client, db_session)
     logo = await storage.get_setting_file(db_session, "org_logo")
+    assert logo is not None
     storage.resolve_storage_path(logo.stored_file.bucket_key).unlink()
 
     with caplog.at_level(logging.WARNING):
@@ -99,6 +101,7 @@ async def test_an_undecodable_logo_still_exports_with_a_warning(
 ) -> None:
     await _setup(client, db_session)
     logo = await storage.get_setting_file(db_session, "org_logo")
+    assert logo is not None
     storage.resolve_storage_path(logo.stored_file.bucket_key).write_bytes(
         b"not an image"
     )
@@ -145,9 +148,9 @@ async def _save_settings(db_session, **values) -> None:
     await db_session.commit()
 
 
-def _capture_pdf_logo(monkeypatch) -> list:
+def _capture_pdf_logo(monkeypatch) -> list[Any]:
     """Records the logo handed to the PDF builder on each export (None when there is none)."""
-    seen: list = []
+    seen: list[Any] = []
     real = svc._build_pdf
 
     def build(rows, days, label, logo=None):
@@ -262,6 +265,7 @@ async def test_a_missing_logo_file_still_exports_when_the_logo_is_switched_on(
     await _setup(client, db_session)
     await _save_settings(db_session, export_logo=True, logo_height_mm=45)
     logo = await storage.get_setting_file(db_session, "org_logo")
+    assert logo is not None
     storage.resolve_storage_path(logo.stored_file.bucket_key).unlink()
 
     with caplog.at_level(logging.WARNING):

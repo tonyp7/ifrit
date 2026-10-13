@@ -1,9 +1,9 @@
 import importlib.util
 import uuid
 from pathlib import Path
-from typing import get_args
+from typing import Any, get_args
 
-from sqlalchemy import select
+from sqlalchemy import CheckConstraint, Table, select
 
 from app.models.project import ProjectReference, ReferenceKind
 from tests.factories import create_company, create_currency, create_user
@@ -26,7 +26,7 @@ async def _create_project(
     *,
     project_type: str = "time_and_material",
     status: str = "draft",
-) -> dict:
+) -> dict[str, Any]:
     vendor = await create_company(db_session, legal_name="Acme Vendor", is_vendor=True)
     client_company = await create_company(db_session, legal_name="Beta Client")
     await create_currency(
@@ -45,9 +45,9 @@ async def _create_project(
     return response.json()
 
 
-def _write_payload(project: dict, **overrides) -> dict:
+def _write_payload(project: dict[str, Any], **overrides) -> dict[str, Any]:
     """The project form's full PATCH body for `project`, with `overrides` applied."""
-    payload = {
+    payload: dict[str, Any] = {
         "name": project["name"],
         "vendor_company_id": project["vendor_company_id"],
         "client_company_id": project["client_company_id"],
@@ -67,13 +67,15 @@ async def _add(client, project_id: str, kind: str, value: str, label=None):
     )
 
 
-async def _references(client, project_id: str) -> list[dict]:
+async def _references(client, project_id: str) -> list[dict[str, Any]]:
     response = await client.get(f"/api/projects/{project_id}")
     assert response.status_code == 200
     return response.json()["project_references"]
 
 
-def _shape(references: list[dict]) -> list[tuple]:
+def _shape(
+    references: list[dict[str, Any]],
+) -> list[tuple[str, str | None, str]]:
     return [(r["kind"], r["label"], r["value"]) for r in references]
 
 
@@ -201,11 +203,12 @@ def test_the_kind_list_matches_the_migration() -> None:
     spec.loader.exec_module(module)
 
     assert tuple(module._REFERENCE_KINDS) == get_args(ReferenceKind)
+    table = ProjectReference.__table__
+    assert isinstance(table, Table)
     check = next(
-        c
-        for c in ProjectReference.__table__.constraints
-        if c.name == "ck_project_references_kind"
+        c for c in table.constraints if c.name == "ck_project_references_kind"
     )
+    assert isinstance(check, CheckConstraint)
     for kind in get_args(ReferenceKind):
         assert f"'{kind}'" in str(check.sqltext)
 

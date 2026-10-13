@@ -1,5 +1,6 @@
 import uuid
 from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import select
 
@@ -25,7 +26,7 @@ async def _create_project(
     alpha_code: str = "EUR",
     numeric_code: str = "978",
     minor_unit: int | None = 2,
-) -> dict:
+) -> dict[str, Any]:
     vendor = await create_company(db_session, legal_name="Acme Vendor", is_vendor=True)
     client_company = await create_company(db_session, legal_name="Beta Client")
     await create_currency(
@@ -47,9 +48,9 @@ async def _create_project(
     return response.json()
 
 
-def _write_payload(project: dict, **overrides) -> dict:
+def _write_payload(project: dict[str, Any], **overrides) -> dict[str, Any]:
     """The project form's full PATCH body for `project`, with `overrides` applied."""
-    payload = {
+    payload: dict[str, Any] = {
         "name": project["name"],
         "vendor_company_id": project["vendor_company_id"],
         "client_company_id": project["client_company_id"],
@@ -69,7 +70,7 @@ async def _add(client, project_id: str, description: str, value: str, **extra):
     )
 
 
-async def _milestones(client, project_id: str) -> list[dict]:
+async def _milestones(client, project_id: str) -> list[dict[str, Any]]:
     response = await client.get(f"/api/projects/{project_id}")
     assert response.status_code == 200
     return response.json()["billing_milestones"]

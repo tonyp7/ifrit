@@ -80,7 +80,7 @@ class File(Base):
         ForeignKey("stored_files.id", ondelete="RESTRICT"),
         nullable=False,
     )
-    kind: Mapped[str] = mapped_column(Text, nullable=False)
+    kind: Mapped[FileKind] = mapped_column(Text, nullable=False)
     # Audit only, not an access grant.
     uploaded_by: Mapped[uuid.UUID | None] = mapped_column(
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True

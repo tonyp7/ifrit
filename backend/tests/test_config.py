@@ -24,7 +24,7 @@ def _settings(monkeypatch: pytest.MonkeyPatch, **overrides: str | None) -> Setti
         else:
             monkeypatch.setenv(key, value)
     # _env_file=None: only the environment set above counts, not the developer's .env.
-    return Settings(_env_file=None)  # type: ignore[call-arg]
+    return Settings(_env_file=None)
 
 
 def test_storage_settings_are_read_from_the_environment(

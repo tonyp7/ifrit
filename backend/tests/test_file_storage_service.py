@@ -223,7 +223,8 @@ async def test_png_transparency_is_kept(db_session):
 
     image = _stored_image(file)
     assert image.mode == "RGBA"
-    assert image.getpixel((0, 0))[3] == 0
+    pixel = image.getpixel((0, 0))
+    assert isinstance(pixel, tuple) and pixel[3] == 0
 
 
 async def test_stored_bytes_are_not_the_original_bytes(db_session):
