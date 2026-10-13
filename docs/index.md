@@ -29,7 +29,7 @@ any company where timesheets are at the core of the business.
 | Run Ifrit locally | [Local Run](local-run.md) |
 
 
-### Uer Guide
+### User Guide
 
 | I want to... | Read |
 |---|---|
