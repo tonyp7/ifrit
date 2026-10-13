@@ -1,14 +1,16 @@
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Literal
 
 from sqlalchemy import (
     CheckConstraint,
     Column,
+    Date,
     DateTime,
     ForeignKey,
     Index,
+    Integer,
     Numeric,
     String,
     Table,
@@ -124,6 +126,11 @@ class Project(Base):
     project_managers: Mapped[list[User]] = relationship(
         "User", secondary=project_manager_assignments
     )
+    billing_milestones: Mapped[list[BillingMilestone]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="(BillingMilestone.position, BillingMilestone.created_at)",
+    )
 
     __table_args__ = (
         CheckConstraint(
@@ -176,4 +183,52 @@ class ServiceLine(Base):
             "project_id",
             postgresql_where=is_active.is_(True),
         ),
+    )
+
+
+class BillingMilestone(Base):
+    """An agreed billing installment of a Fixed Price project (e.g. "30% at kick-off").
+
+    Hard-deleted, unlike service lines: nothing references a milestone (an invoice copies
+    its description and value rather than linking to it), so there is no history that a
+    soft-delete flag would protect.
+    """
+
+    __tablename__ = "billing_milestones"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    description: Mapped[str] = mapped_column(String(255), nullable=False)
+    # A calendar date, no time: stored as DATE so it reads back as the same day in every
+    # time zone.
+    due_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # The only stored amount; the percentage shown next to it is always derived from the
+    # project's current contract value. Same Numeric(14, 4) as a service line's unit
+    # price, so a value saved under a 3-decimal currency still fits after the project's
+    # currency changes.
+    value: Mapped[Decimal] = mapped_column(Numeric(14, 4), nullable=False)
+    # Ordering key only: gaps after a delete are harmless, and a reorder renumbers the
+    # whole project 0..n-1. Deliberately not unique per project, or that renumbering
+    # would collide with itself mid-update.
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    project: Mapped[Project] = relationship(back_populates="billing_milestones")
+
+    __table_args__ = (
+        CheckConstraint("value >= 0", name="ck_billing_milestones_value"),
+        Index("ix_billing_milestones_project_id_position", "project_id", "position"),
     )

@@ -10,7 +10,7 @@ from app.models.file import (
     SettingFile,
     StoredFile,
 )
-from app.models.project import Project, ServiceLine
+from app.models.project import BillingMilestone, Project, ServiceLine
 from app.models.time_entry import TimeEntry
 from app.models.user import Role, User
 
@@ -19,6 +19,7 @@ triggers.attach()
 __all__ = [
     "Address",
     "AppSetting",
+    "BillingMilestone",
     "Company",
     "Currency",
     "File",

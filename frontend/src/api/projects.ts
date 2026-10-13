@@ -1,6 +1,8 @@
 import { apiClient } from "@/api/client";
 import type { FileTag, ProjectFile } from "@/types/file";
 import type {
+  BillingMilestone,
+  BillingMilestoneInput,
   ProjectDetail,
   ProjectInput,
   ProjectListResponse,
@@ -62,6 +64,37 @@ export function updateServiceLine(
 
 export function deleteServiceLine(projectId: string, lineId: string) {
   return apiClient.delete<void>(`/projects/${projectId}/service-lines/${lineId}`);
+}
+
+export function addBillingMilestone(projectId: string, payload: BillingMilestoneInput) {
+  return apiClient.post<BillingMilestone>(
+    `/projects/${projectId}/billing-milestones`,
+    payload,
+  );
+}
+
+export function updateBillingMilestone(
+  projectId: string,
+  milestoneId: string,
+  payload: BillingMilestoneInput,
+) {
+  return apiClient.patch<BillingMilestone>(
+    `/projects/${projectId}/billing-milestones/${milestoneId}`,
+    payload,
+  );
+}
+
+export function deleteBillingMilestone(projectId: string, milestoneId: string) {
+  return apiClient.delete<void>(`/projects/${projectId}/billing-milestones/${milestoneId}`);
+}
+
+/** Saves a new order: `ids` must be the project's complete milestone list, or the server
+ * answers 409 (another session added or removed one). */
+export function reorderBillingMilestones(projectId: string, ids: string[]) {
+  return apiClient.patch<BillingMilestone[]>(
+    `/projects/${projectId}/billing-milestones/order`,
+    { ids },
+  );
 }
 
 export function listProjectFiles(projectId: string) {

@@ -1,8 +1,8 @@
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 from app.models.project import ProjectStatus, ProjectType, Uom
 
@@ -85,6 +85,43 @@ class ServiceLineOut(BaseModel):
     users: list[ServiceLineConsultantOut]
 
 
+# NUMERIC(14, 4) holds at most 10 integer digits: anything larger would fail in the
+# database rather than as a validation error.
+_MILESTONE_VALUE_LIMIT = Decimal(10) ** 10
+
+
+class BillingMilestoneWrite(BaseModel):
+    description: str = Field(max_length=255)
+    due_date: date | None = None
+    # No percentage: it is always derived from the project's current contract value, so
+    # storing one would let it drift from the value it was computed from.
+    value: Decimal
+
+    @model_validator(mode="after")
+    def check_fields(self) -> BillingMilestoneWrite:
+        if not self.description.strip():
+            raise ValueError("description must not be empty")
+        if self.value < 0:
+            raise ValueError("value must not be negative")
+        if self.value >= _MILESTONE_VALUE_LIMIT:
+            raise ValueError("value is too large")
+        return self
+
+
+class BillingMilestoneOrder(BaseModel):
+    # The project's complete list of milestone ids, in the new order.
+    ids: list[uuid.UUID]
+
+
+class BillingMilestoneOut(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    description: str
+    due_date: date | None
+    value: Decimal
+    position: int
+
+
 class ProjectDetail(BaseModel):
     id: uuid.UUID
     name: str
@@ -104,4 +141,6 @@ class ProjectDetail(BaseModel):
     updated_at: datetime
     service_lines: list[ServiceLineOut]
     project_managers: list[ProjectManagerOut]
+    # In saved order. Always empty unless the project is Fixed Price.
+    billing_milestones: list[BillingMilestoneOut]
     total_value: Decimal

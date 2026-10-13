@@ -7,10 +7,12 @@ from sqlalchemy.orm import aliased, selectinload
 
 from app.models.company import Company
 from app.models.currency import Currency
-from app.models.project import Project, ServiceLine
+from app.models.project import BillingMilestone, Project, ServiceLine
 from app.models.time_entry import TimeEntry
 from app.models.user import User
 from app.schemas.project import (
+    BillingMilestoneOut,
+    BillingMilestoneWrite,
     ProjectDetail,
     ProjectManagerOut,
     ProjectWrite,
@@ -31,6 +33,21 @@ class ProjectReadOnlyError(Exception):
 class InvalidReferenceError(Exception):
     """Raised when a write references a vendor/client/currency/consultant that
     doesn't satisfy the app-level rule for that reference."""
+
+
+class MilestonesNotAllowedError(Exception):
+    """Raised when a billing milestone write targets a project that is not Fixed Price:
+    only Fixed Price contracts are billed in installments."""
+
+
+class InvalidMilestoneValueError(Exception):
+    """Raised when a billing milestone's value has more decimal places than the
+    project's currency allows."""
+
+
+class MilestoneOrderMismatchError(Exception):
+    """Raised when a reorder does not list exactly the project's current milestones,
+    typically because another session added or deleted one in the meantime."""
 
 
 class ServiceLineHasLoggedTimeError(Exception):
@@ -123,6 +140,7 @@ async def get_project(db: AsyncSession, project_id: uuid.UUID) -> Project | None
         .options(
             selectinload(Project.service_lines).selectinload(ServiceLine.users),
             selectinload(Project.project_managers),
+            selectinload(Project.billing_milestones),
             selectinload(Project.vendor_company),
             selectinload(Project.client_company),
         )
@@ -191,6 +209,13 @@ async def update_project(
         if other_fields != current or manager_ids_changed:
             raise ProjectReadOnlyError("Only status can change on a closed project")
 
+    # Only Fixed Price contracts are billed in installments, so a project leaving that
+    # type loses its milestones, in the same commit as the type change: a save that
+    # fails keeps them, and no other project type is ever left carrying milestones it
+    # couldn't edit or delete.
+    if project.project_type == "fixed_price" and data.project_type != "fixed_price":
+        project.billing_milestones.clear()
+
     for field, value in data.model_dump(exclude={"project_manager_ids"}).items():
         setattr(project, field, value)
     project.project_managers = await _resolve_project_managers(
@@ -242,6 +267,16 @@ async def duplicate_project(db: AsyncSession, source: Project) -> Project:
                 # A deleted user stays on the source line (history) but isn't carried
                 # over: the copy is a fresh start, and only active users can be saved.
                 users=[u for u in line.users if u.is_active],
+            )
+        )
+    # Part of the contract, like the service lines: copied with their order.
+    for milestone in source.billing_milestones:
+        new_project.billing_milestones.append(
+            BillingMilestone(
+                description=milestone.description,
+                due_date=milestone.due_date,
+                value=milestone.value,
+                position=milestone.position,
             )
         )
     db.add(new_project)
@@ -401,6 +436,138 @@ async def delete_service_line(
         await db.commit()
 
 
+async def _lock_project(db: AsyncSession, project: Project) -> None:
+    # Serializes milestone appends and reorders on one project: two concurrent appends
+    # would otherwise read the same max(position), and two reorders could interleave.
+    await db.execute(
+        select(Project.id).where(Project.id == project.id).with_for_update()
+    )
+
+
+def _check_milestones_writable(project: Project) -> None:
+    if project.status == "closed":
+        raise ProjectReadOnlyError(
+            "Cannot change billing milestones on a closed project"
+        )
+    if project.project_type != "fixed_price":
+        raise MilestonesNotAllowedError(
+            "Billing milestones exist only on Fixed Price projects"
+        )
+
+
+async def _check_milestone_value(
+    db: AsyncSession, project: Project, value: Decimal
+) -> None:
+    result = await db.execute(
+        select(Currency.minor_unit).where(
+            Currency.alpha_code == project.invoicing_currency
+        )
+    )
+    minor_unit = result.scalar_one_or_none()
+    # A currency without a minor unit (e.g. gold) is still entered and shown with 2
+    # decimals, the same fallback the amount display uses.
+    allowed = 2 if minor_unit is None else minor_unit
+    exponent = value.normalize().as_tuple().exponent
+    decimals = -exponent if isinstance(exponent, int) and exponent < 0 else 0
+    if decimals > allowed:
+        raise InvalidMilestoneValueError(
+            f"value must have at most {allowed} decimal places for "
+            f"{project.invoicing_currency}"
+        )
+
+
+async def get_billing_milestone(
+    db: AsyncSession, project_id: uuid.UUID, milestone_id: uuid.UUID
+) -> BillingMilestone | None:
+    result = await db.execute(
+        select(BillingMilestone).where(
+            BillingMilestone.id == milestone_id,
+            BillingMilestone.project_id == project_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def add_billing_milestone(
+    db: AsyncSession, project: Project, data: BillingMilestoneWrite
+) -> BillingMilestone:
+    _check_milestones_writable(project)
+    await _check_milestone_value(db, project, data.value)
+    await _lock_project(db, project)
+    result = await db.execute(
+        select(func.max(BillingMilestone.position)).where(
+            BillingMilestone.project_id == project.id
+        )
+    )
+    last = result.scalar_one_or_none()
+    milestone = BillingMilestone(
+        project_id=project.id,
+        description=data.description.strip(),
+        due_date=data.due_date,
+        value=data.value,
+        position=0 if last is None else last + 1,
+    )
+    db.add(milestone)
+    await db.commit()
+    return milestone
+
+
+async def update_billing_milestone(
+    db: AsyncSession,
+    project: Project,
+    milestone: BillingMilestone,
+    data: BillingMilestoneWrite,
+) -> BillingMilestone:
+    _check_milestones_writable(project)
+    await _check_milestone_value(db, project, data.value)
+    milestone.description = data.description.strip()
+    milestone.due_date = data.due_date
+    milestone.value = data.value
+    await db.commit()
+    return milestone
+
+
+async def delete_billing_milestone(
+    db: AsyncSession, project: Project, milestone: BillingMilestone
+) -> None:
+    _check_milestones_writable(project)
+    await db.delete(milestone)
+    await db.commit()
+
+
+async def reorder_billing_milestones(
+    db: AsyncSession, project: Project, ids: list[uuid.UUID]
+) -> list[BillingMilestone]:
+    _check_milestones_writable(project)
+    await _lock_project(db, project)
+    result = await db.execute(
+        select(BillingMilestone).where(BillingMilestone.project_id == project.id)
+    )
+    by_id = {m.id: m for m in result.scalars()}
+    # The client sends the order it sees; if that no longer matches what is stored, a
+    # milestone was added or removed elsewhere and applying a partial order would
+    # silently misplace it.
+    if len(ids) != len(by_id) or set(ids) != set(by_id):
+        raise MilestoneOrderMismatchError(
+            "The milestone list has changed; reload and try again"
+        )
+    for position, milestone_id in enumerate(ids):
+        by_id[milestone_id].position = position
+    await db.commit()
+    return [by_id[milestone_id] for milestone_id in ids]
+
+
+def to_billing_milestone_out(milestone: BillingMilestone) -> BillingMilestoneOut:
+    return BillingMilestoneOut(
+        id=milestone.id,
+        project_id=milestone.project_id,
+        description=milestone.description,
+        due_date=milestone.due_date,
+        value=milestone.value,
+        position=milestone.position,
+    )
+
+
 def to_consultant_out(user: User) -> ServiceLineConsultantOut:
     return ServiceLineConsultantOut(
         id=user.id, full_name=user.full_name, is_active=user.is_active
@@ -446,5 +613,11 @@ def to_project_detail(project: Project) -> ProjectDetail:
         updated_at=project.updated_at,
         service_lines=[to_service_line_out(line) for line in active_lines],
         project_managers=[to_project_manager_out(u) for u in project.project_managers],
+        billing_milestones=[
+            to_billing_milestone_out(m)
+            for m in sorted(
+                project.billing_milestones, key=lambda m: (m.position, m.created_at)
+            )
+        ],
         total_value=project_total_value(project),
     )

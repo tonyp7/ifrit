@@ -6,10 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import require_roles
 from app.core.db import get_db
 from app.models.file import ProjectFile
-from app.models.project import Project, ServiceLine
+from app.models.project import BillingMilestone, Project, ServiceLine
 from app.models.user import User
 from app.schemas.file import ProjectFileOut
 from app.schemas.project import (
+    BillingMilestoneOrder,
+    BillingMilestoneOut,
+    BillingMilestoneWrite,
     ProjectDetail,
     ProjectListItem,
     ProjectListResponse,
@@ -19,7 +22,10 @@ from app.schemas.project import (
 )
 from app.services import file_storage_service, project_file_service, project_service
 from app.services.project_service import (
+    InvalidMilestoneValueError,
     InvalidReferenceError,
+    MilestoneOrderMismatchError,
+    MilestonesNotAllowedError,
     ProjectReadOnlyError,
     ServiceLineHasLoggedTimeError,
 )
@@ -51,6 +57,19 @@ async def _get_service_line_or_404(
             status_code=status.HTTP_404_NOT_FOUND, detail="Service line not found"
         )
     return line
+
+
+async def _get_billing_milestone_or_404(
+    db: AsyncSession, project_id: uuid.UUID, milestone_id: uuid.UUID
+) -> BillingMilestone:
+    milestone = await project_service.get_billing_milestone(
+        db, project_id, milestone_id
+    )
+    if milestone is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Billing milestone not found"
+        )
+    return milestone
 
 
 async def _validate_references_or_422(db: AsyncSession, payload: ProjectWrite) -> None:
@@ -220,6 +239,102 @@ async def delete_service_line(
     try:
         await project_service.delete_service_line(db, project, line)
     except (ProjectReadOnlyError, ServiceLineHasLoggedTimeError) as err:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(err)
+        ) from err
+
+
+@router.post(
+    "/{project_id}/billing-milestones",
+    response_model=BillingMilestoneOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_billing_milestone(
+    project_id: uuid.UUID,
+    payload: BillingMilestoneWrite,
+    db: AsyncSession = Depends(get_db),
+) -> BillingMilestoneOut:
+    project = await _get_project_or_404(db, project_id)
+    try:
+        milestone = await project_service.add_billing_milestone(db, project, payload)
+    except (ProjectReadOnlyError, MilestonesNotAllowedError) as err:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(err)
+        ) from err
+    except InvalidMilestoneValueError as err:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(err)
+        ) from err
+    return project_service.to_billing_milestone_out(milestone)
+
+
+# Declared before the `{milestone_id}` route below: both are PATCH on the same path
+# shape, and routes match in declaration order, so the other way round "order" would be
+# taken for a milestone id and rejected as an invalid UUID.
+@router.patch(
+    "/{project_id}/billing-milestones/order",
+    response_model=list[BillingMilestoneOut],
+)
+async def reorder_billing_milestones(
+    project_id: uuid.UUID,
+    payload: BillingMilestoneOrder,
+    db: AsyncSession = Depends(get_db),
+) -> list[BillingMilestoneOut]:
+    project = await _get_project_or_404(db, project_id)
+    try:
+        milestones = await project_service.reorder_billing_milestones(
+            db, project, payload.ids
+        )
+    except (
+        ProjectReadOnlyError,
+        MilestonesNotAllowedError,
+        MilestoneOrderMismatchError,
+    ) as err:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(err)
+        ) from err
+    return [project_service.to_billing_milestone_out(m) for m in milestones]
+
+
+@router.patch(
+    "/{project_id}/billing-milestones/{milestone_id}",
+    response_model=BillingMilestoneOut,
+)
+async def update_billing_milestone(
+    project_id: uuid.UUID,
+    milestone_id: uuid.UUID,
+    payload: BillingMilestoneWrite,
+    db: AsyncSession = Depends(get_db),
+) -> BillingMilestoneOut:
+    project = await _get_project_or_404(db, project_id)
+    milestone = await _get_billing_milestone_or_404(db, project_id, milestone_id)
+    try:
+        milestone = await project_service.update_billing_milestone(
+            db, project, milestone, payload
+        )
+    except (ProjectReadOnlyError, MilestonesNotAllowedError) as err:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(err)
+        ) from err
+    except InvalidMilestoneValueError as err:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(err)
+        ) from err
+    return project_service.to_billing_milestone_out(milestone)
+
+
+@router.delete(
+    "/{project_id}/billing-milestones/{milestone_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_billing_milestone(
+    project_id: uuid.UUID, milestone_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> None:
+    project = await _get_project_or_404(db, project_id)
+    milestone = await _get_billing_milestone_or_404(db, project_id, milestone_id)
+    try:
+        await project_service.delete_billing_milestone(db, project, milestone)
+    except (ProjectReadOnlyError, MilestonesNotAllowedError) as err:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=str(err)
         ) from err
