@@ -4,7 +4,39 @@ from decimal import Decimal
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.models.project import ProjectStatus, ProjectType, Uom
+from app.models.project import ProjectStatus, ProjectType, ReferenceKind, Uom
+
+# A guardrail against a runaway client or paste, far above what a real project carries.
+MAX_PROJECT_REFERENCES = 50
+_REFERENCE_VALUE_MAX = 255
+_REFERENCE_LABEL_MAX = 100
+
+
+class ProjectReferenceWrite(BaseModel):
+    kind: ReferenceKind
+    # Required for `custom` and forbidden for every other kind, whose name is the kind.
+    label: str | None = None
+    value: str
+
+    @model_validator(mode="after")
+    def check_fields(self) -> ProjectReferenceWrite:
+        self.value = self.value.strip()
+        if not self.value:
+            raise ValueError("value must not be empty")
+        if len(self.value) > _REFERENCE_VALUE_MAX:
+            raise ValueError(f"value must be at most {_REFERENCE_VALUE_MAX} characters")
+        if self.kind == "custom":
+            label = (self.label or "").strip()
+            if not label:
+                raise ValueError("label is required for a custom reference")
+            if len(label) > _REFERENCE_LABEL_MAX:
+                raise ValueError(
+                    f"label must be at most {_REFERENCE_LABEL_MAX} characters"
+                )
+            self.label = label
+        elif self.label is not None:
+            raise ValueError("label is only allowed on a custom reference")
+        return self
 
 
 class ProjectWrite(BaseModel):
@@ -122,6 +154,21 @@ class BillingMilestoneOut(BaseModel):
     position: int
 
 
+class ProjectReferenceOrder(BaseModel):
+    # The project's complete list of reference ids, in the new order.
+    ids: list[uuid.UUID]
+
+
+class ProjectReferenceOut(BaseModel):
+    id: uuid.UUID
+    project_id: uuid.UUID
+    kind: ReferenceKind
+    # Only on a `custom` reference.
+    label: str | None
+    value: str
+    position: int
+
+
 class ProjectDetail(BaseModel):
     id: uuid.UUID
     name: str
@@ -141,6 +188,8 @@ class ProjectDetail(BaseModel):
     updated_at: datetime
     service_lines: list[ServiceLineOut]
     project_managers: list[ProjectManagerOut]
+    # In saved order.
+    project_references: list[ProjectReferenceOut]
     # In saved order. Always empty unless the project is Fixed Price.
     billing_milestones: list[BillingMilestoneOut]
     total_value: Decimal

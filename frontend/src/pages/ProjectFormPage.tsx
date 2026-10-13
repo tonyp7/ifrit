@@ -12,6 +12,7 @@ import { listCurrencies } from "@/api/currencies";
 import { createProject, getProject, updateProject } from "@/api/projects";
 import { BillingMilestonesSection } from "@/components/projects/BillingMilestonesSection";
 import { ProjectManagersPicker } from "@/components/projects/ProjectManagersPicker";
+import { ProjectReferencesSection } from "@/components/projects/ProjectReferencesSection";
 import { ServiceLinesTable } from "@/components/projects/ServiceLinesTable";
 import { SupportingDocumentsSection } from "@/components/projects/SupportingDocumentsSection";
 import {
@@ -485,6 +486,16 @@ export function ProjectFormPage() {
                   </p>
                 </Field>
               </div>
+
+              <Separator />
+
+              <ProjectReferencesSection
+                projectId={project?.id ?? null}
+                references={project?.project_references ?? []}
+                onChanged={refreshProject}
+                ensureSaved={ensureSaved}
+                readOnly={isReadOnly}
+              />
 
               <Separator />
 

@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, get_args
 
 from sqlalchemy import (
     CheckConstraint,
@@ -14,6 +14,7 @@ from sqlalchemy import (
     Numeric,
     String,
     Table,
+    func,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -27,6 +28,19 @@ if TYPE_CHECKING:
 ProjectType = Literal["time_and_material", "fixed_price", "capped_tm"]
 ProjectStatus = Literal["draft", "active", "closed"]
 Uom = Literal["hours", "days", "ea"]
+# What a project reference is, in plain business terms. Deliberately neutral: the names are
+# this app's own vocabulary, and how a kind maps onto any invoicing or e-invoicing syntax is
+# not stored here. `custom` is the only kind that carries a user-written label.
+ReferenceKind = Literal[
+    "purchase_order",
+    "sales_order",
+    "contract",
+    "buyer_reference",
+    "accounting_reference",
+    "project_reference",
+    "document_reference",
+    "custom",
+]
 
 service_line_consultants = Table(
     "service_line_consultants",
@@ -131,6 +145,11 @@ class Project(Base):
         cascade="all, delete-orphan",
         order_by="(BillingMilestone.position, BillingMilestone.created_at)",
     )
+    project_references: Mapped[list[ProjectReference]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="(ProjectReference.position, ProjectReference.created_at)",
+    )
 
     __table_args__ = (
         CheckConstraint(
@@ -232,3 +251,68 @@ class BillingMilestone(Base):
         CheckConstraint("value >= 0", name="ck_billing_milestones_value"),
         Index("ix_billing_milestones_project_id_position", "project_id", "position"),
     )
+
+
+class ProjectReference(Base):
+    """A value a buyer expects on invoices for a project: a purchase order number, a
+    contract ID, a cost center.
+
+    Hard-deleted and replaced as a whole whenever the project is saved: nothing refers to
+    a reference (an invoice copies its value rather than linking to it), so there is no
+    history that a soft-delete flag or a stable row id would protect.
+    """
+
+    __tablename__ = "project_references"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    project_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("projects.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    kind: Mapped[ReferenceKind] = mapped_column(String(30), nullable=False)
+    # Set exactly when kind is `custom` (see the check below). A typed kind's name is not
+    # stored: it is the kind itself, translated by whoever shows it.
+    label: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    value: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Entry order. Rewritten 0..n-1 on every save, so not unique per project.
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    project: Mapped[Project] = relationship(back_populates="project_references")
+
+    __table_args__ = (
+        CheckConstraint(
+            "kind IN ("
+            + ", ".join(f"'{kind}'" for kind in get_args(ReferenceKind))
+            + ")",
+            name="ck_project_references_kind",
+        ),
+        CheckConstraint(
+            "(kind = 'custom') = (label IS NOT NULL)",
+            name="ck_project_references_label",
+        ),
+        Index("ix_project_references_project_id_position", "project_id", "position"),
+    )
+
+
+# The same reference twice on a project is one value typed twice. Case is ignored because
+# `PO-17` and `po-17` are, in practice, that same number; the service lowercases with the
+# same function so what it accepts is never refused here.
+Index(
+    "uq_project_references_project_kind_label_value",
+    ProjectReference.project_id,
+    ProjectReference.kind,
+    func.lower(func.coalesce(ProjectReference.label, "")),
+    func.lower(ProjectReference.value),
+    unique=True,
+)
