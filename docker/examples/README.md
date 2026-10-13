@@ -1,19 +1,24 @@
 # Docker Compose examples
 
-Ready-to-adapt Docker Compose stacks for running Ifrit in production behind a reverse proxy that
-terminates TLS. Each example is a folder holding everything it needs: `docker-compose.yml`,
-`.env.example` and the matching host `nginx.conf`.
+Ready-to-adapt Docker Compose stacks for Ifrit: a zero-configuration one for trying it locally, and
+two for production behind a reverse proxy that terminates TLS. Each example is a folder holding
+everything it needs: `docker-compose.yml`, `.env.example` and, for the production ones, the matching
+host `nginx.conf`.
 
 | Example | Containers | Reverse proxy | Use it when |
 |---|---|---|---|
+| [`local-docker-compose`](local-docker-compose/) | `app` (Ifrit) and `db` (PostgreSQL 18) | None: the app is published on `127.0.0.1:8081` over plain HTTP | You just want to try Ifrit on your own machine. Not for production. |
 | [`nginx-ifrit-database`](nginx-ifrit-database/) | `app` (Ifrit) and `db` (PostgreSQL 18) | Host nginx forwarding everything to the app on `127.0.0.1:8081` | You want the simplest production setup: Ifrit and its database, nothing else. |
 | [`nginx-ifrit-database-pgadmin`](nginx-ifrit-database-pgadmin/) | `app`, `db` and `pgadmin` (pgAdmin 4) | Host nginx forwarding `/pgadmin4/` to pgAdmin on `127.0.0.1:8082` and everything else to the app on `127.0.0.1:8081` | You also want a web interface to inspect and manage the database. |
 
-Both examples are the same except for the pgAdmin sidecar: in the second one, the `pgadmin` service,
+The two nginx examples are the same except for the pgAdmin sidecar: in the second one, the `pgadmin` service,
 its `ifrit-pgadmin` volume, the two `PGADMIN_*` variables in `.env.example` and the `/pgadmin4/`
 locations in `nginx.conf` are added.
 
-## How to use an example
+## How to use a production example
+
+(`local-docker-compose` needs none of this: see its header comment, or the quick start in the main
+README.)
 
 1. Copy the folder you picked to your server.
 2. Copy `.env.example` to `.env` (next to `docker-compose.yml`) and replace every `changeme` value

@@ -1,0 +1,60 @@
+# Ifrit on your own machine, for a quick trial: the published image + PostgreSQL, no nginx and
+# no TLS. Everything has a working default, so no .env file is needed:
+#
+#   docker compose up -d
+#   docker compose exec app python -m scripts.seed_admin
+#
+# then open http://localhost:8081 and sign in with the administrator below.
+#
+# FOR A LOCAL TRIAL ONLY. The port is bound to 127.0.0.1 so only this machine can reach it, the
+# session cookie is not marked Secure (a plain http:// address cannot use one), and the default
+# secrets below are public. For a real deployment use the nginx examples next to this folder.
+#
+# To use your own values, put them in a `.env` file next to this one (see .env.example).
+name: ifrit-local
+
+services:
+  app:
+    # `latest` is the current state of main, which is fine for a trial. Pin a release such as
+    # ghcr.io/tonyp7/ifrit:1.1.1 for anything you intend to keep.
+    image: ghcr.io/tonyp7/ifrit:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:80"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://ifrit:${POSTGRES_PASSWORD:-ifrit-local-trial}@db:5432/ifrit
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:-local-trial-only-insecure-secret-key-do-not-use-in-production}
+      JWT_ALGORITHM: HS256
+      ACCESS_TOKEN_EXPIRE_MINUTES: "15"
+      REFRESH_TOKEN_EXPIRE_MINUTES: "10080"
+      # Must be the exact address typed in the browser, port included.
+      CORS_ORIGINS: '["http://localhost:8081"]'
+      COOKIE_SECURE: "false"
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:-admin@ifrit.local}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-ifrit-local-trial}
+      STORAGE_ROOT: /app/storage
+      MAX_UPLOAD_BYTES: "10485760"
+    volumes:
+      - ifrit-storage:/app/storage
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ifrit
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-ifrit-local-trial}
+      POSTGRES_DB: ifrit
+    volumes:
+      - ifrit-db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ifrit -d ifrit"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  ifrit-storage:
+  ifrit-db:
