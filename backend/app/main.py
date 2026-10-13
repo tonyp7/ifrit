@@ -11,7 +11,8 @@ from app.core.rate_limit import limiter
 app = FastAPI(title="Ifrit API")
 app.state.limiter = limiter
 # slowapi types the handler for RateLimitExceeded only; Starlette expects Exception.
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
+# pyrefly: ignore [bad-argument-type]
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(RequestBodyLimitMiddleware)
 app.add_middleware(

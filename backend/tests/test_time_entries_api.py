@@ -1,6 +1,6 @@
 import csv
 import io
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import openpyxl
 
@@ -1393,7 +1393,8 @@ async def test_export_xlsx_returns_workbook_with_expected_headers(client, db_ses
     ]
     assert details_ws.cell(row=2, column=1).value == "Acme Rollout"
     assert details_ws.cell(row=2, column=3).value == "Jane Doe"
-    assert details_ws.cell(row=2, column=4).value.date() == date(2026, 8, 5)
+    day = details_ws.cell(row=2, column=4).value
+    assert isinstance(day, datetime) and day.date() == date(2026, 8, 5)
     assert details_ws.cell(row=2, column=5).value == 3.5
 
 

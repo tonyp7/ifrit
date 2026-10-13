@@ -2,7 +2,7 @@
 # included) and on pushes to main. Read-only and secret-free on purpose: it uses `pull_request`,
 # never `pull_request_target`, so code from a PR never runs with elevated rights.
 #
-# Not gated yet: `ruff format --check` and `mypy app`, which fail on existing code.
+# Not gated yet: `ruff format --check`, which fails on existing code.
 name: CI
 
 on:
@@ -66,6 +66,7 @@ jobs:
       # --locked fails if pyproject.toml and uv.lock disagree (e.g. a half-applied bump).
       - run: uv sync --locked
       - run: uv run ruff check .
+      - run: uv run pyrefly check
       - run: uv run pytest -q
 
   frontend:

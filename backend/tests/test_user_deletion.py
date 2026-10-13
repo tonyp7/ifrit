@@ -51,6 +51,7 @@ async def _project_with_pm(client, db_session, *, status: str = "draft"):
     # which would otherwise lazy-load outside an async-safe context.
     pm = await user_service.get_user_by_id(db_session, pm.id)
     admin = await user_service.get_user_by_id(db_session, admin.id)
+    assert pm is not None and admin is not None
     return response.json()["id"], pm, admin
 
 
@@ -67,6 +68,7 @@ async def test_deactivating_a_user_removes_them_as_project_manager(
 
     # The GET above refreshed this session's copy of the user without its roles.
     pm = await user_service.get_user_by_id(db_session, pm.id)
+    assert pm is not None
     await user_service.deactivate_user(db_session, pm, admin)
 
     assert await _managers_of(client, project_id) == []

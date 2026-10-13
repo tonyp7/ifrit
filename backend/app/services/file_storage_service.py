@@ -356,7 +356,9 @@ def _hash_file(path: Path) -> tuple[str, int]:
 def _prepare(
     file: IO[bytes] | BufferedIOBase, filename: str | None, context: UploadContext
 ) -> PreparedUpload:
-    source: IO[bytes] = file  # type: ignore[assignment]
+    # Every IOBase read here is a binary stream: `BufferedIOBase` is simply not declared as
+    # an `IO[bytes]` in the stubs.
+    source = cast("IO[bytes]", file)
     max_bytes = settings.max_upload_bytes
     if _measure(source) > max_bytes:
         raise FileTooLargeError(f"The file is larger than {max_bytes} bytes")
@@ -631,7 +633,7 @@ async def user_can_access_file(db: AsyncSession, user: User, file: File) -> bool
     """Access is decided by the object the file is attached to, never by the file or
     its uploader, so it cannot drift from that object's own role rules. Each new
     attachable kind adds one branch."""
-    kind: Literal["setting", "project"] = file.kind  # type: ignore[assignment]
+    kind: Literal["setting", "project"] = file.kind
     role_names = {role.name for role in user.roles}
     if kind == "setting":
         return "administrator" in role_names

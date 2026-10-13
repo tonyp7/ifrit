@@ -3,6 +3,7 @@ import re
 import uuid
 from datetime import date, timedelta
 from decimal import Decimal
+from typing import Any
 
 import pytest
 from fpdf.enums import TableBorderStyle
@@ -218,7 +219,7 @@ def test_a_long_report_continues_over_further_pages_with_a_footer_on_each(monkey
 
 def _record_table(monkeypatch):
     """Records what _build_pdf puts in its table: the column widths and every cell's text."""
-    recorded: dict = {"col_widths": None, "cells": []}
+    recorded: dict[str, Any] = {"col_widths": None, "cells": []}
     real_table = svc._ReportPdf.table
     real_cell = Row.cell
 
@@ -310,7 +311,7 @@ def test_no_leftover_square_corner_masking_code():
     ],
 )
 def test_the_logo_is_exactly_the_set_height_at_its_own_aspect_ratio(
-    size_px, height_mm, expected_mm
+    size_px: tuple[int, int], height_mm: float, expected_mm: tuple[float, float]
 ):
     width, height = svc._logo_size_mm(*size_px, height_mm)
 
@@ -409,7 +410,8 @@ def test_transparency_survives_the_shrink():
     image = _open(prepared.data)
     assert image.format == "PNG"
     assert image.mode == "RGBA"
-    assert image.getpixel((0, 0))[3] == 0
+    pixel = image.getpixel((0, 0))
+    assert isinstance(pixel, tuple) and pixel[3] == 0
 
 
 def test_a_palette_png_with_transparency_keeps_it():
@@ -422,7 +424,8 @@ def test_a_palette_png_with_transparency_keeps_it():
 
     image = _open(prepared.data)
     assert image.mode == "RGBA"
-    assert image.getpixel((0, 0))[3] == 0
+    pixel = image.getpixel((0, 0))
+    assert isinstance(pixel, tuple) and pixel[3] == 0
 
 
 def test_a_webp_logo_becomes_a_png():
@@ -466,7 +469,7 @@ def _logo(width_px: int, height_px: int, height_mm: float = 20) -> svc._Prepared
 def _record_pdf_calls(monkeypatch):
     """Records the image, rect and cell calls _build_pdf makes (with the y position each is
     made at), and where the table starts."""
-    calls: dict[str, list] = {
+    calls: dict[str, list[Any]] = {
         "image": [],
         "rect": [],
         "cell": [],
@@ -514,7 +517,7 @@ def _image_objects(pdf: bytes) -> int:
     return len(re.findall(rb"/Subtype\s*/Image", pdf))
 
 
-def _title_cells(calls) -> dict[str, dict]:
+def _title_cells(calls) -> dict[str, dict[str, Any]]:
     """The title and subtitle cells of page 1, by their text."""
     return {
         c["args"][2]: c
@@ -528,7 +531,7 @@ def _title_cells(calls) -> dict[str, dict]:
 @pytest.mark.parametrize("size", [(600, 200), (30, 600), (200, 200), (225, 80)])
 @pytest.mark.parametrize("height_mm", [5, 20, 45, 60])
 def test_the_logo_is_flush_right_at_the_content_top_at_exactly_the_set_height(
-    monkeypatch, size, height_mm
+    monkeypatch, size: tuple[int, int], height_mm: float
 ):
     calls = _record_pdf_calls(monkeypatch)
     logo = _logo(*size, height_mm)

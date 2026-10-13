@@ -7,10 +7,12 @@ from PIL import Image
 
 
 def png_bytes(
-    size: tuple[int, int] = (30, 20), mode: str = "RGB", color: object = (200, 30, 30)
+    size: tuple[int, int] = (30, 20),
+    mode: str = "RGB",
+    color: float | str | tuple[float, ...] | None = (200, 30, 30),
 ) -> bytes:
     buffer = io.BytesIO()
-    Image.new(mode, size, color).save(buffer, format="PNG")  # type: ignore[arg-type]
+    Image.new(mode, size, color).save(buffer, format="PNG")
     return buffer.getvalue()
 
 
