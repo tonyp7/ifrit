@@ -19,10 +19,20 @@ any company where timesheets are at the core of the business.
 
 ## Where to go next
 
+### Getting Started
+
 | I want to... | Read |
 |---|---|
-| Try Ifrit on my own machine | [Getting started](getting-started.md) |
-| Run Ifrit for my company | [Self-hosting](self-hosting.md) and [Configuration](configuration.md) |
+| Get started running my own instance | [Getting started](self-hosting.md) |
+| Configure environment variables | [Configuration](configuration.md) |
+| Set up Ifrit behind a reverse proxy | [Reverse Proxy](reverse-proxy.md) |
+| Run Ifrit locally | [Local Run](local-run.md) |
+
+
+### Uer Guide
+
+| I want to... | Read |
+|---|---|
 | Understand who can do what | [Roles](guide/roles.md) |
 | Log my hours | [Timesheet](guide/timesheet.md) |
 | Review, lock and export hours | [Reporting](guide/reporting.md) |

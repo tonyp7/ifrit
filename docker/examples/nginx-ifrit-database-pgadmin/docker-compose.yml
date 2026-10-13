@@ -1,0 +1,63 @@
+name: ifrit
+
+services:
+  app:
+    image: ghcr.io/tonyp7/ifrit:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8081:80"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@db:5432/${POSTGRES_DB:?}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?}
+      JWT_ALGORITHM: ${JWT_ALGORITHM:?}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:?}
+      REFRESH_TOKEN_EXPIRE_MINUTES: ${REFRESH_TOKEN_EXPIRE_MINUTES:?}
+      CORS_ORIGINS: ${CORS_ORIGINS:?}
+      COOKIE_SECURE: ${COOKIE_SECURE:?}
+      SEED_ADMIN_EMAIL: ${SEED_ADMIN_EMAIL:?}
+      SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?}
+      STORAGE_ROOT: ${STORAGE_ROOT:?}
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:?}
+    volumes:
+      - ifrit-storage:${STORAGE_ROOT:?}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: postgres:18
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: ${POSTGRES_DB:?}
+    volumes:
+      - ifrit-db:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:?} -d ${POSTGRES_DB:?}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:8082:80"
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:?}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:?}
+      # Makes pgAdmin itself serve under /pgadmin4, so host nginx forwards the path
+      # untouched (no rewrite / X-Script-Name juggling).
+      SCRIPT_NAME: /pgadmin4
+      PGADMIN_CONFIG_SESSION_COOKIE_SECURE: "True"
+    volumes:
+      - ifrit-pgadmin:/var/lib/pgadmin
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  ifrit-storage:
+  ifrit-db:
+  ifrit-pgadmin:
