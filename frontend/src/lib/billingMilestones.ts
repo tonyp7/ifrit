@@ -14,12 +14,13 @@ import type { BillingMilestone, ProjectType } from "@/types/project";
 const DECIMAL_INPUT = /^\d+(\.\d+)?$/;
 
 /** The list after dropping `activeId` onto `overId`'s place; unchanged when either is
- * unknown or they are the same row. */
-export function moveMilestone(
-  milestones: BillingMilestone[],
+ * unknown or they are the same row. Works on any list of rows with an `id`: the billing
+ * milestones and the project references reorder the same way. */
+export function moveMilestone<T extends { id: string }>(
+  milestones: T[],
   activeId: string,
   overId: string,
-): BillingMilestone[] {
+): T[] {
   const from = milestones.findIndex((m) => m.id === activeId);
   const to = milestones.findIndex((m) => m.id === overId);
   if (from === -1 || to === -1 || from === to) return milestones;
@@ -31,12 +32,12 @@ export function moveMilestone(
 
 /** Shows the order after a drop at once, then saves it; if saving fails, shows `current`
  * again and rethrows so the caller can report the error. */
-export async function reorderOptimistically(
-  current: BillingMilestone[],
+export async function reorderOptimistically<T extends { id: string }>(
+  current: T[],
   activeId: string,
   overId: string,
   save: (ids: string[]) => Promise<unknown>,
-  show: (milestones: BillingMilestone[]) => void,
+  show: (rows: T[]) => void,
 ): Promise<void> {
   const next = moveMilestone(current, activeId, overId);
   if (next === current) return;

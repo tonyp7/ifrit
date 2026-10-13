@@ -6,7 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import require_roles
 from app.core.db import get_db
 from app.models.file import ProjectFile
-from app.models.project import BillingMilestone, Project, ServiceLine
+from app.models.project import BillingMilestone, Project, ProjectReference, ServiceLine
 from app.models.user import User
 from app.schemas.file import ProjectFileOut
 from app.schemas.project import (
@@ -16,18 +16,24 @@ from app.schemas.project import (
     ProjectDetail,
     ProjectListItem,
     ProjectListResponse,
+    ProjectReferenceOrder,
+    ProjectReferenceOut,
+    ProjectReferenceWrite,
     ProjectWrite,
     ServiceLineOut,
     ServiceLineWrite,
 )
 from app.services import file_storage_service, project_file_service, project_service
 from app.services.project_service import (
+    DuplicateReferenceError,
     InvalidMilestoneValueError,
     InvalidReferenceError,
     MilestoneOrderMismatchError,
     MilestonesNotAllowedError,
     ProjectReadOnlyError,
+    ReferenceOrderMismatchError,
     ServiceLineHasLoggedTimeError,
+    TooManyReferencesError,
 )
 
 _manager = Depends(require_roles("manager"))
@@ -70,6 +76,17 @@ async def _get_billing_milestone_or_404(
             status_code=status.HTTP_404_NOT_FOUND, detail="Billing milestone not found"
         )
     return milestone
+
+
+async def _get_project_reference_or_404(
+    db: AsyncSession, project_id: uuid.UUID, reference_id: uuid.UUID
+) -> ProjectReference:
+    reference = await project_service.get_project_reference(db, project_id, reference_id)
+    if reference is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Reference not found"
+        )
+    return reference
 
 
 async def _validate_references_or_422(db: AsyncSession, payload: ProjectWrite) -> None:
@@ -335,6 +352,97 @@ async def delete_billing_milestone(
     try:
         await project_service.delete_billing_milestone(db, project, milestone)
     except (ProjectReadOnlyError, MilestonesNotAllowedError) as err:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(err)
+        ) from err
+
+
+@router.post(
+    "/{project_id}/project-references",
+    response_model=ProjectReferenceOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def add_project_reference(
+    project_id: uuid.UUID,
+    payload: ProjectReferenceWrite,
+    db: AsyncSession = Depends(get_db),
+) -> ProjectReferenceOut:
+    project = await _get_project_or_404(db, project_id)
+    try:
+        reference = await project_service.add_project_reference(db, project, payload)
+    except ProjectReadOnlyError as err:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(err)
+        ) from err
+    except (DuplicateReferenceError, TooManyReferencesError) as err:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(err)
+        ) from err
+    return project_service.to_project_reference_out(reference)
+
+
+# Declared before the `{reference_id}` route below, for the same reason as the billing
+# milestones' order route: "order" would otherwise be taken for a reference id.
+@router.patch(
+    "/{project_id}/project-references/order",
+    response_model=list[ProjectReferenceOut],
+)
+async def reorder_project_references(
+    project_id: uuid.UUID,
+    payload: ProjectReferenceOrder,
+    db: AsyncSession = Depends(get_db),
+) -> list[ProjectReferenceOut]:
+    project = await _get_project_or_404(db, project_id)
+    try:
+        references = await project_service.reorder_project_references(
+            db, project, payload.ids
+        )
+    except (ProjectReadOnlyError, ReferenceOrderMismatchError) as err:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(err)
+        ) from err
+    return [project_service.to_project_reference_out(r) for r in references]
+
+
+@router.patch(
+    "/{project_id}/project-references/{reference_id}",
+    response_model=ProjectReferenceOut,
+)
+async def update_project_reference(
+    project_id: uuid.UUID,
+    reference_id: uuid.UUID,
+    payload: ProjectReferenceWrite,
+    db: AsyncSession = Depends(get_db),
+) -> ProjectReferenceOut:
+    project = await _get_project_or_404(db, project_id)
+    reference = await _get_project_reference_or_404(db, project_id, reference_id)
+    try:
+        reference = await project_service.update_project_reference(
+            db, project, reference, payload
+        )
+    except ProjectReadOnlyError as err:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=str(err)
+        ) from err
+    except DuplicateReferenceError as err:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(err)
+        ) from err
+    return project_service.to_project_reference_out(reference)
+
+
+@router.delete(
+    "/{project_id}/project-references/{reference_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def delete_project_reference(
+    project_id: uuid.UUID, reference_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> None:
+    project = await _get_project_or_404(db, project_id)
+    reference = await _get_project_reference_or_404(db, project_id, reference_id)
+    try:
+        await project_service.delete_project_reference(db, project, reference)
+    except ProjectReadOnlyError as err:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT, detail=str(err)
         ) from err

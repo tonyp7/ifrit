@@ -41,9 +41,48 @@ projects until you add yourself as one of its project managers.
 |---|---|
 | **Draft** | Being prepared. Its service lines are not offered to consultants on their timesheet. |
 | **Active** | Consultants can add its service lines and log hours. |
-| **Closed** | Read-only: header, managers, service lines and documents cannot be changed. Hours remain visible and reportable. Only the status can be changed, so you can reopen it. |
+| **Closed** | Read-only: header, references, managers, service lines and documents cannot be changed. Hours remain visible and reportable. Only the status can be changed, so you can reopen it. |
 
 You can move between any two statuses.
+
+## Project references
+
+Below the header fields, the **Project References** section keeps the values a buyer expects to see
+on an invoice for this project, such as a purchase order number or a contract ID, so nobody has to
+look them up again. It works like [billing milestones](#billing-milestones), and is available on
+every project type.
+
+- **Add** opens a dialog. Choose the **type**, which starts as **Purchase order**, and enter the
+  **value**. For the type **Custom**, give the reference a name of your own as well.
+- The table lists each reference by its **Reference Name** (the type, or the name you gave a
+  custom one) and its **Value**.
+- Each row's **Actions** menu lets you **edit**, **duplicate** (the copy is added at the end) or
+  **delete** a reference. Deleting asks for confirmation and removes the reference for good.
+- **Reorder** references by dragging the handle at the start of a row. On a phone, press and hold
+  the handle first. With a keyboard, focus the handle, press Space, move with the arrow keys and
+  press Space again. The order is saved immediately.
+- Changes to a reference are saved as soon as you confirm them. They do not wait for **Save** at
+  the bottom of the form.
+- On a new project that has not been saved yet, **Add** first checks the required fields and saves
+  the project, then opens the dialog.
+
+| Type | Use it for |
+|---|---|
+| **Purchase order** | The buyer's order number. |
+| **Sales order** | Your own order number. |
+| **Contract** | A contract or agreement number. |
+| **Buyer reference** | A reference the buyer asks to see, for example a department or a person. |
+| **Accounting reference** | Where the buyer books the cost, such as a cost center or a ledger account. |
+| **Project reference** | The buyer's own project code. |
+| **Document reference** | A pointer to a supporting document, such as its number or a link. |
+| **Custom** | Anything else, with a name of your own. |
+
+- A project can have **several references of the same type**, for example several purchase
+  orders.
+- The same type with the same value cannot be listed twice. Capital letters are ignored, so
+  `PO-17` and `po-17` count as one reference.
+- A project can have up to 50 references.
+- A **Closed** project lists its references, but they cannot be changed until it is reopened.
 
 ## Project managers
 
@@ -126,8 +165,9 @@ currency's decimals. Correct any milestone that no longer fits by editing it.
 ## Duplicate and delete
 
 - **Duplicate** creates a new project in **Draft** status from an existing one (even a closed one),
-  copying the name, vendor, client, currency, type, project managers, every active service line
-  with its assigned consultants, and every billing milestone in its order. Supporting documents
+  copying the name, vendor, client, currency, type, project references in their order, project
+  managers, every active service line with its assigned consultants, and every billing milestone
+  in its order. Supporting documents
   and their tags are not copied.
 - **Delete** asks for confirmation and deactivates the project. It disappears from the list and
   cannot be restored from the application.

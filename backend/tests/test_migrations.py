@@ -140,17 +140,17 @@ def test_the_migration_seeds_its_reference_data(scratch_database) -> None:
 
 def test_the_migration_can_be_undone_and_applied_again(scratch_database) -> None:
     command.upgrade(scratch_database, "head")
-    assert {"app_settings", "billing_milestones"} <= _tables()
+    assert {"app_settings", "billing_milestones", "project_references"} <= _tables()
 
     command.downgrade(scratch_database, "0001")
-    assert "billing_milestones" not in _tables()
+    assert not {"billing_milestones", "project_references"} & _tables()
     assert "app_settings" in _tables()
 
     command.downgrade(scratch_database, "base")
     assert _tables() == {"alembic_version"}
 
     command.upgrade(scratch_database, "head")
-    assert {"app_settings", "billing_milestones"} <= _tables()
+    assert {"app_settings", "billing_milestones", "project_references"} <= _tables()
 
 
 # Users seeded on 0001 to check how 0002 folds the two project roles into `manager`.

@@ -23,6 +23,46 @@ export const UOM_LABELS: Record<Uom, string> = {
   ea: "Each",
 };
 
+// The app's own vocabulary for what a reference is. Raw values are never shown: like the
+// maps above, every place that renders one goes through this map (then t()). `custom` is the
+// only kind with a label of the user's own.
+export type ReferenceKind =
+  | "purchase_order"
+  | "sales_order"
+  | "contract"
+  | "buyer_reference"
+  | "accounting_reference"
+  | "project_reference"
+  | "document_reference"
+  | "custom";
+
+export const REFERENCE_KIND_LABELS: Record<ReferenceKind, string> = {
+  purchase_order: "Purchase order",
+  sales_order: "Sales order",
+  contract: "Contract",
+  buyer_reference: "Buyer reference",
+  accounting_reference: "Accounting reference",
+  project_reference: "Project reference",
+  document_reference: "Document reference",
+  custom: "Custom",
+};
+
+export interface ProjectReference {
+  id: string;
+  project_id: string;
+  kind: ReferenceKind;
+  // Only on a `custom` reference.
+  label: string | null;
+  value: string;
+  position: number;
+}
+
+export interface ProjectReferenceInput {
+  kind: ReferenceKind;
+  label: string | null;
+  value: string;
+}
+
 export interface ServiceLineConsultant {
   id: string;
   full_name: string;
@@ -117,6 +157,8 @@ export interface ProjectDetail {
   updated_at: string;
   service_lines: ServiceLine[];
   project_managers: ProjectManager[];
+  // In saved order.
+  project_references: ProjectReference[];
   // In saved order. Always empty unless the project is Fixed Price.
   billing_milestones: BillingMilestone[];
   total_value: string;

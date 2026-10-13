@@ -7,14 +7,17 @@ from sqlalchemy.orm import aliased, selectinload
 
 from app.models.company import Company
 from app.models.currency import Currency
-from app.models.project import BillingMilestone, Project, ServiceLine
+from app.models.project import BillingMilestone, Project, ProjectReference, ServiceLine
 from app.models.time_entry import TimeEntry
 from app.models.user import User
 from app.schemas.project import (
+    MAX_PROJECT_REFERENCES,
     BillingMilestoneOut,
     BillingMilestoneWrite,
     ProjectDetail,
     ProjectManagerOut,
+    ProjectReferenceOut,
+    ProjectReferenceWrite,
     ProjectWrite,
     ServiceLineConsultantOut,
     ServiceLineOut,
@@ -47,6 +50,21 @@ class InvalidMilestoneValueError(Exception):
 
 class MilestoneOrderMismatchError(Exception):
     """Raised when a reorder does not list exactly the project's current milestones,
+    typically because another session added or deleted one in the meantime."""
+
+
+class DuplicateReferenceError(Exception):
+    """Raised when a project reference equals another one on the same project (same kind,
+    label and value, ignoring case)."""
+
+
+class TooManyReferencesError(Exception):
+    """Raised when adding a project reference to a project that already has the most a
+    project may carry."""
+
+
+class ReferenceOrderMismatchError(Exception):
+    """Raised when a reorder does not list exactly the project's current references,
     typically because another session added or deleted one in the meantime."""
 
 
@@ -141,6 +159,7 @@ async def get_project(db: AsyncSession, project_id: uuid.UUID) -> Project | None
             selectinload(Project.service_lines).selectinload(ServiceLine.users),
             selectinload(Project.project_managers),
             selectinload(Project.billing_milestones),
+            selectinload(Project.project_references),
             selectinload(Project.vendor_company),
             selectinload(Project.client_company),
         )
@@ -277,6 +296,15 @@ async def duplicate_project(db: AsyncSession, source: Project) -> Project:
                 due_date=milestone.due_date,
                 value=milestone.value,
                 position=milestone.position,
+            )
+        )
+    for reference in source.project_references:
+        new_project.project_references.append(
+            ProjectReference(
+                kind=reference.kind,
+                label=reference.label,
+                value=reference.value,
+                position=reference.position,
             )
         )
     db.add(new_project)
@@ -568,6 +596,131 @@ def to_billing_milestone_out(milestone: BillingMilestone) -> BillingMilestoneOut
     )
 
 
+def _check_references_writable(project: Project) -> None:
+    if project.status == "closed":
+        raise ProjectReadOnlyError("Cannot change references on a closed project")
+
+
+def _reference_identity(kind: str, label: str | None, value: str) -> tuple[str, str, str]:
+    # Case is ignored: PO-17 and po-17 are one number typed twice. `lower` is also what the
+    # unique index uses, so nothing accepted here is refused there.
+    return (kind, (label or "").lower(), value.lower())
+
+
+async def _check_reference_is_new(
+    db: AsyncSession,
+    project: Project,
+    data: ProjectReferenceWrite,
+    *,
+    ignoring: uuid.UUID | None = None,
+) -> None:
+    result = await db.execute(
+        select(ProjectReference).where(ProjectReference.project_id == project.id)
+    )
+    wanted = _reference_identity(data.kind, data.label, data.value)
+    for other in result.scalars():
+        if other.id != ignoring and wanted == _reference_identity(
+            other.kind, other.label, other.value
+        ):
+            raise DuplicateReferenceError("This reference is already listed")
+
+
+async def get_project_reference(
+    db: AsyncSession, project_id: uuid.UUID, reference_id: uuid.UUID
+) -> ProjectReference | None:
+    result = await db.execute(
+        select(ProjectReference).where(
+            ProjectReference.id == reference_id,
+            ProjectReference.project_id == project_id,
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def add_project_reference(
+    db: AsyncSession, project: Project, data: ProjectReferenceWrite
+) -> ProjectReference:
+    _check_references_writable(project)
+    await _lock_project(db, project)
+    result = await db.execute(
+        select(func.count(), func.max(ProjectReference.position)).where(
+            ProjectReference.project_id == project.id
+        )
+    )
+    count, last = result.one()
+    if count >= MAX_PROJECT_REFERENCES:
+        raise TooManyReferencesError(
+            f"A project has at most {MAX_PROJECT_REFERENCES} references"
+        )
+    await _check_reference_is_new(db, project, data)
+    reference = ProjectReference(
+        project_id=project.id,
+        kind=data.kind,
+        label=data.label,
+        value=data.value,
+        position=0 if last is None else last + 1,
+    )
+    db.add(reference)
+    await db.commit()
+    return reference
+
+
+async def update_project_reference(
+    db: AsyncSession,
+    project: Project,
+    reference: ProjectReference,
+    data: ProjectReferenceWrite,
+) -> ProjectReference:
+    _check_references_writable(project)
+    await _check_reference_is_new(db, project, data, ignoring=reference.id)
+    reference.kind = data.kind
+    reference.label = data.label
+    reference.value = data.value
+    await db.commit()
+    return reference
+
+
+async def delete_project_reference(
+    db: AsyncSession, project: Project, reference: ProjectReference
+) -> None:
+    _check_references_writable(project)
+    await db.delete(reference)
+    await db.commit()
+
+
+async def reorder_project_references(
+    db: AsyncSession, project: Project, ids: list[uuid.UUID]
+) -> list[ProjectReference]:
+    _check_references_writable(project)
+    await _lock_project(db, project)
+    result = await db.execute(
+        select(ProjectReference).where(ProjectReference.project_id == project.id)
+    )
+    by_id = {r.id: r for r in result.scalars()}
+    # The client sends the order it sees; if that no longer matches what is stored, a
+    # reference was added or removed elsewhere and applying a partial order would
+    # silently misplace it.
+    if len(ids) != len(by_id) or set(ids) != set(by_id):
+        raise ReferenceOrderMismatchError(
+            "The reference list has changed; reload and try again"
+        )
+    for position, reference_id in enumerate(ids):
+        by_id[reference_id].position = position
+    await db.commit()
+    return [by_id[reference_id] for reference_id in ids]
+
+
+def to_project_reference_out(reference: ProjectReference) -> ProjectReferenceOut:
+    return ProjectReferenceOut(
+        id=reference.id,
+        project_id=reference.project_id,
+        kind=reference.kind,
+        label=reference.label,
+        value=reference.value,
+        position=reference.position,
+    )
+
+
 def to_consultant_out(user: User) -> ServiceLineConsultantOut:
     return ServiceLineConsultantOut(
         id=user.id, full_name=user.full_name, is_active=user.is_active
@@ -613,6 +766,12 @@ def to_project_detail(project: Project) -> ProjectDetail:
         updated_at=project.updated_at,
         service_lines=[to_service_line_out(line) for line in active_lines],
         project_managers=[to_project_manager_out(u) for u in project.project_managers],
+        project_references=[
+            to_project_reference_out(r)
+            for r in sorted(
+                project.project_references, key=lambda r: (r.position, r.created_at)
+            )
+        ],
         billing_milestones=[
             to_billing_milestone_out(m)
             for m in sorted(

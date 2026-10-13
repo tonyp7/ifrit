@@ -8,6 +8,8 @@ import type {
   ProjectListResponse,
   ServiceLine,
   ServiceLineInput,
+  ProjectReference,
+  ProjectReferenceInput,
 } from "@/types/project";
 
 export function listProjects(params: {
@@ -93,6 +95,37 @@ export function deleteBillingMilestone(projectId: string, milestoneId: string) {
 export function reorderBillingMilestones(projectId: string, ids: string[]) {
   return apiClient.patch<BillingMilestone[]>(
     `/projects/${projectId}/billing-milestones/order`,
+    { ids },
+  );
+}
+
+export function addProjectReference(projectId: string, payload: ProjectReferenceInput) {
+  return apiClient.post<ProjectReference>(
+    `/projects/${projectId}/project-references`,
+    payload,
+  );
+}
+
+export function updateProjectReference(
+  projectId: string,
+  referenceId: string,
+  payload: ProjectReferenceInput,
+) {
+  return apiClient.patch<ProjectReference>(
+    `/projects/${projectId}/project-references/${referenceId}`,
+    payload,
+  );
+}
+
+export function deleteProjectReference(projectId: string, referenceId: string) {
+  return apiClient.delete<void>(`/projects/${projectId}/project-references/${referenceId}`);
+}
+
+/** Saves a new order: `ids` must be the project's complete reference list, or the server
+ * answers 409 (another session added or removed one). */
+export function reorderProjectReferences(projectId: string, ids: string[]) {
+  return apiClient.patch<ProjectReference[]>(
+    `/projects/${projectId}/project-references/order`,
     { ids },
   );
 }

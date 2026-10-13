@@ -1,10 +1,10 @@
-"""merge the project roles into manager; add billing milestones
+"""merge the project roles into manager; add billing milestones and project references
 
 Revision ID: 0002
 Revises: 0001
 Create Date: 2026-10-12
 
-Two unreleased changes, folded into one revision before they ship:
+Three unreleased changes, folded into one revision before they ship:
 
 - project_admin and project_manager become one `manager` role. The two roles always went to
   the same people, and project_admin could list itself as manager of any project, so the
@@ -12,6 +12,8 @@ Two unreleased changes, folded into one revision before they ship:
   left untouched: they still say who manages which project, they just no longer gate anything.
 - The `billing_milestones` table: the agreed billing installments of a Fixed Price project.
   New table only, no existing data to migrate.
+- The `project_references` table: the values a buyer expects on invoices for a project (a
+  purchase order number, a contract ID). New table only, no existing data to migrate.
 """
 
 from collections.abc import Sequence
@@ -34,9 +36,11 @@ _PROJECT_MANAGER_ID = "00000000-0000-0000-0000-000000000004"
 def upgrade() -> None:
     _merge_project_roles()
     _create_billing_milestones()
+    _create_project_references()
 
 
 def downgrade() -> None:
+    _drop_project_references()
     _drop_billing_milestones()
     _split_manager_role()
 
@@ -116,3 +120,79 @@ def _drop_billing_milestones() -> None:
         "ix_billing_milestones_project_id_position", table_name="billing_milestones"
     )
     op.drop_table("billing_milestones")
+
+
+_REFERENCE_KINDS = (
+    "purchase_order",
+    "sales_order",
+    "contract",
+    "buyer_reference",
+    "accounting_reference",
+    "project_reference",
+    "document_reference",
+    "custom",
+)
+
+
+def _create_project_references() -> None:
+    kinds = ", ".join(f"'{kind}'" for kind in _REFERENCE_KINDS)
+    op.create_table(
+        "project_references",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column(
+            "project_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("projects.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column("kind", sa.String(length=30), nullable=False),
+        sa.Column("label", sa.String(length=100), nullable=True),
+        sa.Column("value", sa.String(length=255), nullable=False),
+        # Entry order, rewritten 0..n-1 on every save, so deliberately not unique.
+        sa.Column("position", sa.Integer(), nullable=False),
+        sa.Column(
+            "created_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
+        sa.Column(
+            "updated_at",
+            sa.DateTime(timezone=True),
+            nullable=False,
+            server_default=sa.text("now()"),
+        ),
+        sa.CheckConstraint(f"kind IN ({kinds})", name="ck_project_references_kind"),
+        sa.CheckConstraint(
+            "(kind = 'custom') = (label IS NOT NULL)",
+            name="ck_project_references_label",
+        ),
+    )
+    op.create_index(
+        "ix_project_references_project_id_position",
+        "project_references",
+        ["project_id", "position"],
+    )
+    # Case-insensitive on purpose: PO-17 and po-17 are one number typed twice.
+    op.create_index(
+        "uq_project_references_project_kind_label_value",
+        "project_references",
+        [
+            "project_id",
+            "kind",
+            sa.text("lower(COALESCE(label, ''))"),
+            sa.text("lower(value)"),
+        ],
+        unique=True,
+    )
+
+
+def _drop_project_references() -> None:
+    op.drop_index(
+        "uq_project_references_project_kind_label_value",
+        table_name="project_references",
+    )
+    op.drop_index(
+        "ix_project_references_project_id_position", table_name="project_references"
+    )
+    op.drop_table("project_references")
