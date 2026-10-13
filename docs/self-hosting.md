@@ -10,37 +10,54 @@ services:
 Uploaded files (the organization logo and project documents) live in a second named volume,
 `ifrit-storage`, mounted at `STORAGE_ROOT` inside the app container.
 
-If you have not run Ifrit yet, start with [Getting started](getting-started.md).
 
-## Run it behind HTTPS
+## Get Prepared
 
-The application container serves plain HTTP on port 80. For a real deployment, put a reverse proxy
-or load balancer that terminates TLS in front of it (nginx, Caddy, Traefik, a cloud load balancer),
-and set:
+There are two components outside of Ifrit that you may need:
 
-```text
-CORS_ORIGINS=["https://ifrit.mydomain.com"]
-COOKIE_SECURE=true
+**A database:** Ifrit's database is PostgreSQL. You may already have a database, containerised or not,
+available for Ifrit. If this is the case, you will need to modify the connection string for the
+database connectivity and databae environment variables accordingly.
+
+**A reverse Proxy:** when using Ifrit for production, the containers should sit behind a reverse proxy (e.g. nginx, Traefik). This reverse proxy should carry TLS termination for the services. A few examples are given for ease of use.
+
+Use a pre-built docker compose file available:
+
+| Example | Description
+|---|---|
+| nginx-ifrit-database | A simple container with an attached containerised PgSQL
+| nginx-ifrit-database-pagadmin | As above, but with an additional sidecar containing PgAdmin to manage the PostgreSQL database 
+
+
+## Environment Variables
+
+The compose file is accompanied by a `.env.example` file. Copy it to an actual environment file, before editing it, e.g.:
+
+```shell
+cp .env.example .env
 ```
 
-- `CORS_ORIGINS` must list the exact origin users type in the browser, scheme included.
-- `COOKIE_SECURE=true` makes the session cookies HTTPS-only. Leaving it `false` behind a TLS proxy
-  would send session cookies without the `Secure` flag.
+See: [Configuration](configuration.md).
 
-Your proxy must allow request bodies of at least 11 MB through, or uploads fail before they reach
-the application (see [Uploads](configuration.md#uploads)).
+!!! warning
+    These environment variables are critical to the app, and should be modified before starting.
 
-## Use your own PostgreSQL
+## Start the app
 
-Inside the default stack the application reaches the database at host `db`. To use a database you
-run yourself, remove the `db` service from your compose file and point `DATABASE_URL` at it:
+Once the environment variables are set up you can simply run:
 
-```text
-DATABASE_URL=postgresql+asyncpg://USER:PASSWORD@HOST:5432/DATABASE
+```shell
+docker compose up -d
 ```
 
-The `asyncpg` driver part of the URL is required. The compose file builds this URL from
-`POSTGRES_USER`, `POSTGRES_PASSWORD` and `POSTGRES_DB`; a custom `DATABASE_URL` replaces it.
+## Bootstrap Admin
+
+A fresh instance of ifrit has no user. The first user (administrator role) can be created with `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` as login by running:
+
+```shell
+docker compose exec app python -m scripts.seed_admin
+```
+
 
 ## Releases and image tags
 
@@ -54,17 +71,8 @@ and publishes a container image to the GitHub Container Registry:
 | `ghcr.io/tonyp7/ifrit:X` | The latest release of that major version. |
 | `ghcr.io/tonyp7/ifrit:latest` | The current state of `main`, which can be ahead of the last release. Not recommended for production. |
 
-The provided `docker-compose.yml` builds the image from your checkout, so to run a release, check
-out its tag:
-
-```shell
-git fetch --tags
-git checkout vX.Y.Z
-docker compose up -d --build
-```
-
-If you run your own compose file, use `image: ghcr.io/tonyp7/ifrit:X.Y.Z` in place of the `build:`
-section of the `app` service, with the same environment variables and the same storage volume.
+!!! note
+    The examples of compose files in the docker/examples subfolder use :latest tag for simplicity. In production, it is strongly advise to pin the stack to an actual version number.
 
 ## Backups
 

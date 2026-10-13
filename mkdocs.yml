@@ -26,9 +26,10 @@ markdown_extensions:
 
 nav:
   - Home: index.md
-  - Getting started: getting-started.md
   - Self-hosting: self-hosting.md
   - Configuration: configuration.md
+  - Reverse proxy: reverse-proxy.md
+  - Local run: local-run.md
   - User guide:
       - Roles: guide/roles.md
       - Timesheet: guide/timesheet.md

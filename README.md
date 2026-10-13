@@ -1,166 +1,122 @@
 <p align="center">
-  <img align="center" alt="logo" src="docs/static/img/ifrit.svg" height="256" width="256">
+  <img alt="Ifrit logo" src="docs/static/img/ifrit.svg" height="160" width="160">
 </p>
 
-# Ifrit Timesheet Tracker
+<h1 align="center">Ifrit Timesheet Tracker</h1>
 
-Ifrit Timesheet Tracker is a modern open-source timesheet tracking and reporting application that can be used by agencies, consultancies and other companies using timesheets as core to their business.
+<p align="center">
+  A modern, open-source timesheet tracking and reporting application you host yourself.
+</p>
+
+<p align="center">
+  <a href="https://github.com/tonyp7/ifrit/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/tonyp7/ifrit/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/tonyp7/ifrit/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/tonyp7/ifrit"></a>
+  <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/github/license/tonyp7/ifrit"></a>
+  <a href="https://github.com/tonyp7/ifrit/pkgs/container/ifrit"><img alt="Container image" src="https://img.shields.io/badge/ghcr.io-tonyp7%2Fifrit-blue?logo=docker&logoColor=white"></a>
+</p>
+
+<p align="center">
+  <a href="https://docs.ifrit.day/">Documentation</a> ·
+  <a href="#quick-start">Quick start</a> ·
+  <a href="CHANGELOG.md">Changelog</a> ·
+  <a href="https://github.com/tonyp7/ifrit/issues">Report an issue</a>
+</p>
+
+---
+
+Ifrit is built for agencies, consultancies and any company where timesheets are at the core of the
+business: people log their hours against projects, managers review and lock them, and the result is
+exported as a report.
 
 ## Features
 
- - Time tracking: Fill in timesheets with a fully responsive modern UI interface
- - Projects: Create projects with service lines, assign people
- - Management: Assign project managers to specific projects
- - Companies: Create both vendor and client companies, and assign them to projects
- - Reports: Generate timesheets of individual contributors, entire projects or custom scopes
- - User Management: fine-grained user roles and permissions
+- **Time tracking.** A responsive timesheet by week or by month, with autosave. It works the same
+  on a desktop and on a phone.
+- **Projects.** Projects with service lines (quantity, unit and unit price), consultants assigned to
+  each line, and supporting documents attached to the project.
+- **Management.** Managers review the hours of everyone on their projects, correct them, and lock a
+  period once it is final.
+- **Companies.** Vendors and clients are recorded once, with their identifiers and addresses, and
+  reused across projects.
+- **Reports.** Filter by consultant, project, service line or status, then export to PDF, Excel or
+  CSV.
+- **Roles.** Consultants, managers and administrators each see only the screens they need.
+- **Light and dark themes**, following your system by default.
+- **Self-hosted.** One container image plus PostgreSQL, started with Docker Compose. Database
+  migrations run automatically when the container starts.
 
-## Self-Hosting Ifrit with Docker Compose
+## Quick start
 
-Docker Compose is simplest and recommended way to self-host your own instance of Ifrit.
-
-### Steps to Running Ifrit
-
-#### 1. Clone Repository
-
-```shell
-git clone https://github.com/tonyp7/ifrit.git
-cd ifrit
-```
-
-#### 2. Create an .env file
-
-Use the default .env file provided.
+You need [Docker](https://docs.docker.com/get-docker/) with the Compose plugin. This starts a
+throwaway instance on your own machine, with no configuration:
 
 ```shell
-cp .env.example .env
-```
-
-#### 3. Security Considerations
-
-##### JTW Secret
-Update the `JWT_SECRET_KEY` by a proper value generated using openssl, or any other tool capable of generating a 32 bytes long random hex string.
-
-```shell
-openssl rand -hex 32
-```
-
-##### CORS and Secure Cookie
-In .env, to run a local, HTTP only instance, you can set CORS to localhost and secure cookies to false:
-
-```text
-CORS_ORIGINS=["http://localhost"]
-COOKIE_SECURE=false
-```
-
-**Warning:** A production server should have secure cookies enabled and be TLS terminated in front of the container. This should only be used for quick testing.
-
-To run a proper instance on a server, edit your domain name and use HTTPS:
-
-```text
-CORS_ORIGINS=["https://ifrit.mydomain.com"]
-COOKIE_SECURE=true
-```
-
-#### 4. Check if you need the containerized db
-
-A simple `docker-compose.yml` is provided, that includes both the application and a containerized PostgreSQL.
-
-Inside the default stack, the database runs on `db` and as such the connection string is by default `postgresql+asyncpg://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@db:5432/${POSTGRES_DB:?}`.
-
-If you have your own PostgreSQL or if you want to separate it from the app stack, feel free to decouple them and update `DATABASE_URL` accordingly.
-
-#### 5. Launch the instance
-
-```shell
-docker compose up -d --build
-```
-
-#### 6. Administrator bootstrap
-
-A fresh instance of ifrit has no user. The first user (administrator role) can be created with `SEED_ADMIN_EMAIL` and `SEED_ADMIN_PASSWORD` as login by running:
-
-```shell
+curl -O https://raw.githubusercontent.com/tonyp7/ifrit/main/docker/examples/local-docker-compose/docker-compose.yml
+docker compose up -d
 docker compose exec app python -m scripts.seed_admin
 ```
 
-## Releases and Upgrading
+Then open <http://localhost:8081> and sign in with:
 
-Ifrit follows [semantic versioning](https://semver.org). Each release is a `vX.Y.Z` tag on GitHub, and publishes a container image to the GitHub Container Registry:
-
-| Image | What it is |
+| Email | Password |
 |---|---|
-| `ghcr.io/tonyp7/ifrit:1.1.1` | Exact. Recommended for production. |
-| `ghcr.io/tonyp7/ifrit:1.1` | The latest patch release of 1.1. |
-| `ghcr.io/tonyp7/ifrit:1` | The latest 1.x release. |
-| `ghcr.io/tonyp7/ifrit:latest` | The current state of `main`, which can be ahead of the last release. Not recommended for production. |
+| `admin@ifrit.local` | `ifrit-local-trial` |
 
-The provided `docker-compose.yml` builds the image from your checkout, so to run a specific release, check out its tag:
+This setup is for trying Ifrit only: it is reachable from your machine alone, serves plain HTTP and
+uses public default secrets. To run Ifrit for real, behind HTTPS on your own domain, follow the
+self-hosting guide below.
 
-```shell
-git fetch --tags
-git checkout v1.1.1
-docker compose up -d --build
+## Documentation
+
+Full documentation is at **[docs.ifrit.day](https://docs.ifrit.day/)**.
+
+| I want to... | Read |
+|---|---|
+| Run Ifrit for my company | [Self-hosting](https://docs.ifrit.day/self-hosting/) |
+| Look up every setting | [Configuration](https://docs.ifrit.day/configuration/) |
+| Put Ifrit behind a reverse proxy | [Reverse proxy](https://docs.ifrit.day/reverse-proxy/) |
+| Run it without Docker, for development | [Local run](https://docs.ifrit.day/local-run/) |
+| Learn how to use it | [User guide](https://docs.ifrit.day/guide/roles/) |
+
+Ready-made Compose and nginx files for a production setup are in
+[`docker/examples`](docker/examples/).
+
+## Releases
+
+Ifrit follows [semantic versioning](https://semver.org). Each release is a `vX.Y.Z` tag and
+publishes a container image to the GitHub Container Registry:
+
+```text
+ghcr.io/tonyp7/ifrit:1.1.1     an exact release (recommended for production)
+ghcr.io/tonyp7/ifrit:1.1       the latest patch of 1.1
+ghcr.io/tonyp7/ifrit:latest    the current state of main (not for production)
 ```
 
-If you run your own compose file instead, use `image: ghcr.io/tonyp7/ifrit:1.1.1` in place of the `build:` section of the `app` service, with the same environment variables and storage volume as `docker-compose.yml`.
+Read the [changelog](CHANGELOG.md) before upgrading, and back up first. Upgrading is covered in the
+[self-hosting guide](https://docs.ifrit.day/self-hosting/).
 
-### Upgrading
+## Built with
 
-1. Read the [changelog](CHANGELOG.md) for the release you are moving to.
-2. **Back up first.** Dump the database, and copy the `ifrit-storage` volume, which holds the uploaded files:
+- **Backend:** Python, [FastAPI](https://fastapi.tiangolo.com), SQLAlchemy and Alembic
+- **Frontend:** React and TypeScript, built with [Vite](https://vite.dev), UI from
+  [shadcn/ui](https://ui.shadcn.com) and Tailwind CSS
+- **Database:** PostgreSQL
+- **Deployment:** a single multi-stage Docker image, with nginx serving the web interface
 
-   ```shell
-   docker compose exec -T db sh -c 'pg_dump -U "$POSTGRES_USER" "$POSTGRES_DB"' > ifrit-backup.sql
-   ```
+## Contributing
 
-3. Check out the new tag (or change the image tag) and run `docker compose up -d --build`.
+Bug reports and ideas are welcome in the [issue tracker](https://github.com/tonyp7/ifrit/issues).
 
-Database migrations are applied automatically each time the container starts, so there is no separate migration step. Migrations only go forward: to return to an earlier release, restore your backup.
-
-## Running the app locally
-
-If you wish to contribute to Ifrit's codebase or you do not want to use Docker, you can also run Ifrit locally. In this case, the simplest way is to launch the FastAPI backend with uv and launch the Vite frontend with pnpm.
-
-### 1. Database
-
-This assumes you already have a database running on host. Alternatively you can spin a standard postgres container.
-
-### 2. Launch the backend
+To work on the code, follow [Local run](https://docs.ifrit.day/local-run/) to get the backend and
+the frontend running on your machine. Please open a pull request from a branch, and make sure the
+tests and linters pass first:
 
 ```shell
-cd backend
-cp .env.example .env
-uv run alembic upgrade head
-uv run python -m scripts.seed_admin      # creates SEED_ADMIN_EMAIL / SEED_ADMIN_PASSWORD user
-uv run uvicorn app.main:app --reload     # http://localhost:8000
+cd backend  && uv run pytest -q && uv run ruff check .
+cd frontend && pnpm test && pnpm lint
 ```
 
-Note that the .env file in `/backend` is not the same as .env as the root folder. The .env on the `/backend` is used for running locally the backend directly on host.
-
-### 3. Launch frontend
-
-In a separate terminal:
-
-```shell
-cd frontend
-pnpm install
-pnpm approve-builds
-pnpm dev                                 # http://localhost:5173
-```
-
-### Maintenance
-
-Ifrit uses Alembic to manage database migrations. A released migration is never edited: every schema change is a new numbered migration in `backend/alembic/versions/`.
-
-```shell
-uv run alembic revision --autogenerate -m "description"   # generate a migration, then review it
-uv run alembic upgrade head                               # apply it
-```
-
-To start over on a **development** database, drop and recreate the database, then run `uv run alembic upgrade head` again. This destroys all of its data, so never do it on a database you care about.
-
-## License and Acknowledgments
+## License
 
 Ifrit is released under the [Apache License 2.0](LICENSE). Third-party material that needs credit,
 such as the app's icon, is listed with its author and license in [ACKNOWLEDGMENTS](ACKNOWLEDGMENTS).
