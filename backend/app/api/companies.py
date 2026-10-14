@@ -16,8 +16,10 @@ from app.schemas.company import (
     CompanyWrite,
     PartyIdentifierOut,
     PartyIdentifierWrite,
+    PayeeAccountOut,
+    PayeeAccountWrite,
 )
-from app.services import company_service
+from app.services import company_service, currency_service
 
 router = APIRouter(prefix="/companies", tags=["companies"])
 
@@ -268,3 +270,112 @@ async def delete_address(
             status_code=status.HTTP_404_NOT_FOUND, detail="Address not found"
         )
     await company_service.delete_address(db, address)
+
+
+_DUPLICATE_ACCOUNT_DETAIL = (
+    "An account with this identifier already exists for this company"
+)
+
+
+async def _check_payee_account(
+    db: AsyncSession,
+    company_id: uuid.UUID,
+    payload: PayeeAccountWrite,
+    exclude_account_id: uuid.UUID | None = None,
+) -> None:
+    """Refuse up front what the database would refuse anyway, so each refusal carries a
+    message naming its own reason rather than a raw constraint violation."""
+    if await currency_service.get_enabled_currency(db, payload.currency_code) is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="currency_code must reference an enabled currency",
+        )
+    if await company_service.get_payee_account_by_identifier(
+        db,
+        company_id,
+        payload.account_identifier,
+        exclude_account_id=exclude_account_id,
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=_DUPLICATE_ACCOUNT_DETAIL
+        )
+    if (
+        payload.is_primary
+        and await company_service.get_conflicting_primary_payee_account(
+            db, company_id, payload.currency_code, exclude_account_id=exclude_account_id
+        )
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"A primary account in {payload.currency_code} already exists for this "
+            "company",
+        )
+
+
+@router.post(
+    "/{company_id}/payee-accounts",
+    response_model=PayeeAccountOut,
+    status_code=status.HTTP_201_CREATED,
+    dependencies=[_write_roles],
+)
+async def add_payee_account(
+    company_id: uuid.UUID,
+    payload: PayeeAccountWrite,
+    db: AsyncSession = Depends(get_db),
+) -> PayeeAccountOut:
+    company = await _get_company_or_404(db, company_id)
+    await _check_payee_account(db, company_id, payload)
+    try:
+        account = await company_service.add_payee_account(db, company, payload)
+    except IntegrityError as err:
+        # Only reachable when a concurrent request wins the race past the checks above.
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=_DUPLICATE_ACCOUNT_DETAIL
+        ) from err
+    return company_service.to_payee_account_out(account)
+
+
+@router.patch(
+    "/{company_id}/payee-accounts/{account_id}",
+    response_model=PayeeAccountOut,
+    dependencies=[_write_roles],
+)
+async def update_payee_account(
+    company_id: uuid.UUID,
+    account_id: uuid.UUID,
+    payload: PayeeAccountWrite,
+    db: AsyncSession = Depends(get_db),
+) -> PayeeAccountOut:
+    await _get_company_or_404(db, company_id)
+    account = await company_service.get_payee_account(db, company_id, account_id)
+    if account is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Payee account not found"
+        )
+    await _check_payee_account(db, company_id, payload, exclude_account_id=account_id)
+    try:
+        account = await company_service.update_payee_account(db, account, payload)
+    except IntegrityError as err:
+        await db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=_DUPLICATE_ACCOUNT_DETAIL
+        ) from err
+    return company_service.to_payee_account_out(account)
+
+
+@router.delete(
+    "/{company_id}/payee-accounts/{account_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    dependencies=[_write_roles],
+)
+async def delete_payee_account(
+    company_id: uuid.UUID, account_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> None:
+    await _get_company_or_404(db, company_id)
+    account = await company_service.get_payee_account(db, company_id, account_id)
+    if account is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Payee account not found"
+        )
+    await company_service.delete_payee_account(db, account)

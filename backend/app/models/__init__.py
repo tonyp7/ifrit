@@ -1,6 +1,6 @@
 from app.models import triggers
 from app.models.app_setting import AppSetting
-from app.models.company import Address, Company, PartyIdentifier
+from app.models.company import Address, Company, PartyIdentifier, PayeeAccount
 from app.models.currency import Currency
 from app.models.file import (
     File,
@@ -25,6 +25,7 @@ __all__ = [
     "File",
     "FileTag",
     "PartyIdentifier",
+    "PayeeAccount",
     "Project",
     "ProjectFile",
     "ProjectFileTag",

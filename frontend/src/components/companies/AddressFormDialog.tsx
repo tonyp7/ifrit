@@ -6,6 +6,7 @@ import { z } from "zod";
 
 import { ApiError } from "@/api/client";
 import { addAddress, updateAddress } from "@/api/companies";
+import { AddressFields } from "@/components/companies/AddressFields";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -15,7 +16,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -175,47 +175,14 @@ export function AddressFormDialog({
             </Select>
           </div>
 
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="line1">{t("Line 1")}</Label>
-            <Input id="line1" {...register("line1")} />
-            {errors.line1 && <p className="text-sm text-destructive">{errors.line1.message}</p>}
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="line2">{t("Line 2")}</Label>
-            <Input id="line2" {...register("line2")} />
-          </div>
-
-          <div className="flex flex-col gap-2">
-            <Label htmlFor="line3">{t("Line 3")}</Label>
-            <Input id="line3" {...register("line3")} />
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="city">{t("City")}</Label>
-              <Input id="city" {...register("city")} />
-              {errors.city && <p className="text-sm text-destructive">{errors.city.message}</p>}
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="postal_zone">{t("Postal code")}</Label>
-              <Input id="postal_zone" {...register("postal_zone")} />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-4">
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="country_subdivision">{t("State / province")}</Label>
-              <Input id="country_subdivision" {...register("country_subdivision")} />
-            </div>
-            <div className="flex flex-col gap-2">
-              <Label htmlFor="country_code">{t("Country code")}</Label>
-              <Input id="country_code" maxLength={2} {...register("country_code")} />
-              {errors.country_code && (
-                <p className="text-sm text-destructive">{errors.country_code.message}</p>
-              )}
-            </div>
-          </div>
+          <AddressFields
+            field={(name) => register(name)}
+            errors={{
+              line1: errors.line1?.message,
+              city: errors.city?.message,
+              country_code: errors.country_code?.message,
+            }}
+          />
 
           <div className="flex items-center gap-2">
             <Checkbox

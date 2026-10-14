@@ -7,6 +7,8 @@ import type {
   CompanyListResponse,
   PartyIdentifier,
   PartyIdentifierInput,
+  PayeeAccount,
+  PayeeAccountInput,
 } from "@/types/company";
 
 export function listCompanies(params: {
@@ -74,4 +76,23 @@ export function updateAddress(companyId: string, addressId: string, payload: Add
 
 export function deleteAddress(companyId: string, addressId: string) {
   return apiClient.delete<void>(`/companies/${companyId}/addresses/${addressId}`);
+}
+
+export function addPayeeAccount(companyId: string, payload: PayeeAccountInput) {
+  return apiClient.post<PayeeAccount>(`/companies/${companyId}/payee-accounts`, payload);
+}
+
+export function updatePayeeAccount(
+  companyId: string,
+  accountId: string,
+  payload: PayeeAccountInput,
+) {
+  return apiClient.patch<PayeeAccount>(
+    `/companies/${companyId}/payee-accounts/${accountId}`,
+    payload,
+  );
+}
+
+export function deletePayeeAccount(companyId: string, accountId: string) {
+  return apiClient.delete<void>(`/companies/${companyId}/payee-accounts/${accountId}`);
 }

@@ -39,9 +39,30 @@ can create or change companies.
 | **Country** | Two-letter country of registration. |
 | **Vendor** | Off by default. Only a company flagged as a vendor can be a project's vendor. Any active company can be a client. |
 
-A company can also hold several **identifiers** (such as a tax or registration number) and
-**addresses**. Add, edit, duplicate and delete them from the company's form. These are removed
-for good rather than deactivated.
+A company can also hold several **identifiers** (such as a tax or registration number),
+**addresses** and **payee accounts**. Add, edit, duplicate and delete them from the company's
+form. These are removed for good rather than deactivated.
+
+### Payee accounts
+
+Payee accounts are the bank accounts a company is paid into: what an invoice tells the buyer
+when it says where to pay. They are kept so that invoices can carry them later, including
+electronic invoices. The section sits below Addresses and is available on every company, but
+it only matters for the companies that send invoices.
+
+| Field | Notes |
+|---|---|
+| **Payment means** | *Credit transfer*, *Payment to bank account* or *SEPA credit transfer*. |
+| **Scheme** | *IBAN*, or *Other* for a national account number. A SEPA credit transfer always uses an IBAN. |
+| **IBAN** / **Account number** | Required. An IBAN can be typed with or without spaces; it is checked (a single wrong digit is caught) and shown in groups of four. A national account number is kept exactly as typed. |
+| **Account name** | Optional. The account holder, if it differs from the company's name. |
+| **Currency** | Required. One of the currencies enabled for the app. |
+| **BIC** | Optional. The bank's 8 or 11 character code. |
+| **Bank name** and **Bank address** | Optional. If you start the address, line 1, city and country code are required. |
+| **Primary for this currency** | At most one account per currency can be primary. To make another account primary, untick the current one first. |
+
+The same account number can't be entered twice on one company. Duplicating a company copies its
+payee accounts too.
 
 ### Actions
 

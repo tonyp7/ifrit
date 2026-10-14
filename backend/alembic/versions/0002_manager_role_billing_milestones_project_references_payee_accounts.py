@@ -1,10 +1,11 @@
-"""merge the project roles into manager; add billing milestones and project references
+"""merge the project roles into manager; add billing milestones, project references and
+payee accounts
 
 Revision ID: 0002
 Revises: 0001
 Create Date: 2026-10-12
 
-Three unreleased changes, folded into one revision before they ship:
+Four unreleased changes, folded into one revision before they ship:
 
 - project_admin and project_manager become one `manager` role. The two roles always went to
   the same people, and project_admin could list itself as manager of any project, so the
@@ -14,6 +15,8 @@ Three unreleased changes, folded into one revision before they ship:
   New table only, no existing data to migrate.
 - The `project_references` table: the values a buyer expects on invoices for a project (a
   purchase order number, a contract ID). New table only, no existing data to migrate.
+- The `payee_accounts` table: the bank accounts a company is paid into, as an invoice would
+  print them. New table only, no existing data to migrate.
 """
 
 from collections.abc import Sequence
@@ -37,9 +40,11 @@ def upgrade() -> None:
     _merge_project_roles()
     _create_billing_milestones()
     _create_project_references()
+    _create_payee_accounts()
 
 
 def downgrade() -> None:
+    _drop_payee_accounts()
     _drop_project_references()
     _drop_billing_milestones()
     _split_manager_role()
@@ -64,7 +69,9 @@ def _merge_project_roles() -> None:
 def _split_manager_role() -> None:
     # Who held which of the two roles is gone, so every manager gets both: the closest
     # pre-merge state to what they could actually do, so a rollback takes no access away.
-    op.execute(f"UPDATE roles SET name = 'project_admin' WHERE id = '{_PROJECT_ADMIN_ID}'")
+    op.execute(
+        f"UPDATE roles SET name = 'project_admin' WHERE id = '{_PROJECT_ADMIN_ID}'"
+    )
     op.execute(
         f"INSERT INTO roles (id, name) VALUES ('{_PROJECT_MANAGER_ID}', 'project_manager')"
     )
@@ -196,3 +203,93 @@ def _drop_project_references() -> None:
         "ix_project_references_project_id_position", table_name="project_references"
     )
     op.drop_table("project_references")
+
+
+_PAYMENT_MEANS_CODES = ("30", "42", "58")
+_ACCOUNT_SCHEMES = ("iban", "other")
+_BANK_ADDRESS_COLUMNS = (
+    "bank_line1",
+    "bank_line2",
+    "bank_line3",
+    "bank_city",
+    "bank_postal_zone",
+    "bank_country_subdivision",
+    "bank_country_code",
+)
+# Either the address is usable (line 1, city and country) or it is absent altogether.
+_BANK_ADDRESS_CHECK = (
+    "(bank_line1 IS NOT NULL AND bank_city IS NOT NULL AND bank_country_code IS NOT NULL)"
+    " OR ("
+    + " AND ".join(f"{column} IS NULL" for column in _BANK_ADDRESS_COLUMNS)
+    + ")"
+)
+
+
+def _create_payee_accounts() -> None:
+    codes = ", ".join(f"'{code}'" for code in _PAYMENT_MEANS_CODES)
+    schemes = ", ".join(f"'{scheme}'" for scheme in _ACCOUNT_SCHEMES)
+    op.create_table(
+        "payee_accounts",
+        sa.Column("id", postgresql.UUID(as_uuid=True), primary_key=True),
+        sa.Column(
+            "company_id",
+            postgresql.UUID(as_uuid=True),
+            sa.ForeignKey("companies.id", ondelete="CASCADE"),
+            nullable=False,
+        ),
+        sa.Column("payment_means_code", sa.String(length=3), nullable=False),
+        sa.Column("account_scheme", sa.String(length=10), nullable=False),
+        sa.Column("account_identifier", sa.String(length=64), nullable=False),
+        sa.Column("account_name", sa.String(length=255), nullable=True),
+        sa.Column(
+            "currency_code",
+            sa.String(length=3),
+            sa.ForeignKey("currencies.alpha_code"),
+            nullable=False,
+        ),
+        sa.Column("bic", sa.String(length=11), nullable=True),
+        sa.Column("bank_name", sa.String(length=255), nullable=True),
+        sa.Column("bank_line1", sa.String(length=255), nullable=True),
+        sa.Column("bank_line2", sa.String(length=255), nullable=True),
+        sa.Column("bank_line3", sa.String(length=255), nullable=True),
+        sa.Column("bank_city", sa.String(length=255), nullable=True),
+        sa.Column("bank_postal_zone", sa.String(length=20), nullable=True),
+        sa.Column("bank_country_subdivision", sa.String(length=100), nullable=True),
+        sa.Column("bank_country_code", sa.String(length=2), nullable=True),
+        sa.Column(
+            "is_primary", sa.Boolean(), nullable=False, server_default=sa.false()
+        ),
+        sa.CheckConstraint(
+            f"payment_means_code IN ({codes})",
+            name="ck_payee_accounts_payment_means_code",
+        ),
+        sa.CheckConstraint(
+            f"account_scheme IN ({schemes})", name="ck_payee_accounts_account_scheme"
+        ),
+        sa.CheckConstraint(
+            "payment_means_code <> '58' OR account_scheme = 'iban'",
+            name="ck_payee_accounts_sepa_iban",
+        ),
+        sa.CheckConstraint(_BANK_ADDRESS_CHECK, name="ck_payee_accounts_bank_address"),
+    )
+    op.create_index("ix_payee_accounts_company_id", "payee_accounts", ["company_id"])
+    op.create_index(
+        "uq_payee_accounts_identifier",
+        "payee_accounts",
+        ["company_id", "account_identifier"],
+        unique=True,
+    )
+    op.create_index(
+        "uq_payee_accounts_primary_per_currency",
+        "payee_accounts",
+        ["company_id", "currency_code"],
+        unique=True,
+        postgresql_where=sa.text("is_primary"),
+    )
+
+
+def _drop_payee_accounts() -> None:
+    op.drop_index("uq_payee_accounts_primary_per_currency", table_name="payee_accounts")
+    op.drop_index("uq_payee_accounts_identifier", table_name="payee_accounts")
+    op.drop_index("ix_payee_accounts_company_id", table_name="payee_accounts")
+    op.drop_table("payee_accounts")

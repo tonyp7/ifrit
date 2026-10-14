@@ -195,7 +195,7 @@ def test_the_kind_list_matches_the_migration() -> None:
         BACKEND_DIR
         / "alembic"
         / "versions"
-        / "0002_manager_role_billing_milestones_project_references.py"
+        / "0002_manager_role_billing_milestones_project_references_payee_accounts.py"
     )
     spec = importlib.util.spec_from_file_location("migration_0002", path)
     assert spec is not None and spec.loader is not None

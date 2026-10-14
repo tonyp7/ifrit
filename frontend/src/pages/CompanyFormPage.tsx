@@ -10,6 +10,7 @@ import { ApiError } from "@/api/client";
 import { createCompany, getCompany, updateCompany } from "@/api/companies";
 import { AddressesTable } from "@/components/companies/AddressesTable";
 import { PartyIdentifiersTable } from "@/components/companies/PartyIdentifiersTable";
+import { PayeeAccountsTable } from "@/components/companies/PayeeAccountsTable";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -133,7 +134,7 @@ export function CompanyFormPage() {
 
   /**
    * Validates and (if needed) saves the company before a Party
-   * Identifier/Address can be attached to it: a row can only attach to a
+   * Identifier/Address/Payee Account can be attached to it: a row can only attach to a
    * persisted company. Returns the company id, or null if validation failed
    * (the form's own error state is already showing why).
    */
@@ -167,7 +168,7 @@ export function CompanyFormPage() {
           <CardTitle>{isNew ? t("New Company") : t("Edit Company")}</CardTitle>
         </CardHeader>
         <CardContent>
-          {/* One form for the whole card: base fields, then Party Identifiers/Addresses
+          {/* One form for the whole card: base fields, then Party Identifiers/Addresses/Payee Accounts
               (their own dialogs render via a Portal, so nesting them here is safe: no
               actual nested <form> in the DOM), then the Save/Close footer at the very
               bottom, in the conventional position: not sandwiched above the tables. */}
@@ -236,6 +237,15 @@ export function CompanyFormPage() {
               <AddressesTable
                 companyId={company?.id ?? null}
                 addresses={company?.addresses ?? []}
+                onChanged={refreshCompany}
+                ensureSaved={ensureSaved}
+              />
+
+              <Separator />
+
+              <PayeeAccountsTable
+                companyId={company?.id ?? null}
+                accounts={company?.payee_accounts ?? []}
                 onChanged={refreshCompany}
                 ensureSaved={ensureSaved}
               />
