@@ -49,6 +49,27 @@ magick -size 180x180 xc:white 144.png -gravity center -composite \
   -background white -alpha remove -alpha off PNG24:frontend/public/apple-touch-icon.png
 ```
 
+### Country flags "circle-flags"
+
+| | |
+|---|---|
+| Title | "circle-flags", a collection of circular SVG flags |
+| Author | HatScripts |
+| Source | https://github.com/HatScripts/circle-flags, commit `379588b5da95482d6bbf10bd45644a35b0609ea6` (2026-07-26) |
+| Retrieved | 2026-10-14, from GitHub |
+| License | MIT License: https://github.com/HatScripts/circle-flags/blob/master/LICENSE.md |
+| Copyright notice | "Copyright (c) 2026 HatScripts" |
+| Warranty | Provided "as is", without warranty of any kind; see the last paragraph of the license |
+| Used for | The flag next to each country in the country picker on the company, address and bank address forms |
+| Files | `frontend/public/flags/*.svg` (one per ISO 3166-1 alpha-2 country, 249 files) and `frontend/public/flags/LICENSE` (the license text, as MIT requires it to accompany the copies) |
+
+Changes made to the original: none to any file's content. Only the 249 ISO country flags were
+copied, not the set's subdivision, language or other flags. Six of those codes are symbolic links
+upstream to another flag (`bq` to `bq-bo`, `bv` and `sj` to `no`, `hm` to `au`, `sh` to `sh-hl`,
+`um` to `us`) and were copied as the file each link points to. The SVGs carry no credit comment
+of their own, so that they stay identical to upstream and can be refreshed by copying them again;
+the license file in the same folder carries the notice instead.
+
 ## Template for a new entry
 
 ```markdown

@@ -11,6 +11,7 @@ import { createCompany, getCompany, updateCompany } from "@/api/companies";
 import { AddressesTable } from "@/components/companies/AddressesTable";
 import { PartyIdentifiersTable } from "@/components/companies/PartyIdentifiersTable";
 import { PayeeAccountsTable } from "@/components/companies/PayeeAccountsTable";
+import { CountryPicker } from "@/components/CountryPicker";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -65,6 +66,7 @@ export function CompanyFormPage() {
     formState: { errors, isSubmitting },
   } = useForm<FormValues>({ resolver: zodResolver(schema), defaultValues: BLANK_VALUES });
   const watchedIsVendor = useWatch({ control, name: "is_vendor" });
+  const watchedCountry = useWatch({ control, name: "country_of_registration" });
 
   const refreshCompany = () => {
     if (!routeCompanyId) return;
@@ -211,11 +213,16 @@ export function CompanyFormPage() {
                   <FieldLabel htmlFor="country_of_registration">
                     {t("Country of registration")}
                   </FieldLabel>
-                  <Input
+                  <CountryPicker
                     id="country_of_registration"
-                    maxLength={2}
-                    aria-invalid={!!errors.country_of_registration}
-                    {...register("country_of_registration")}
+                    value={watchedCountry}
+                    invalid={!!errors.country_of_registration}
+                    onChange={(code) =>
+                      setValue("country_of_registration", code, {
+                        shouldDirty: true,
+                        shouldValidate: true,
+                      })
+                    }
                   />
                   <FieldError
                     errors={errors.country_of_registration && [errors.country_of_registration]}

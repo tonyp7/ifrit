@@ -1,13 +1,16 @@
 import type { UseFormRegisterReturn } from "react-hook-form";
 import { useTranslation } from "react-i18next";
 
+import { CountryPicker } from "@/components/CountryPicker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import type { AddressFieldName } from "@/lib/payeeAccounts";
 
 interface AddressFieldsProps {
-  /** Registers one field with the parent form, under whatever path the parent keeps it. */
-  field: (name: AddressFieldName) => UseFormRegisterReturn;
+  /** Registers one text field with the parent form, under whatever path the parent keeps it. */
+  field: (name: Exclude<AddressFieldName, "country_code">) => UseFormRegisterReturn;
+  /** The country is a picker, not a text input, so the parent passes its value and setter. */
+  country: { value: string; onChange: (code: string) => void };
   errors: Partial<Record<AddressFieldName, string | undefined>>;
   /** Prepended to every input id, so two address blocks can share a page. */
   idPrefix?: string;
@@ -18,7 +21,7 @@ interface AddressFieldsProps {
  * country code. Shared by every dialog that edits an address so their fields, labels and
  * layout cannot drift apart; the address type and primary flag stay with each dialog.
  */
-export function AddressFields({ field, errors, idPrefix = "" }: AddressFieldsProps) {
+export function AddressFields({ field, country, errors, idPrefix = "" }: AddressFieldsProps) {
   const { t } = useTranslation(["company", "common"]);
   const id = (name: AddressFieldName) => `${idPrefix}${name}`;
 
@@ -58,12 +61,12 @@ export function AddressFields({ field, errors, idPrefix = "" }: AddressFieldsPro
           <Input id={id("country_subdivision")} {...field("country_subdivision")} />
         </div>
         <div className="flex flex-col gap-2">
-          <Label htmlFor={id("country_code")}>{t("Country code")}</Label>
-          <Input
+          <Label htmlFor={id("country_code")}>{t("Country")}</Label>
+          <CountryPicker
             id={id("country_code")}
-            maxLength={2}
-            aria-invalid={!!errors.country_code}
-            {...field("country_code")}
+            value={country.value}
+            onChange={country.onChange}
+            invalid={!!errors.country_code}
           />
           {errors.country_code && (
             <p className="text-destructive text-sm">{errors.country_code}</p>

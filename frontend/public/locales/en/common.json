@@ -38,5 +38,8 @@
   "This page couldn't be loaded": "This page couldn't be loaded",
   "The app may have been updated. Reload to get the latest version.": "The app may have been updated. Reload to get the latest version.",
   "Reload": "Reload",
-  "Only see my projects": "Only see my projects"
+  "Only see my projects": "Only see my projects",
+  "Select a country…": "Select a country…",
+  "Search countries…": "Search countries…",
+  "No country found.": "No country found."
 }

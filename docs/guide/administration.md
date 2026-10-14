@@ -36,12 +36,18 @@ can create or change companies.
 | **Legal name** | Required. |
 | **Trading name** | Optional. |
 | **Legal form** | Optional. |
-| **Country** | Two-letter country of registration. |
+| **Country** | The country of registration, picked from the country list (see below). |
 | **Vendor** | Off by default. Only a company flagged as a vendor can be a project's vendor. Any active company can be a client. |
 
 A company can also hold several **identifiers** (such as a tax or registration number),
 **addresses** and **payee accounts**. Add, edit, duplicate and delete them from the company's
 form. These are removed for good rather than deactivated.
+
+Wherever a company form asks for a country (the country of registration, an address, a bank
+address), pick it from a list showing each country's flag and name: type part of the name, or its
+two-letter code, to narrow the list. The country is stored as its two-letter ISO code. A company
+saved before this list existed may hold a code that is not a country (for example `ZZ`): it is
+shown as typed, with a globe instead of a flag, and stays as it is until you pick a country.
 
 ### Payee accounts
 
@@ -58,7 +64,7 @@ it only matters for the companies that send invoices.
 | **Account name** | Optional. The account holder, if it differs from the company's name. |
 | **Currency** | Required. One of the currencies enabled for the app. |
 | **BIC** | Optional. The bank's 8 or 11 character code. |
-| **Bank name** and **Bank address** | Optional. If you start the address, line 1, city and country code are required. |
+| **Bank name** and **Bank address** | Optional. If you start the address, line 1, city and country are required. |
 | **Primary for this currency** | At most one account per currency can be primary. To make another account primary, untick the current one first. |
 
 The same account number can't be entered twice on one company. Duplicating a company copies its

@@ -45,6 +45,9 @@ describe("PayeeAccountFormDialog", () => {
     expect(html).toContain("Bank address");
     expect(html).toContain('id="bank_line1"');
     expect(html).toContain('id="bank_country_code"');
+    // The bank country is the country picker, still empty.
+    expect(html).toMatch(/id="bank_country_code"[^>]*role="combobox"/);
+    expect(html).toContain("Select a country…");
     expect(html).toContain("Primary for this currency");
   });
 
