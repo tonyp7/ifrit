@@ -8,6 +8,10 @@ export type IdentifierType =
 
 export type AddressType = "registered" | "bill_to" | "ship_to" | "postal";
 
+export type PaymentMeansCode = "30" | "42" | "58";
+
+export type AccountScheme = "iban" | "other";
+
 // Single source of truth for value -> display label: raw enum values are never
 // shown to the user; every table/select that renders one of these must go
 // through this map.
@@ -25,6 +29,17 @@ export const ADDRESS_TYPE_LABELS: Record<AddressType, string> = {
   bill_to: "Bill To",
   ship_to: "Ship To",
   postal: "Postal",
+};
+
+export const PAYMENT_MEANS_LABELS: Record<PaymentMeansCode, string> = {
+  "30": "Credit transfer",
+  "42": "Payment to bank account",
+  "58": "SEPA credit transfer",
+};
+
+export const ACCOUNT_SCHEME_LABELS: Record<AccountScheme, string> = {
+  iban: "IBAN",
+  other: "Other",
 };
 
 export interface PartyIdentifier {
@@ -77,6 +92,42 @@ export interface AddressInput {
   valid_to?: string | null;
 }
 
+export interface BankAddress {
+  line1: string;
+  line2: string | null;
+  line3: string | null;
+  city: string;
+  postal_zone: string | null;
+  country_subdivision: string | null;
+  country_code: string;
+}
+
+export interface PayeeAccount {
+  id: string;
+  company_id: string;
+  payment_means_code: PaymentMeansCode;
+  account_scheme: AccountScheme;
+  account_identifier: string;
+  account_name: string | null;
+  currency_code: string;
+  bic: string | null;
+  bank_name: string | null;
+  bank_address: BankAddress | null;
+  is_primary: boolean;
+}
+
+export interface PayeeAccountInput {
+  payment_means_code: PaymentMeansCode;
+  account_scheme: AccountScheme;
+  account_identifier: string;
+  account_name?: string | null;
+  currency_code: string;
+  bic?: string | null;
+  bank_name?: string | null;
+  bank_address?: BankAddress | null;
+  is_primary?: boolean;
+}
+
 export interface CompanyListItem {
   id: string;
   legal_name: string;
@@ -103,6 +154,7 @@ export interface CompanyDetail {
   updated_at: string;
   identifiers: PartyIdentifier[];
   addresses: Address[];
+  payee_accounts: PayeeAccount[];
 }
 
 export interface CompanyInput {

@@ -4,14 +4,23 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.company import Address, AddressType, Company, PartyIdentifier
+from app.models.company import (
+    Address,
+    AddressType,
+    Company,
+    PartyIdentifier,
+    PayeeAccount,
+)
 from app.schemas.company import (
     AddressOut,
     AddressWrite,
+    BankAddress,
     CompanyDetail,
     CompanyWrite,
     PartyIdentifierOut,
     PartyIdentifierWrite,
+    PayeeAccountOut,
+    PayeeAccountWrite,
 )
 from app.services.sorting import resolve_sort
 
@@ -43,7 +52,9 @@ async def list_companies(
 
     if search:
         pattern = f"%{search}%"
-        match = or_(Company.legal_name.ilike(pattern), Company.trading_name.ilike(pattern))
+        match = or_(
+            Company.legal_name.ilike(pattern), Company.trading_name.ilike(pattern)
+        )
         stmt = stmt.where(match)
         count_stmt = count_stmt.where(match)
     # is_vendor: used by the Project form's vendor picker to narrow the list.
@@ -53,14 +64,14 @@ async def list_companies(
 
     total = (await db.execute(count_stmt)).scalar_one()
 
-    order = resolve_sort(_SORTABLE_COLUMNS, sort_by, sort_dir, default=Company.legal_name.asc())
+    order = resolve_sort(
+        _SORTABLE_COLUMNS, sort_by, sort_dir, default=Company.legal_name.asc()
+    )
     stmt = (
         # `Company.id` is a stable tie-breaker: without it, rows with an equal
         # sort value could shift between pages across two paginated fetches (see
         # app/services/sorting.py).
-        stmt.order_by(order, Company.id)
-        .offset((page - 1) * PAGE_SIZE)
-        .limit(PAGE_SIZE)
+        stmt.order_by(order, Company.id).offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE)
     )
     companies = list((await db.execute(stmt)).scalars().all())
     return companies, total
@@ -68,16 +79,20 @@ async def list_companies(
 
 async def get_company(db: AsyncSession, company_id: uuid.UUID) -> Company | None:
     # Only active companies: a deactivated one is treated as not found by every caller
-    # (read, update, duplicate, deactivate, identifier/address writes).
-    # populate_existing=True: add_identifier/add_address insert child rows directly
-    # rather than through company.identifiers.append(...), so if this company is
+    # (read, update, duplicate, deactivate, identifier/address/payee account writes).
+    # populate_existing=True: add_identifier/add_address/add_payee_account insert child
+    # rows directly rather than through company.identifiers.append(...), so if this company is
     # already in the session's identity map with those collections previously loaded,
     # SQLAlchemy won't otherwise re-fetch them here: they'd stay stale for the rest
     # of the session (matters most for multi-call flows within one session, e.g. add
     # an identifier then immediately duplicate the company).
     result = await db.execute(
         select(Company)
-        .options(selectinload(Company.identifiers), selectinload(Company.addresses))
+        .options(
+            selectinload(Company.identifiers),
+            selectinload(Company.addresses),
+            selectinload(Company.payee_accounts),
+        )
         .where(Company.id == company_id, Company.is_active.is_(True))
         .execution_options(populate_existing=True)
     )
@@ -142,6 +157,26 @@ async def duplicate_company(db: AsyncSession, source: Company) -> Company:
                 country_subdivision=address.country_subdivision,
                 country_code=address.country_code,
                 is_primary=address.is_primary,
+            )
+        )
+    for account in source.payee_accounts:
+        new_company.payee_accounts.append(
+            PayeeAccount(
+                payment_means_code=account.payment_means_code,
+                account_scheme=account.account_scheme,
+                account_identifier=account.account_identifier,
+                account_name=account.account_name,
+                currency_code=account.currency_code,
+                bic=account.bic,
+                bank_name=account.bank_name,
+                bank_line1=account.bank_line1,
+                bank_line2=account.bank_line2,
+                bank_line3=account.bank_line3,
+                bank_city=account.bank_city,
+                bank_postal_zone=account.bank_postal_zone,
+                bank_country_subdivision=account.bank_country_subdivision,
+                bank_country_code=account.bank_country_code,
+                is_primary=account.is_primary,
             )
         )
     db.add(new_company)
@@ -244,6 +279,99 @@ async def delete_address(db: AsyncSession, address: Address) -> None:
     await db.commit()
 
 
+def _payee_account_columns(data: PayeeAccountWrite) -> dict[str, object]:
+    """The write payload as table columns: the API nests the bank address, the table
+    keeps it inline."""
+    address = data.bank_address
+    return {
+        "payment_means_code": data.payment_means_code,
+        "account_scheme": data.account_scheme,
+        "account_identifier": data.account_identifier,
+        "account_name": data.account_name,
+        "currency_code": data.currency_code,
+        "bic": data.bic,
+        "bank_name": data.bank_name,
+        "bank_line1": address.line1 if address else None,
+        "bank_line2": address.line2 if address else None,
+        "bank_line3": address.line3 if address else None,
+        "bank_city": address.city if address else None,
+        "bank_postal_zone": address.postal_zone if address else None,
+        "bank_country_subdivision": address.country_subdivision if address else None,
+        "bank_country_code": address.country_code if address else None,
+        "is_primary": data.is_primary,
+    }
+
+
+async def get_conflicting_primary_payee_account(
+    db: AsyncSession,
+    company_id: uuid.UUID,
+    currency_code: str,
+    exclude_account_id: uuid.UUID | None = None,
+) -> PayeeAccount | None:
+    """The existing primary PayeeAccount in this currency for this company, if any: used
+    to reject a second one."""
+    stmt = select(PayeeAccount).where(
+        PayeeAccount.company_id == company_id,
+        PayeeAccount.currency_code == currency_code,
+        PayeeAccount.is_primary.is_(True),
+    )
+    if exclude_account_id is not None:
+        stmt = stmt.where(PayeeAccount.id != exclude_account_id)
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
+async def get_payee_account_by_identifier(
+    db: AsyncSession,
+    company_id: uuid.UUID,
+    account_identifier: str,
+    exclude_account_id: uuid.UUID | None = None,
+) -> PayeeAccount | None:
+    """An account of this company already holding this (normalized) identifier, if any."""
+    stmt = select(PayeeAccount).where(
+        PayeeAccount.company_id == company_id,
+        PayeeAccount.account_identifier == account_identifier,
+    )
+    if exclude_account_id is not None:
+        stmt = stmt.where(PayeeAccount.id != exclude_account_id)
+    return (await db.execute(stmt)).scalar_one_or_none()
+
+
+async def add_payee_account(
+    db: AsyncSession, company: Company, data: PayeeAccountWrite
+) -> PayeeAccount:
+    account = PayeeAccount(company_id=company.id, **_payee_account_columns(data))
+    db.add(account)
+    await db.commit()
+    await db.refresh(account)
+    return account
+
+
+async def get_payee_account(
+    db: AsyncSession, company_id: uuid.UUID, account_id: uuid.UUID
+) -> PayeeAccount | None:
+    result = await db.execute(
+        select(PayeeAccount).where(
+            PayeeAccount.id == account_id, PayeeAccount.company_id == company_id
+        )
+    )
+    return result.scalar_one_or_none()
+
+
+async def update_payee_account(
+    db: AsyncSession, account: PayeeAccount, data: PayeeAccountWrite
+) -> PayeeAccount:
+    for field, value in _payee_account_columns(data).items():
+        setattr(account, field, value)
+    await db.commit()
+    await db.refresh(account)
+    return account
+
+
+async def delete_payee_account(db: AsyncSession, account: PayeeAccount) -> None:
+    await db.delete(account)
+    await db.commit()
+
+
 def to_identifier_out(identifier: PartyIdentifier) -> PartyIdentifierOut:
     return PartyIdentifierOut(
         id=identifier.id,
@@ -275,6 +403,39 @@ def to_address_out(address: Address) -> AddressOut:
     )
 
 
+def to_payee_account_out(account: PayeeAccount) -> PayeeAccountOut:
+    # The check constraint keeps line 1, city and country all set or all null; testing
+    # all three rather than one is what lets the type checker see them as non-null.
+    bank_address = None
+    if (
+        account.bank_line1 is not None
+        and account.bank_city is not None
+        and account.bank_country_code is not None
+    ):
+        bank_address = BankAddress(
+            line1=account.bank_line1,
+            line2=account.bank_line2,
+            line3=account.bank_line3,
+            city=account.bank_city,
+            postal_zone=account.bank_postal_zone,
+            country_subdivision=account.bank_country_subdivision,
+            country_code=account.bank_country_code,
+        )
+    return PayeeAccountOut(
+        id=account.id,
+        company_id=account.company_id,
+        payment_means_code=account.payment_means_code,
+        account_scheme=account.account_scheme,
+        account_identifier=account.account_identifier,
+        account_name=account.account_name,
+        currency_code=account.currency_code,
+        bic=account.bic,
+        bank_name=account.bank_name,
+        bank_address=bank_address,
+        is_primary=account.is_primary,
+    )
+
+
 def to_company_detail(company: Company) -> CompanyDetail:
     return CompanyDetail(
         id=company.id,
@@ -288,4 +449,5 @@ def to_company_detail(company: Company) -> CompanyDetail:
         updated_at=company.updated_at,
         identifiers=[to_identifier_out(i) for i in company.identifiers],
         addresses=[to_address_out(a) for a in company.addresses],
+        payee_accounts=[to_payee_account_out(p) for p in company.payee_accounts],
     )

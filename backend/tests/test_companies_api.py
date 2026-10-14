@@ -1,9 +1,26 @@
-from tests.factories import create_company, create_user
+import importlib.util
+from pathlib import Path
+from typing import get_args
+
+from sqlalchemy import CheckConstraint, Table
+
+from app.models.company import (
+    BANK_ADDRESS_CHECK,
+    AccountScheme,
+    PayeeAccount,
+    PaymentMeansCode,
+)
+from tests.factories import create_company, create_currency, create_user
+
+BACKEND_DIR = Path(__file__).resolve().parent.parent
 
 
 async def _login_admin(client, db_session) -> None:
     await create_user(
-        db_session, name_id="admin@example.com", password="admin-pass", role_name="administrator"
+        db_session,
+        name_id="admin@example.com",
+        password="admin-pass",
+        role_name="administrator",
     )
     response = await client.post(
         "/api/auth/login", json={"email": "admin@example.com", "password": "admin-pass"}
@@ -161,10 +178,12 @@ async def test_list_companies_sort_composes_with_pagination(client, db_session) 
         await create_company(db_session, legal_name=f"Company {i:03d}")
 
     page1 = await client.get(
-        "/api/companies", params={"page": 1, "sort_by": "legal_name", "sort_dir": "desc"}
+        "/api/companies",
+        params={"page": 1, "sort_by": "legal_name", "sort_dir": "desc"},
     )
     page2 = await client.get(
-        "/api/companies", params={"page": 2, "sort_by": "legal_name", "sort_dir": "desc"}
+        "/api/companies",
+        params={"page": 2, "sort_by": "legal_name", "sort_dir": "desc"},
     )
     assert page1.status_code == 200
     page1_names = [item["legal_name"] for item in page1.json()["items"]]
@@ -185,7 +204,9 @@ async def test_list_companies_unknown_sort_by_falls_back_to_default(
     await create_company(db_session, legal_name="Zeta Corp")
     await create_company(db_session, legal_name="Acme Corp")
 
-    response = await client.get("/api/companies", params={"sort_by": "not_a_real_column"})
+    response = await client.get(
+        "/api/companies", params={"sort_by": "not_a_real_column"}
+    )
     assert response.status_code == 200
     names = [item["legal_name"] for item in response.json()["items"]]
     assert names == ["Acme Corp", "Zeta Corp"]
@@ -242,6 +263,19 @@ async def test_duplicate_company_copies_fields_and_children(client, db_session) 
         },
     )
 
+    await _create_eur(db_session)
+    account = await client.post(
+        f"/api/companies/{company.id}/payee-accounts",
+        json=_payee_payload(
+            account_name="Acme Manufacturing SA",
+            bic="GEBABEBB",
+            bank_name="BNP Paribas Fortis",
+            bank_address=_BANK_ADDRESS,
+            is_primary=True,
+        ),
+    )
+    assert account.status_code == 201
+
     response = await client.post(f"/api/companies/{company.id}/duplicate")
     assert response.status_code == 200
     body = response.json()
@@ -253,6 +287,14 @@ async def test_duplicate_company_copies_fields_and_children(client, db_session) 
     assert body["identifiers"][0]["id_value"] == "BE0123456749"
     assert len(body["addresses"]) == 1
     assert body["addresses"][0]["city"] == "Brussels"
+    assert len(body["payee_accounts"]) == 1
+    copied = body["payee_accounts"][0]
+    original = account.json()
+    assert copied["id"] != original["id"]
+    assert copied["company_id"] == body["id"]
+    for key in ("id", "company_id"):
+        del copied[key], original[key]
+    assert copied == original
 
 
 async def test_list_companies_excludes_inactive(client, db_session) -> None:
@@ -295,7 +337,9 @@ async def test_list_companies_sort_by_trading_name(client, db_session) -> None:
             },
         )
 
-    payload = (await client.get("/api/companies", params={"sort_by": "trading_name"})).json()
+    payload = (
+        await client.get("/api/companies", params={"sort_by": "trading_name"})
+    ).json()
     assert [c["trading_name"] for c in payload["items"]] == ["Alpha", "Zeta"]
 
 
@@ -315,9 +359,16 @@ async def test_inactive_company_is_not_found_on_every_route(client, db_session) 
             "country_code": "BE",
         },
     )
+    await _create_eur(db_session)
+    account = await client.post(
+        f"/api/companies/{company.id}/payee-accounts", json=_payee_payload()
+    )
     identifier_id = identifier.json()["id"]
     address_id = address.json()["id"]
-    assert (await client.post(f"/api/companies/{company.id}/deactivate")).status_code == 204
+    account_id = account.json()["id"]
+    assert (
+        await client.post(f"/api/companies/{company.id}/deactivate")
+    ).status_code == 204
 
     base = f"/api/companies/{company.id}"
     company_payload = {"legal_name": "X", "country_of_registration": "BE"}
@@ -334,11 +385,18 @@ async def test_inactive_company_is_not_found_on_every_route(client, db_session) 
         await client.post(f"{base}/duplicate"),
         await client.post(f"{base}/deactivate"),
         await client.post(f"{base}/identifiers", json=identifier_payload),
-        await client.patch(f"{base}/identifiers/{identifier_id}", json=identifier_payload),
+        await client.patch(
+            f"{base}/identifiers/{identifier_id}", json=identifier_payload
+        ),
         await client.delete(f"{base}/identifiers/{identifier_id}"),
         await client.post(f"{base}/addresses", json=address_payload),
         await client.patch(f"{base}/addresses/{address_id}", json=address_payload),
         await client.delete(f"{base}/addresses/{address_id}"),
+        await client.post(f"{base}/payee-accounts", json=_payee_payload()),
+        await client.patch(
+            f"{base}/payee-accounts/{account_id}", json=_payee_payload()
+        ),
+        await client.delete(f"{base}/payee-accounts/{account_id}"),
     ]
     assert [r.status_code for r in responses] == [404] * len(responses)
 
@@ -450,7 +508,9 @@ async def test_get_company_not_found(client, db_session) -> None:
     assert response.status_code == 404
 
 
-async def test_cannot_create_second_primary_address_of_same_type(client, db_session) -> None:
+async def test_cannot_create_second_primary_address_of_same_type(
+    client, db_session
+) -> None:
     await _login_admin(client, db_session)
     company = await create_company(db_session)
 
@@ -575,3 +635,307 @@ async def test_updating_address_to_primary_conflicts_with_existing_primary(
         },
     )
     assert response.status_code == 409
+
+
+# --- Payee accounts -------------------------------------------------------------------
+
+_IBAN = "BE71096123456769"
+_BANK_ADDRESS = {
+    "line1": "Montagne du Parc 3",
+    "city": "Brussels",
+    "postal_zone": "1000",
+    "country_code": "BE",
+}
+
+
+async def _create_eur(db_session) -> None:
+    await create_currency(
+        db_session, alpha_code="EUR", numeric_code="978", name="Euro", symbol="€"
+    )
+
+
+def _payee_payload(**overrides: object) -> dict[str, object]:
+    payload: dict[str, object] = {
+        "payment_means_code": "58",
+        "account_scheme": "iban",
+        "account_identifier": _IBAN,
+        "currency_code": "EUR",
+    }
+    payload.update(overrides)
+    return payload
+
+
+async def _admin_with_company(client, db_session, *, is_vendor: bool = True) -> str:
+    await _login_admin(client, db_session)
+    await _create_eur(db_session)
+    company = await create_company(db_session, is_vendor=is_vendor)
+    return f"/api/companies/{company.id}/payee-accounts"
+
+
+def test_payee_account_checks_match_the_migration() -> None:
+    # `alembic check` compares columns and indexes but not CHECK constraints, so the
+    # vocabularies and the bank address rule are compared here instead.
+    path = (
+        BACKEND_DIR
+        / "alembic"
+        / "versions"
+        / "0002_manager_role_billing_milestones_project_references_payee_accounts.py"
+    )
+    spec = importlib.util.spec_from_file_location("migration_0002", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    assert tuple(module._PAYMENT_MEANS_CODES) == get_args(PaymentMeansCode)
+    assert tuple(module._ACCOUNT_SCHEMES) == get_args(AccountScheme)
+    assert module._BANK_ADDRESS_CHECK == BANK_ADDRESS_CHECK
+    table = PayeeAccount.__table__
+    assert isinstance(table, Table)
+    checks = {
+        c.name: str(c.sqltext)
+        for c in table.constraints
+        if isinstance(c, CheckConstraint)
+    }
+    assert checks["ck_payee_accounts_bank_address"] == BANK_ADDRESS_CHECK
+    for code in get_args(PaymentMeansCode):
+        assert f"'{code}'" in checks["ck_payee_accounts_payment_means_code"]
+
+
+async def test_add_sepa_payee_account_normalizes_the_iban(client, db_session) -> None:
+    url = await _admin_with_company(client, db_session)
+
+    response = await client.post(
+        url,
+        json=_payee_payload(account_identifier="be71 0961 2345 6769", bic="gebabebb"),
+    )
+    assert response.status_code == 201
+    body = response.json()
+    assert body["account_identifier"] == _IBAN
+    assert body["bic"] == "GEBABEBB"
+    assert body["bank_address"] is None
+    assert body["is_primary"] is False
+
+
+async def test_payee_account_rejects_a_bad_iban_checksum(client, db_session) -> None:
+    url = await _admin_with_company(client, db_session)
+
+    response = await client.post(
+        url, json=_payee_payload(account_identifier="BE71096123456768")
+    )
+    assert response.status_code == 422
+
+
+async def test_sepa_payee_account_requires_an_iban(client, db_session) -> None:
+    url = await _admin_with_company(client, db_session)
+
+    response = await client.post(
+        url,
+        json=_payee_payload(account_scheme="other", account_identifier="123-456789-0"),
+    )
+    assert response.status_code == 422
+
+
+async def test_other_scheme_identifier_is_kept_as_typed(client, db_session) -> None:
+    url = await _admin_with_company(client, db_session)
+
+    response = await client.post(
+        url,
+        json=_payee_payload(
+            payment_means_code="30",
+            account_scheme="other",
+            account_identifier="  123-456789-0 ",
+        ),
+    )
+    assert response.status_code == 201
+    assert response.json()["account_identifier"] == "123-456789-0"
+
+
+async def test_payee_account_rejects_an_unsupported_payment_means_code(
+    client, db_session
+) -> None:
+    url = await _admin_with_company(client, db_session)
+
+    response = await client.post(url, json=_payee_payload(payment_means_code="49"))
+    assert response.status_code == 422
+
+
+async def test_payee_account_currency_must_be_enabled(client, db_session) -> None:
+    url = await _admin_with_company(client, db_session)
+    await create_currency(
+        db_session,
+        alpha_code="SEK",
+        numeric_code="752",
+        name="Swedish Krona",
+        is_enabled=False,
+    )
+
+    disabled = await client.post(url, json=_payee_payload(currency_code="SEK"))
+    unknown = await client.post(url, json=_payee_payload(currency_code="ZZZ"))
+    assert disabled.status_code == 422
+    assert unknown.status_code == 422
+
+
+async def test_payee_account_rejects_a_malformed_bic(client, db_session) -> None:
+    url = await _admin_with_company(client, db_session)
+
+    response = await client.post(url, json=_payee_payload(bic="GEBABEBB0"))
+    assert response.status_code == 422
+
+
+async def test_payee_account_rejects_a_partial_bank_address(client, db_session) -> None:
+    url = await _admin_with_company(client, db_session)
+
+    response = await client.post(
+        url,
+        json=_payee_payload(
+            bank_address={"line1": "", "city": "Brussels", "country_code": ""}
+        ),
+    )
+    assert response.status_code == 422
+
+
+async def test_payee_account_with_a_bank_address(client, db_session) -> None:
+    url = await _admin_with_company(client, db_session)
+
+    response = await client.post(
+        url,
+        json=_payee_payload(
+            bank_name="BNP Paribas Fortis",
+            bank_address={**_BANK_ADDRESS, "country_code": "be", "line2": " "},
+        ),
+    )
+    assert response.status_code == 201
+    assert response.json()["bank_address"] == {
+        "line1": "Montagne du Parc 3",
+        "line2": None,
+        "line3": None,
+        "city": "Brussels",
+        "postal_zone": "1000",
+        "country_subdivision": None,
+        "country_code": "BE",
+    }
+
+
+async def test_duplicate_payee_account_identifier_conflicts(client, db_session) -> None:
+    url = await _admin_with_company(client, db_session)
+    assert (await client.post(url, json=_payee_payload())).status_code == 201
+
+    response = await client.post(
+        url, json=_payee_payload(account_identifier="be71 0961 2345 6769")
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "An account with this identifier already exists for this company"
+    )
+
+
+async def test_second_primary_payee_account_in_a_currency_conflicts(
+    client, db_session
+) -> None:
+    url = await _admin_with_company(client, db_session)
+    first = await client.post(url, json=_payee_payload(is_primary=True))
+    assert first.status_code == 201
+
+    response = await client.post(
+        url,
+        json=_payee_payload(account_identifier="NL91ABNA0417164300", is_primary=True),
+    )
+    assert response.status_code == 409
+    assert (
+        response.json()["detail"]
+        == "A primary account in EUR already exists for this company"
+    )
+    company = (await client.get(url.removesuffix("/payee-accounts"))).json()
+    assert [a["is_primary"] for a in company["payee_accounts"]] == [True]
+
+
+async def test_primary_payee_accounts_in_different_currencies(
+    client, db_session
+) -> None:
+    url = await _admin_with_company(client, db_session)
+    await create_currency(db_session)  # USD
+    assert (
+        await client.post(url, json=_payee_payload(is_primary=True))
+    ).status_code == 201
+
+    response = await client.post(
+        url,
+        json=_payee_payload(
+            payment_means_code="30",
+            account_scheme="other",
+            account_identifier="026009593 1234567890",
+            currency_code="USD",
+            is_primary=True,
+        ),
+    )
+    assert response.status_code == 201
+
+
+async def test_editing_the_primary_payee_account_does_not_conflict_with_itself(
+    client, db_session
+) -> None:
+    url = await _admin_with_company(client, db_session)
+    created = (await client.post(url, json=_payee_payload(is_primary=True))).json()
+
+    response = await client.patch(
+        f"{url}/{created['id']}",
+        json=_payee_payload(account_name="Renamed", is_primary=True),
+    )
+    assert response.status_code == 200
+    assert response.json()["account_name"] == "Renamed"
+
+
+async def test_payee_account_update_and_delete(client, db_session) -> None:
+    url = await _admin_with_company(client, db_session)
+    created = (await client.post(url, json=_payee_payload())).json()
+
+    updated = await client.patch(
+        f"{url}/{created['id']}",
+        json=_payee_payload(payment_means_code="42", bank_address=_BANK_ADDRESS),
+    )
+    assert updated.status_code == 200
+    assert updated.json()["payment_means_code"] == "42"
+    assert updated.json()["bank_address"]["city"] == "Brussels"
+
+    assert (await client.delete(f"{url}/{created['id']}")).status_code == 204
+    company = (await client.get(url.removesuffix("/payee-accounts"))).json()
+    assert company["payee_accounts"] == []
+    assert (await client.delete(f"{url}/{created['id']}")).status_code == 404
+
+
+async def test_payee_account_of_another_company_is_not_found(
+    client, db_session
+) -> None:
+    url = await _admin_with_company(client, db_session)
+    created = (await client.post(url, json=_payee_payload())).json()
+    other = await create_company(db_session, legal_name="Other Corp")
+
+    response = await client.patch(
+        f"/api/companies/{other.id}/payee-accounts/{created['id']}",
+        json=_payee_payload(),
+    )
+    assert response.status_code == 404
+
+
+async def test_payee_account_on_a_client_company(client, db_session) -> None:
+    url = await _admin_with_company(client, db_session, is_vendor=False)
+
+    response = await client.post(url, json=_payee_payload())
+    assert response.status_code == 201
+
+
+async def test_manager_reads_but_cannot_write_payee_accounts(
+    client, db_session
+) -> None:
+    url = await _admin_with_company(client, db_session)
+    assert (await client.post(url, json=_payee_payload())).status_code == 201
+    await client.post("/api/auth/logout")
+    await _login_manager(client, db_session)
+
+    detail = await client.get(url.removesuffix("/payee-accounts"))
+    assert detail.status_code == 200
+    assert detail.json()["payee_accounts"][0]["account_identifier"] == _IBAN
+    response = await client.post(
+        url, json=_payee_payload(account_identifier="NL91ABNA0417164300")
+    )
+    assert response.status_code == 403
