@@ -126,6 +126,7 @@ export function AddressFormDialog({
 
   const addressType = useWatch({ control, name: "address_type" });
   const watchedIsPrimary = useWatch({ control, name: "is_primary" });
+  const countryCode = useWatch({ control, name: "country_code" });
 
   async function onSubmit(values: FormValues) {
     setFormError(null);
@@ -177,6 +178,11 @@ export function AddressFormDialog({
 
           <AddressFields
             field={(name) => register(name)}
+            country={{
+              value: countryCode,
+              onChange: (code) =>
+                setValue("country_code", code, { shouldDirty: true, shouldValidate: true }),
+            }}
             errors={{
               line1: errors.line1?.message,
               city: errors.city?.message,

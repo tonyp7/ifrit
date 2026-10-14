@@ -172,6 +172,7 @@ export function PayeeAccountFormDialog({
   const accountScheme = useWatch({ control, name: "account_scheme" });
   const currencyCode = useWatch({ control, name: "currency_code" });
   const watchedIsPrimary = useWatch({ control, name: "is_primary" });
+  const bankCountryCode = useWatch({ control, name: "bank_address.country_code" });
 
   // An account saved in a currency that has since been disabled keeps it: list it so the
   // select still shows what is stored, even though it can't be chosen again.
@@ -322,6 +323,14 @@ export function PayeeAccountFormDialog({
           <AddressFields
             idPrefix="bank_"
             field={(name) => register(`bank_address.${name}`)}
+            country={{
+              value: bankCountryCode,
+              onChange: (code) =>
+                setValue("bank_address.country_code", code, {
+                  shouldDirty: true,
+                  shouldValidate: true,
+                }),
+            }}
             errors={{
               line1: errors.bank_address?.line1?.message,
               city: errors.bank_address?.city?.message,
