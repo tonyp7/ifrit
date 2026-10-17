@@ -3,20 +3,33 @@ import { ArrowLeft } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useForm, useWatch } from "react-hook-form";
 import { useTranslation } from "react-i18next";
-import { Link, useNavigate, useParams } from "react-router";
+import { Link, useLocation, useNavigate, useParams } from "react-router";
 import { toast } from "sonner";
 
 import { ApiError } from "@/api/client";
 import {
   createInvoice,
   deleteInvoice,
+  duplicateInvoice,
   generateLines,
   getBillingContext,
   getInvoice,
+  getIssuePreview,
+  issueInvoice,
   listInvoiceProjects,
   updateInvoice,
+  voidInvoice,
 } from "@/api/invoices";
 import { InvoiceLinesTable } from "@/components/invoices/InvoiceLinesTable";
+import { IssueInvoiceDialog } from "@/components/invoices/IssueInvoiceDialog";
+import {
+  InvoiceHeading,
+  IssuedDates,
+  IssuedIdentifiers,
+  ProjectNotActiveBanner,
+  VoidNotice,
+} from "@/components/invoices/IssuedInvoiceDetails";
+import { VoidInvoiceDialog } from "@/components/invoices/VoidInvoiceDialog";
 import { InvoiceReferencesFields } from "@/components/invoices/InvoiceReferencesFields";
 import { InvoiceWarnings } from "@/components/invoices/InvoiceWarnings";
 import {
@@ -43,7 +56,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import {
@@ -62,11 +74,12 @@ import { prefillReferences } from "@/lib/invoiceReferences";
 import { combineWarnings, formWarnings } from "@/lib/invoiceWarnings";
 import { parseDayKey, toDayKey } from "@/lib/timesheetDates";
 import {
-  INVOICE_STATUS_LABELS,
   type BillingContext,
+  type InvoiceDetail,
   type InvoiceableProject,
   type InvoiceStatus,
   type InvoiceWarning,
+  type IssuePreview,
   type OmittedServiceLine,
 } from "@/types/invoice";
 import { PROJECT_TYPE_LABELS } from "@/types/project";
@@ -111,6 +124,7 @@ function SectionHeading({ step, title }: { step: number; title: string }) {
 export function InvoiceFormPage() {
   const { invoiceId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { t } = useTranslation(["invoices", "common", "projects"]);
   const [today] = useState(() => new Date());
   const schema = useMemo(() => invoiceSchema(t), [t]);
@@ -132,7 +146,17 @@ export function InvoiceFormPage() {
   const [pendingProject, setPendingProject] = useState<string | null>(null);
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
-  const [busy, setBusy] = useState<"saving" | "generating" | "deleting" | null>(null);
+  const [busy, setBusy] = useState<
+    "saving" | "generating" | "deleting" | "issuing" | "voiding" | "duplicating" | null
+  >(null);
+  // The saved invoice as the server returned it: the number, dates and snapshot.
+  const [detail, setDetail] = useState<InvoiceDetail | null>(null);
+  // For a saved draft: the likely number, and what would stop it being issued.
+  const [preview, setPreview] = useState<IssuePreview | null>(null);
+  const [issueOpen, setIssueOpen] = useState(false);
+  const [voidOpen, setVoidOpen] = useState(false);
+  // Bumped to read the invoice again after it is saved, issued or voided.
+  const [reloadToken, setReloadToken] = useState(0);
 
   const projectId = useWatch({ control, name: "project_id" });
   const lines = useWatch({ control, name: "lines" });
@@ -167,10 +191,17 @@ export function InvoiceFormPage() {
         });
         setContext(projectContext);
         setStatus(detail.status);
+        setDetail(detail);
         setSavedProjectName(detail.project_name);
         setServerWarnings(detail.warnings);
         setOmitted([]);
         setLoadError(null);
+        if (detail.status === "draft") {
+          const loaded = await getIssuePreview(detail.id).catch(() => null);
+          if (!cancelled) setPreview(loaded);
+        } else {
+          setPreview(null);
+        }
       })
       .catch((err: unknown) => {
         if (!cancelled) {
@@ -182,7 +213,17 @@ export function InvoiceFormPage() {
     return () => {
       cancelled = true;
     };
-  }, [invoiceId, reset, t]);
+  }, [invoiceId, reloadToken, reset, t]);
+
+  // Issue on a new invoice saves it first, which moves to its own address; the
+  // confirmation opens once there.
+  const openIssueAfterSave = (location.state as { issue?: boolean } | null)?.issue === true;
+  useEffect(() => {
+    if (!openIssueAfterSave || !invoiceId) return;
+    navigate(location.pathname, { replace: true, state: null });
+    void openIssueDialog(invoiceId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openIssueAfterSave, invoiceId]);
 
   async function applyProject(id: string) {
     setFormError(null);
@@ -247,7 +288,11 @@ export function InvoiceFormPage() {
     else void runGenerate();
   }
 
-  async function onSubmit(values: InvoiceFormValues) {
+  /** Saves the draft; null when it could not be saved (the error is shown). */
+  async function save(
+    values: InvoiceFormValues,
+    issueNext = false,
+  ): Promise<InvoiceDetail | null> {
     setBusy("saving");
     setFormError(null);
     try {
@@ -257,9 +302,95 @@ export function InvoiceFormPage() {
         : await createInvoice(payload);
       toast.success(t("Draft saved"));
       setServerWarnings(saved.warnings);
-      if (!invoiceId) navigate(`/invoices/${saved.id}`, { replace: true });
+      if (!invoiceId) {
+        navigate(`/invoices/${saved.id}`, {
+          replace: true,
+          state: issueNext ? { issue: true } : null,
+        });
+      } else {
+        setReloadToken((n) => n + 1);
+      }
+      return saved;
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : t("Failed to save the draft."));
+      return null;
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function onSubmit(values: InvoiceFormValues) {
+    await save(values);
+  }
+
+  async function openIssueDialog(id: string) {
+    setPreview(null);
+    setIssueOpen(true);
+    try {
+      setPreview(await getIssuePreview(id));
+    } catch (err) {
+      setIssueOpen(false);
+      setFormError(
+        err instanceof ApiError
+          ? err.message
+          : t("Failed to prepare the invoice for issuing."),
+      );
+    }
+  }
+
+  // Unsaved edits are saved first, so what is issued is what the form shows.
+  const handleIssue = handleSubmit(async (values) => {
+    if (invoiceId && !form.formState.isDirty) {
+      await openIssueDialog(invoiceId);
+      return;
+    }
+    const saved = await save(values, true);
+    if (saved && invoiceId) await openIssueDialog(saved.id);
+  });
+
+  async function confirmIssue() {
+    if (!invoiceId) return;
+    setBusy("issuing");
+    try {
+      const issued = await issueInvoice(invoiceId);
+      toast.success(t("Invoice {{number}} issued", { number: issued.number }));
+      setIssueOpen(false);
+      setReloadToken((n) => n + 1);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : t("Failed to issue the invoice."));
+      setIssueOpen(false);
+      setReloadToken((n) => n + 1);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function confirmVoid(reason: string) {
+    if (!invoiceId) return;
+    setBusy("voiding");
+    try {
+      const voided = await voidInvoice(invoiceId, reason);
+      toast.success(t("Invoice {{number}} voided", { number: voided.number }));
+      setVoidOpen(false);
+      setReloadToken((n) => n + 1);
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : t("Failed to void the invoice."));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleDuplicate() {
+    if (!invoiceId) return;
+    setBusy("duplicating");
+    try {
+      const copy = await duplicateInvoice(invoiceId);
+      toast.success(t("Invoice duplicated"));
+      navigate(`/invoices/${copy.id}`);
+    } catch (err) {
+      setFormError(
+        err instanceof ApiError ? err.message : t("Failed to duplicate the invoice."),
+      );
     } finally {
       setBusy(null);
     }
@@ -334,16 +465,11 @@ export function InvoiceFormPage() {
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
           {t("Invoices")}
         </Link>
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="text-lg font-medium">
-            {invoiceId ? t("Edit invoice") : t("New invoice")}
-          </h1>
-          <Badge variant="secondary">{t(INVOICE_STATUS_LABELS[status])}</Badge>
-          <span className="text-muted-foreground text-sm">
-            {t("Number assigned when issued")}
-          </span>
-        </div>
+        <InvoiceHeading status={status} detail={detail} preview={preview} isNew={!invoiceId} />
       </div>
+
+      {!readOnly && preview && <ProjectNotActiveBanner preview={preview} />}
+      {status === "void" && detail && <VoidNotice detail={detail} />}
 
       <section className="flex flex-col gap-4">
         <SectionHeading step={1} title={t("Project")} />
@@ -409,6 +535,18 @@ export function InvoiceFormPage() {
                 disabled={readOnly}
               />
             </div>
+            {readOnly && detail && (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <IssuedIdentifiers
+                  title={t("Bill From identifiers")}
+                  identifiers={detail.vendor_identifiers}
+                />
+                <IssuedIdentifiers
+                  title={t("Bill To identifiers")}
+                  identifiers={detail.client_identifiers}
+                />
+              </div>
+            )}
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <PayeeAccountFields
                 accounts={context?.payee_accounts ?? []}
@@ -418,16 +556,20 @@ export function InvoiceFormPage() {
               />
               <div className="flex flex-col gap-4">
                 <InvoiceReferencesFields form={form} disabled={readOnly} />
-                <PaymentTermsField
-                  paymentTerms={paymentTerms}
-                  dueDate={dueDate}
-                  today={today}
-                  disabled={readOnly}
-                  onChange={({ paymentTerms: terms, dueDate: date }) => {
-                    setValue("payment_terms", terms, { shouldDirty: true });
-                    setValue("due_date", date, { shouldDirty: true });
-                  }}
-                />
+                {readOnly && detail ? (
+                  <IssuedDates detail={detail} />
+                ) : (
+                  <PaymentTermsField
+                    paymentTerms={paymentTerms}
+                    dueDate={dueDate}
+                    today={today}
+                    disabled={readOnly}
+                    onChange={({ paymentTerms: terms, dueDate: date }) => {
+                      setValue("payment_terms", terms, { shouldDirty: true });
+                      setValue("due_date", date, { shouldDirty: true });
+                    }}
+                  />
+                )}
               </div>
             </div>
           </section>
@@ -457,37 +599,47 @@ export function InvoiceFormPage() {
             )}
           </section>
 
-          <Separator />
-          <section className="flex flex-col gap-4">
-            <SectionHeading step={4} title={t("Generate")} />
-            <div className="flex flex-wrap items-center gap-3">
-              <Button
-                type="button"
-                variant="outline"
-                disabled={!canGenerate || busy !== null}
-                onClick={handleGenerate}
-              >
-                {busy === "generating" && <Spinner />}
-                {busy === "generating" ? t("Generating…") : t("Generate line items")}
-              </Button>
-              <span className="text-muted-foreground text-sm">
-                {t("Generating again replaces the lines, after asking.")}
-              </span>
-            </div>
-            <InvoiceWarnings
-              warnings={warnings}
-              omitted={omitted}
-              minorUnit={context?.currency_minor_unit ?? null}
-            />
-          </section>
+          {!readOnly && (
+            <>
+              <Separator />
+              <section className="flex flex-col gap-4">
+                <SectionHeading step={4} title={t("Generate")} />
+                <div className="flex flex-wrap items-center gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    disabled={!canGenerate || busy !== null}
+                    onClick={handleGenerate}
+                  >
+                    {busy === "generating" && <Spinner />}
+                    {busy === "generating" ? t("Generating…") : t("Generate line items")}
+                  </Button>
+                  <span className="text-muted-foreground text-sm">
+                    {t("Generating again replaces the lines, after asking.")}
+                  </span>
+                </div>
+                <InvoiceWarnings
+                  warnings={warnings}
+                  omitted={omitted}
+                  minorUnit={context?.currency_minor_unit ?? null}
+                />
+              </section>
+            </>
+          )}
 
           <Separator />
           <section className="flex flex-col gap-4">
-            <SectionHeading step={5} title={t("Line items")} />
+            <SectionHeading step={readOnly ? 4 : 5} title={t("Line items")} />
             <InvoiceLinesTable
               form={form}
-              currencyCode={context?.currency_code ?? null}
-              minorUnit={context?.currency_minor_unit ?? null}
+              currencyCode={
+                readOnly ? (detail?.currency_code ?? null) : (context?.currency_code ?? null)
+              }
+              minorUnit={
+                readOnly
+                  ? (detail?.currency_minor_unit ?? null)
+                  : (context?.currency_minor_unit ?? null)
+              }
               disabled={readOnly}
             />
           </section>
@@ -508,16 +660,65 @@ export function InvoiceFormPage() {
             {t("Delete draft")}
           </Button>
         )}
+        {readOnly && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy !== null}
+            onClick={() => void handleDuplicate()}
+          >
+            {busy === "duplicating" && <Spinner />}
+            {t("Duplicate", { ns: "common" })}
+          </Button>
+        )}
+        {status === "issued" && (
+          <Button
+            type="button"
+            variant="outline"
+            className="text-destructive"
+            disabled={busy !== null}
+            onClick={() => setVoidOpen(true)}
+          >
+            {t("Void")}
+          </Button>
+        )}
         <Button type="button" variant="outline" onClick={() => navigate("/invoices")}>
           {t("Close", { ns: "common" })}
         </Button>
         {!readOnly && (
-          <Button type="submit" disabled={busy !== null || !projectId}>
+          <Button type="submit" variant="outline" disabled={busy !== null || !projectId}>
             {busy === "saving" && <Spinner />}
             {busy === "saving" ? t("Saving…", { ns: "common" }) : t("Save draft")}
           </Button>
         )}
+        {!readOnly && (
+          <Button
+            type="button"
+            disabled={
+              busy !== null || !projectId || !!preview?.blocking.includes("project_not_active")
+            }
+            onClick={() => void handleIssue()}
+          >
+            {t("Issue")}
+          </Button>
+        )}
       </div>
+
+      <IssueInvoiceDialog
+        open={issueOpen}
+        onOpenChange={setIssueOpen}
+        preview={preview}
+        minorUnit={context?.currency_minor_unit ?? null}
+        issuing={busy === "issuing"}
+        onConfirm={() => void confirmIssue()}
+      />
+      <VoidInvoiceDialog
+        open={voidOpen}
+        onOpenChange={setVoidOpen}
+        number={detail?.number ?? ""}
+        voiding={busy === "voiding"}
+        onConfirm={(reason) => void confirmVoid(reason)}
+      />
 
       <AlertDialog
         open={pendingProject !== null}

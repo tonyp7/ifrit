@@ -1,13 +1,14 @@
 """Shared setup for the invoice tests: billing users cannot create projects through the API,
 so projects, service lines and time entries are built directly."""
 
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.company import Company
 from app.models.currency import Currency
+from app.models.invoice import Invoice
 from app.models.project import Project, ServiceLine
 from app.models.time_entry import TimeEntry
 from app.models.user import User
@@ -122,3 +123,33 @@ async def log_hours(
     db_session.add(entry)
     await db_session.commit()
     return entry
+
+
+async def make_issued_invoice(
+    db_session: AsyncSession,
+    number: str,
+    *,
+    status: str = "issued",
+    project: Project | None = None,
+) -> Invoice:
+    """An issued (or void) invoice row with everything issuing sets, for tests that only
+    need one to exist: the database refuses a half-issued row."""
+    project = project or await make_project(db_session, name=f"Project {number}")
+    now = datetime.now(UTC)
+    invoice = Invoice(
+        project_id=project.id,
+        status=status,
+        number=number,
+        invoice_date=now.date(),
+        issued_at=now,
+        currency_minor_unit=2,
+        currency_code=project.invoicing_currency,
+        bill_from_name="Vendor",
+        bill_to_name="Client",
+        subtotal=Decimal(0),
+        total=Decimal(0),
+        voided_at=now if status == "void" else None,
+    )
+    db_session.add(invoice)
+    await db_session.commit()
+    return invoice

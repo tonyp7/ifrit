@@ -34,7 +34,9 @@ describe("InvoiceFormPage", () => {
     expect(html).toContain("Choose a project…");
     expect(html).not.toContain("Line items");
     expect(html).toContain("Save draft");
+    expect(html).toMatch(/>Issue</);
     expect(html).not.toContain("Delete draft");
+    expect(html).not.toContain(">Void<");
   });
 
   it("titles a saved draft as an edit", () => {

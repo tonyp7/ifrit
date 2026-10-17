@@ -32,6 +32,20 @@ const draft: InvoiceListItem = {
   payment_terms: "net_30",
   due_date: null,
   created_at: "2026-10-14T09:00:00Z",
+  number: null,
+  invoice_date: null,
+  issued_at: null,
+};
+
+const issued: InvoiceListItem = {
+  ...draft,
+  id: "i2",
+  status: "issued",
+  number: "INV-2026-0043",
+  invoice_date: "2026-10-14",
+  issued_at: "2026-10-14T09:30:00Z",
+  payment_terms: "net_30",
+  due_date: "2026-11-13",
 };
 
 function render(items: InvoiceListItem[]) {
@@ -54,7 +68,17 @@ describe("InvoicesTableView", () => {
 
   it("shows the columns in order", () => {
     const html = render([draft]);
-    const headers = ["Project", "Client", "Billed for", "Status", "Total", "Created", "Due"];
+    const headers = [
+      "Number",
+      "Project",
+      "Client",
+      "Billed for",
+      "Status",
+      "Total",
+      "Created",
+      "Issued",
+      "Due",
+    ];
     const positions = headers.map((header) => html.indexOf(`>${header}<`));
     expect(positions.every((position) => position > -1)).toBe(true);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
@@ -78,6 +102,17 @@ describe("InvoicesTableView", () => {
   });
 });
 
+describe("issued rows", () => {
+  it("shows the number, the invoice date and a real due date", () => {
+    const html = render([issued]);
+    expect(html).toContain("INV-2026-0043");
+    expect(html).toContain("Issued");
+    expect(html).toContain(formatDueDate("2026-10-14"));
+    expect(html).toContain(formatDueDate("2026-11-13"));
+    expect(html).not.toMatch(/text-muted-foreground"[^>]*>Net 30</);
+  });
+});
+
 describe("InvoicesTable", () => {
   it("offers + New and the project filter", () => {
     const html = renderToStaticMarkup(
@@ -87,5 +122,6 @@ describe("InvoicesTable", () => {
     );
     expect(html).toContain("New");
     expect(html).toContain("Project");
+    expect(html).toContain("Status");
   });
 });

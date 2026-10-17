@@ -55,7 +55,7 @@ export function PartyFields({ side, title, company, form, disabled }: PartyField
   return (
     <fieldset className="flex flex-col gap-4 rounded-md border p-4" disabled={disabled}>
       <legend className="px-1 text-sm font-medium">{title}</legend>
-      {addresses.length > 1 && (
+      {!disabled && addresses.length > 1 && (
         <div className="flex flex-col gap-2">
           <Label htmlFor={`${side}_address_pick`}>{t("Address")}</Label>
           <Select onValueChange={pickAddress} disabled={disabled}>

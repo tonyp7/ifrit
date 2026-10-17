@@ -1,6 +1,5 @@
 import asyncio
 from datetime import date
-from decimal import Decimal
 
 import pytest
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -10,7 +9,7 @@ from app.models.invoice_numbering import InvoiceNumberCounter
 from app.schemas.invoice_numbering import NumberingFormat, Restart
 from app.services import invoice_numbering_service as numbering
 from tests.factories import create_user
-from tests.invoice_helpers import make_project
+from tests.invoice_helpers import make_issued_invoice
 
 OCT_14 = date(2026, 10, 14)
 
@@ -31,20 +30,7 @@ def _seq(
 
 
 async def _issued_invoice(db_session, number: str, status: str = "issued") -> Invoice:
-    project = await make_project(db_session, name=f"P {number}")
-    invoice = Invoice(
-        project_id=project.id,
-        status=status,
-        number=number,
-        currency_code="EUR",
-        bill_from_name="F",
-        bill_to_name="T",
-        subtotal=Decimal(0),
-        total=Decimal(0),
-    )
-    db_session.add(invoice)
-    await db_session.commit()
-    return invoice
+    return await make_issued_invoice(db_session, number, status=status)
 
 
 # --- rendering -------------------------------------------------------------------

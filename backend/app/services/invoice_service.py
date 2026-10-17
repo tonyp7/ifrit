@@ -1,20 +1,24 @@
 import uuid
-from datetime import date, timedelta
+from datetime import UTC, date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from sqlalchemy import ColumnElement, delete, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.models.company import Company, PayeeAccount
+from app.core.clock import server_today
+from app.models.company import Company, PartyIdentifier, PayeeAccount
 from app.models.currency import Currency
-from app.models.invoice import Invoice, InvoiceLine, InvoiceReference
+from app.models.invoice import Invoice, InvoiceLine, InvoiceReference, InvoiceStatus
 from app.models.project import Project, ProjectType, ServiceLine
 from app.models.time_entry import TimeEntry
+from app.models.user import User
 from app.schemas.company import BankAddress
 from app.schemas.invoice import (
     BillingContext,
+    BlockingReason,
     ContextAddress,
     ContextCompany,
     ContextPayeeAccount,
@@ -31,13 +35,16 @@ from app.schemas.invoice import (
     InvoiceReferenceOut,
     InvoiceWarning,
     InvoiceWrite,
+    IssuePreview,
     OmittedServiceLine,
     PartyOut,
     PartyWrite,
+    SnapshotIdentifier,
     UnlockedServiceLine,
 )
 from app.schemas.project import ProjectReferenceWrite
-from app.services import app_settings
+from app.services import app_settings, invoice_numbering_service
+from app.services.payment_terms import apply_payment_terms
 from app.services.sorting import resolve_sort
 
 PAGE_SIZE = 50
@@ -61,6 +68,26 @@ class ProjectNotInvoiceableError(Exception):
 
 class InvoiceNotDraftError(Exception):
     pass
+
+
+class InvoiceNotIssuedError(Exception):
+    """Only an issued invoice can be voided."""
+
+
+class ProjectNotActiveError(Exception):
+    """A draft cannot be issued while its project is not Active, or has been deleted."""
+
+
+class NoLinesError(Exception):
+    """An invoice with no line cannot be issued."""
+
+
+class NumberAlreadyUsedError(Exception):
+    """The number the counter rendered already belongs to another invoice."""
+
+    def __init__(self, number: str) -> None:
+        super().__init__(number)
+        self.number = number
 
 
 class InvalidInvoiceDataError(Exception):
@@ -610,7 +637,12 @@ async def to_detail(db: AsyncSession, invoice: Invoice) -> InvoiceDetail:
         project_id=invoice.project_id,
         project_name=invoice.project.name,
         currency_code=invoice.currency_code,
-        currency_minor_unit=await _minor_unit(db, invoice.currency_code),
+        # Once issued, the decimals are those frozen at issue, not the currency's now.
+        currency_minor_unit=(
+            invoice.currency_minor_unit
+            if invoice.status != "draft"
+            else await _minor_unit(db, invoice.currency_code)
+        ),
         bill_from=PartyOut(
             name=invoice.bill_from_name, address=_bank_address(invoice, "bill_from")
         ),
@@ -640,8 +672,30 @@ async def to_detail(db: AsyncSession, invoice: Invoice) -> InvoiceDetail:
         total=invoice.total,
         created_at=invoice.created_at,
         updated_at=invoice.updated_at,
-        warnings=await invoice_warnings(db, invoice),
+        # An issued invoice is not being prepared any more: nothing to warn about.
+        warnings=await invoice_warnings(db, invoice)
+        if invoice.status == "draft"
+        else [],
+        number=invoice.number,
+        invoice_date=invoice.invoice_date,
+        document_name=invoice.document_name,
+        vendor_identifiers=[
+            SnapshotIdentifier(**i) for i in invoice.vendor_identifiers or []
+        ],
+        client_identifiers=[
+            SnapshotIdentifier(**i) for i in invoice.client_identifiers or []
+        ],
+        issued_at=invoice.issued_at,
+        issued_by_name=await _user_name(db, invoice.issued_by),
+        voided_at=invoice.voided_at,
+        voided_by_name=await _user_name(db, invoice.voided_by),
+        void_reason=invoice.void_reason,
     )
+
+
+async def _user_name(db: AsyncSession, user_id: uuid.UUID | None) -> str | None:
+    user = await db.get(User, user_id) if user_id is not None else None
+    return user.full_name if user is not None else None
 
 
 async def list_invoices(
@@ -650,8 +704,10 @@ async def list_invoices(
     sort_by: str | None = None,
     sort_dir: str | None = None,
     project_id: uuid.UUID | None = None,
+    statuses: list[InvoiceStatus] | None = None,
 ) -> tuple[list[tuple[Invoice, str, int | None]], int]:
-    """(invoice, project name, currency minor unit) rows, newest first by default."""
+    """(invoice, project name, currency minor unit) rows, newest first by default. Void
+    invoices are left out unless asked for: they are kept as evidence, not worked on."""
     sortable_columns = {
         "created_at": Invoice.created_at,
         "project": Project.name,
@@ -660,8 +716,12 @@ async def list_invoices(
         "status": Invoice.status,
         "total": Invoice.total,
         "due": Invoice.due_date,
+        "number": Invoice.number,
+        "issued": Invoice.invoice_date,
     }
-    filters: list[ColumnElement[bool]] = []
+    filters: list[ColumnElement[bool]] = [
+        Invoice.status.in_(statuses if statuses else ("draft", "issued"))
+    ]
     if project_id is not None:
         filters.append(Invoice.project_id == project_id)
     total = (
@@ -672,7 +732,11 @@ async def list_invoices(
     )
     rows = (
         await db.execute(
-            select(Invoice, Project.name, Currency.minor_unit)
+            select(
+                Invoice,
+                Project.name,
+                func.coalesce(Invoice.currency_minor_unit, Currency.minor_unit),
+            )
             .join(Project, Invoice.project_id == Project.id)
             .outerjoin(Currency, Invoice.currency_code == Currency.alpha_code)
             .where(*filters)
@@ -683,3 +747,175 @@ async def list_invoices(
         )
     ).all()
     return [(row[0], row[1], row[2]) for row in rows], total
+
+
+# --- issuing and voiding ---------------------------------------------------------
+
+
+def _project_blocks_issue(project: Project | None) -> bool:
+    return project is None or not project.is_active or project.status != "active"
+
+
+def _due_date(invoice: Invoice, day: date) -> date | None:
+    if invoice.payment_terms is not None:
+        return apply_payment_terms(invoice.payment_terms, day)
+    return invoice.due_date
+
+
+async def _identifiers(
+    db: AsyncSession, company_id: uuid.UUID | None, day: date
+) -> list[dict[str, Any]]:
+    """The company's VAT, legal registration and Peppol participant identifiers valid on
+    `day`, primary first, as plain values to freeze on an issued invoice."""
+    if company_id is None:
+        return []
+    rows = (
+        (
+            await db.execute(
+                select(PartyIdentifier)
+                .where(
+                    PartyIdentifier.company_id == company_id,
+                    PartyIdentifier.id_type.in_(
+                        ("vat", "legal_registration", "peppol_participant")
+                    ),
+                    (PartyIdentifier.valid_from.is_(None))
+                    | (PartyIdentifier.valid_from <= day),
+                    (PartyIdentifier.valid_to.is_(None))
+                    | (PartyIdentifier.valid_to >= day),
+                )
+                .order_by(
+                    PartyIdentifier.is_primary.desc(),
+                    PartyIdentifier.id_type,
+                    PartyIdentifier.id_value,
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    return [
+        {
+            "id_type": row.id_type,
+            "scheme_id": row.scheme_id,
+            "id_value": row.id_value,
+            "is_primary": row.is_primary,
+        }
+        for row in rows
+    ]
+
+
+async def issue_preview(
+    db: AsyncSession, invoice: Invoice, day: date | None = None
+) -> IssuePreview:
+    """What issuing the draft today would give, and anything that would stop it."""
+    if invoice.status != "draft":
+        raise InvoiceNotDraftError()
+    today = day or server_today()
+    due = _due_date(invoice, today)
+    fmt = await invoice_numbering_service.get_format(db)
+    value = await invoice_numbering_service.peek_next(db, fmt, today)
+    warnings = await invoice_warnings(db, invoice)
+    if due is not None and due < today:
+        warnings.append(InvoiceWarning(code="due_before_invoice_date"))
+    blocking: list[BlockingReason] = []
+    if _project_blocks_issue(await db.get(Project, invoice.project_id)):
+        blocking.append("project_not_active")
+    if not invoice.lines:
+        blocking.append("no_lines")
+    return IssuePreview(
+        invoice_date=today,
+        due_date=due,
+        payment_terms=invoice.payment_terms,
+        number=invoice_numbering_service.render(fmt, value, today),
+        warnings=warnings,
+        blocking=blocking,
+    )
+
+
+async def _locked(db: AsyncSession, invoice_id: uuid.UUID) -> Invoice | None:
+    """The invoice, its row locked until the transaction ends, so two requests cannot
+    issue or void it at once."""
+    return (
+        await db.execute(
+            select(Invoice)
+            .options(selectinload(Invoice.lines), selectinload(Invoice.references))
+            .where(Invoice.id == invoice_id)
+            .with_for_update(of=Invoice)
+        )
+    ).scalar_one_or_none()
+
+
+async def issue(
+    db: AsyncSession, invoice_id: uuid.UUID, user_id: uuid.UUID, day: date | None = None
+) -> Invoice | None:
+    """Issues a draft in one transaction: number, dates and snapshot, or nothing at all,
+    the counter included. None when the invoice does not exist."""
+    invoice = await _locked(db, invoice_id)
+    if invoice is None:
+        return None
+    if invoice.status != "draft":
+        raise InvoiceNotDraftError()
+    project = await db.get(Project, invoice.project_id)
+    if project is None or _project_blocks_issue(project):
+        raise ProjectNotActiveError()
+    if not invoice.lines:
+        raise NoLinesError()
+
+    # Everything is read first and the row changed in one go afterwards: a query in
+    # between would autoflush a half-issued row, which the database refuses.
+    today = day or server_today()
+    due_date = _due_date(invoice, today)
+    _, number = await invoice_numbering_service.take_next_number(db, today)
+    minor = await _minor_unit(db, invoice.currency_code)
+    vendor_identifiers = await _identifiers(db, project.vendor_company_id, today)
+    client_identifiers = await _identifiers(db, project.client_company_id, today)
+    document_name = (await app_settings.get_group(db, "invoicing")).model_dump()[
+        "document_name"
+    ]
+
+    # The amounts one last time, at the decimals now frozen with them.
+    for line in invoice.lines:
+        line.amount = money_round(line.quantity * line.unit_price, minor)
+    invoice.subtotal = sum((line.amount for line in invoice.lines), Decimal(0))
+    invoice.total = invoice.subtotal
+    invoice.due_date = due_date
+    invoice.number = number
+    invoice.invoice_date = today
+    invoice.currency_minor_unit = 2 if minor is None else minor
+    invoice.vendor_identifiers = vendor_identifiers
+    invoice.client_identifiers = client_identifiers
+    invoice.document_name = document_name
+    invoice.issued_at = datetime.now(UTC)
+    invoice.issued_by = user_id
+    invoice.status = "issued"
+    try:
+        await db.flush()
+    except IntegrityError as err:
+        # Rolling back also returns the counter's value: nothing was issued.
+        await db.rollback()
+        if "uq_invoices_number" in str(err.orig):
+            raise NumberAlreadyUsedError(number) from err
+        raise
+    await db.commit()
+    return invoice
+
+
+async def void(
+    db: AsyncSession,
+    invoice_id: uuid.UUID,
+    reason: str | None,
+    user_id: uuid.UUID,
+) -> Invoice | None:
+    """Cancels an issued invoice. It keeps its number and stays in the list as evidence that
+    it existed; nothing else changes. None when the invoice does not exist."""
+    invoice = await _locked(db, invoice_id)
+    if invoice is None:
+        return None
+    if invoice.status != "issued":
+        raise InvoiceNotIssuedError()
+    invoice.status = "void"
+    invoice.voided_at = datetime.now(UTC)
+    invoice.voided_by = user_id
+    invoice.void_reason = reason or None
+    await db.commit()
+    return invoice

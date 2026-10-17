@@ -4,7 +4,7 @@ import {
   type OnChangeFn,
   type SortingState,
 } from "@tanstack/react-table";
-import { FolderKanban, MoreHorizontal, Plus } from "lucide-react";
+import { FolderKanban, ListFilter, MoreHorizontal, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
@@ -57,9 +57,12 @@ import { formatMoney } from "@/lib/format";
 import { formatPeriod } from "@/lib/invoicePeriods";
 import { parseDayKey } from "@/lib/timesheetDates";
 import {
+  DEFAULT_STATUS_FILTER,
   INVOICE_STATUS_LABELS,
+  INVOICE_STATUSES,
   PAYMENT_TERMS_LABELS,
   type InvoiceListItem,
+  type InvoiceStatus,
 } from "@/types/invoice";
 
 const STATUS_BADGE_VARIANT: Record<InvoiceListItem["status"], BadgeProps["variant"]> = {
@@ -99,6 +102,23 @@ export function DueCell({ invoice }: { invoice: InvoiceListItem }) {
   );
 }
 
+/** The invoice date, with the full moment it was issued in a tooltip; empty on a draft. */
+export function IssuedCell({ invoice }: { invoice: InvoiceListItem }) {
+  if (!invoice.invoice_date) return null;
+  const date = formatDueDate(invoice.invoice_date);
+  if (!invoice.issued_at) return <>{date}</>;
+  return (
+    <TooltipProvider delayDuration={200}>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <span tabIndex={0}>{date}</span>
+        </TooltipTrigger>
+        <TooltipContent>{new Date(invoice.issued_at).toLocaleString()}</TooltipContent>
+      </Tooltip>
+    </TooltipProvider>
+  );
+}
+
 export interface InvoicesTableViewProps {
   items: InvoiceListItem[];
   sorting: SortingState;
@@ -121,6 +141,12 @@ export function InvoicesTableView({
   const { t } = useTranslation(["invoices", "common"]);
 
   const columns: ColumnDef<typeof features, InvoiceListItem>[] = [
+    {
+      id: "number",
+      accessorKey: "number",
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Number")} />,
+      cell: ({ row }) => <span className="font-mono">{row.original.number ?? ""}</span>,
+    },
     {
       id: "project",
       accessorKey: "project_name",
@@ -164,6 +190,11 @@ export function InvoicesTableView({
       accessorKey: "created_at",
       header: ({ column }) => <DataTableColumnHeader column={column} title={t("Created")} />,
       cell: ({ row }) => new Date(row.original.created_at).toLocaleDateString(),
+    },
+    {
+      id: "issued",
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Issued")} />,
+      cell: ({ row }) => <IssuedCell invoice={row.original} />,
     },
     {
       id: "due",
@@ -241,6 +272,8 @@ export function InvoicesTable() {
   const [page, setPage] = useState(1);
   const [sorting, setSorting] = useState<SortingState>([]);
   const [projectFilter, setProjectFilter] = useState<string[]>([]);
+  // Void invoices are kept as evidence but hidden unless asked for.
+  const [statusFilter, setStatusFilter] = useState<InvoiceStatus[]>(DEFAULT_STATUS_FILTER);
   const [projectOptions, setProjectOptions] = useState<ReportFilterOption[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<InvoiceListItem | null>(null);
@@ -255,6 +288,11 @@ export function InvoicesTable() {
   };
 
   // The dropdown allows several; this filter takes one project, the last one picked.
+  function handleStatusFilter(next: string[]) {
+    setStatusFilter(next as InvoiceStatus[]);
+    setPage(1);
+  }
+
   function handleProjectFilter(next: string[]) {
     const added = next.filter((id) => !projectFilter.includes(id));
     setProjectFilter(added.length ? [added[added.length - 1]] : []);
@@ -277,7 +315,13 @@ export function InvoicesTable() {
 
   useEffect(() => {
     let cancelled = false;
-    listInvoices({ page, projectId: projectFilter[0], ...toSortParams(sorting) })
+    listInvoices({
+      page,
+      projectId: projectFilter[0],
+      // Nothing ticked reads as the default rather than as "show nothing".
+      statuses: statusFilter.length ? statusFilter : DEFAULT_STATUS_FILTER,
+      ...toSortParams(sorting),
+    })
       .then((response) => {
         if (cancelled) return;
         setError(null);
@@ -292,7 +336,7 @@ export function InvoicesTable() {
     return () => {
       cancelled = true;
     };
-  }, [page, sorting, projectFilter, refreshToken, t]);
+  }, [page, sorting, projectFilter, statusFilter, refreshToken, t]);
 
   async function handleDuplicate(invoice: InvoiceListItem) {
     try {
@@ -322,6 +366,17 @@ export function InvoicesTable() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
+        <ReportFilterDropdown
+          label={t("Status")}
+          icon={ListFilter}
+          options={INVOICE_STATUSES.map((status) => ({
+            id: status,
+            label: t(INVOICE_STATUS_LABELS[status]),
+          }))}
+          selected={statusFilter}
+          onChange={handleStatusFilter}
+          searchable={false}
+        />
         <ReportFilterDropdown
           label={t("Project")}
           icon={FolderKanban}

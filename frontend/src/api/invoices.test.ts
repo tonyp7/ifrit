@@ -8,9 +8,12 @@ import {
   generateLines,
   getBillingContext,
   getInvoice,
+  getIssuePreview,
+  issueInvoice,
   listInvoiceProjects,
   listInvoices,
   updateInvoice,
+  voidInvoice,
 } from "@/api/invoices";
 import type { InvoiceInput } from "@/types/invoice";
 
@@ -78,5 +81,23 @@ describe("invoice API", () => {
     expect(apiClient.patch).toHaveBeenCalledWith("/invoices/i1", input);
     expect(apiClient.post).toHaveBeenCalledWith("/invoices/i1/duplicate");
     expect(apiClient.delete).toHaveBeenCalledWith("/invoices/i1");
+  });
+
+  it("filters the list by status, one parameter per status", () => {
+    void listInvoices({ statuses: ["draft", "void"] });
+    expect(apiClient.get).toHaveBeenCalledWith("/invoices?page=1&status=draft&status=void");
+  });
+
+  it("previews, issues and voids", () => {
+    void getIssuePreview("i1");
+    void issueInvoice("i1");
+    void voidInvoice("i1", "  Wrong period ");
+    void voidInvoice("i2", "   ");
+    expect(apiClient.get).toHaveBeenCalledWith("/invoices/i1/issue-preview");
+    expect(apiClient.post).toHaveBeenCalledWith("/invoices/i1/issue");
+    expect(apiClient.post).toHaveBeenCalledWith("/invoices/i1/void", {
+      reason: "Wrong period",
+    });
+    expect(apiClient.post).toHaveBeenCalledWith("/invoices/i2/void", { reason: null });
   });
 });

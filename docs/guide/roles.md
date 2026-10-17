@@ -8,7 +8,7 @@ other way round.
 |---|---|---|
 | **Consultant** | Logs hours on service lines they are assigned to. | Timesheet (every user has it) |
 | **Manager** | Creates and maintains projects, their service lines, assignments and documents, and reviews, corrects, locks and exports hours. On every project: being listed as a project's manager only decides what "Only see my projects" shows. | Reporting, Projects |
-| **Billing** | Prepares invoices from projects' logged hours. Billing alone gives no access to the Projects or Configuration screens. | Invoices |
+| **Billing** | Prepares, issues and voids invoices from projects' logged hours. Billing alone gives no access to the Projects or Configuration screens. | Invoices |
 | **Administrator** | Manages users, companies and application-wide settings. | Configuration |
 
 ## Navigation

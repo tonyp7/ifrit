@@ -1,13 +1,11 @@
-from decimal import Decimal
 from typing import Any
 
 import pytest
 
 from app.core.clock import server_today
-from app.models.invoice import Invoice
 from app.models.invoice_numbering import InvoiceNumberCounter
 from app.services.invoice_numbering_service import period_key
-from tests.invoice_helpers import login, make_project
+from tests.invoice_helpers import login, make_issued_invoice
 
 URL = "/api/invoice-numbering"
 SEQ: dict[str, Any] = {
@@ -20,20 +18,7 @@ YEAR = f"{server_today():%Y}"
 
 
 async def _issued(db_session, number: str) -> None:
-    project = await make_project(db_session)
-    db_session.add(
-        Invoice(
-            project_id=project.id,
-            status="issued",
-            number=number,
-            currency_code="EUR",
-            bill_from_name="F",
-            bill_to_name="T",
-            subtotal=Decimal(0),
-            total=Decimal(0),
-        )
-    )
-    await db_session.commit()
+    await make_issued_invoice(db_session, number)
 
 
 async def test_no_session_is_401(client) -> None:

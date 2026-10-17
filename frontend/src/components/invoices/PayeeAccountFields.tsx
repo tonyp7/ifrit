@@ -85,50 +85,53 @@ export function PayeeAccountFields({
   return (
     <fieldset className="flex flex-col gap-4 rounded-md border p-4" disabled={disabled}>
       <legend className="px-1 text-sm font-medium">{t("Payee account")}</legend>
-      <div className="flex flex-col gap-2">
-        <Label htmlFor="payee_pick">{t("Copy from the vendor's accounts")}</Label>
-        <Select onValueChange={pick} disabled={disabled || accounts.length === 0}>
-          <SelectTrigger id="payee_pick">
-            <SelectValue
-              placeholder={
-                accounts.length
-                  ? t("Choose an account…")
-                  : t("The vendor has no payee account")
-              }
-            />
-          </SelectTrigger>
-          <SelectContent>
-            {ordered.map((account) => (
-              <SelectItem key={account.id} value={account.id}>
-                {formatAccountIdentifier(account.account_scheme, account.account_identifier)} (
-                {account.currency_code}
-                {account.is_primary ? `, ${t("primary")}` : ""})
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
+      {!disabled && (
+        <div className="flex flex-col gap-2">
+          <Label htmlFor="payee_pick">{t("Copy from the vendor's accounts")}</Label>
+          <Select onValueChange={pick} disabled={disabled || accounts.length === 0}>
+            <SelectTrigger id="payee_pick">
+              <SelectValue
+                placeholder={
+                  accounts.length
+                    ? t("Choose an account…")
+                    : t("The vendor has no payee account")
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {ordered.map((account) => (
+                <SelectItem key={account.id} value={account.id}>
+                  {formatAccountIdentifier(account.account_scheme, account.account_identifier)}{" "}
+                  ({account.currency_code}
+                  {account.is_primary ? `, ${t("primary")}` : ""})
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
 
       {payee === null ? (
         <div className="flex flex-wrap items-center gap-2">
           <p className="text-muted-foreground text-sm">
             {t("No payee account on this invoice.")}
           </p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={disabled}
-            onClick={() =>
-              setValue(
-                "payee",
-                { ...BLANK_PAYEE_ACCOUNT_VALUES, currency_code: invoiceCurrency ?? "" },
-                set,
-              )
-            }
-          >
-            {t("Enter account details")}
-          </Button>
+          {!disabled && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() =>
+                setValue(
+                  "payee",
+                  { ...BLANK_PAYEE_ACCOUNT_VALUES, currency_code: invoiceCurrency ?? "" },
+                  set,
+                )
+              }
+            >
+              {t("Enter account details")}
+            </Button>
+          )}
         </div>
       ) : (
         <>
@@ -276,17 +279,18 @@ export function PayeeAccountFields({
               country_code: payeeErrors?.bank_address?.country_code?.message,
             }}
           />
-          <div>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              disabled={disabled}
-              onClick={() => setValue("payee", null, set)}
-            >
-              {t("Clear payee account")}
-            </Button>
-          </div>
+          {!disabled && (
+            <div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                onClick={() => setValue("payee", null, set)}
+              >
+                {t("Clear payee account")}
+              </Button>
+            </div>
+          )}
         </>
       )}
     </fieldset>

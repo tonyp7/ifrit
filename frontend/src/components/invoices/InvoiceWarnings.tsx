@@ -39,6 +39,10 @@ export function InvoiceWarnings({ warnings, omitted, minorUnit }: InvoiceWarning
           : warning.companies.includes("vendor")
             ? t("Inactive company: the project's vendor has been deactivated.")
             : t("Inactive company: the project's client has been deactivated.");
+      case "due_before_invoice_date":
+        return t(
+          "Due date before the invoice date: the invoice would be overdue when issued.",
+        );
     }
   }
 

@@ -1,7 +1,7 @@
 import uuid
 from datetime import UTC, date, datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Literal, get_args
+from typing import TYPE_CHECKING, Any, Literal, get_args
 
 from sqlalchemy import (
     CheckConstraint,
@@ -11,10 +11,11 @@ from sqlalchemy import (
     Index,
     Integer,
     Numeric,
+    SmallInteger,
     String,
     text,
 )
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.db import Base
@@ -94,6 +95,19 @@ PAYEE_CHECK = (
     + " AND ".join(f"{c} IS NULL" for c in PAYEE_COLUMNS + PAYEE_BANK_ADDRESS_COLUMNS)
     + ")"
 )
+
+
+# A row is a draft with none of what issuing sets, or issued/void with all of it: an invoice
+# can never be half-issued.
+_ISSUE_FIELDS = ("number", "invoice_date", "issued_at", "currency_minor_unit")
+ISSUED_FIELDS_CHECK = (
+    "(status = 'draft' AND "
+    + " AND ".join(f"{c} IS NULL" for c in _ISSUE_FIELDS)
+    + ") OR (status <> 'draft' AND "
+    + " AND ".join(f"{c} IS NOT NULL" for c in _ISSUE_FIELDS)
+    + ")"
+)
+VOID_FIELDS_CHECK = "(status = 'void') = (voided_at IS NOT NULL) AND (void_reason IS NULL OR status = 'void')"
 
 
 class Invoice(Base):
@@ -208,6 +222,35 @@ class Invoice(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
 
+    # Set at issue and frozen with the rest: what an issued invoice shows comes from its own
+    # row, never from the companies, settings or currencies, which keep changing.
+    invoice_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    # The currency's decimals at issue (2 when it has none defined).
+    currency_minor_unit: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
+    document_name: Mapped[str | None] = mapped_column(String(60), nullable=True)
+    # The vendor's and client's VAT, legal registration and Peppol participant identifiers
+    # valid on the invoice date, as [{id_type, scheme_id, id_value, is_primary}]. Read whole
+    # and never queried by field, so a JSON value rather than child rows.
+    vendor_identifiers: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+    client_identifiers: Mapped[list[dict[str, Any]] | None] = mapped_column(
+        JSONB, nullable=True
+    )
+    issued_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    issued_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    voided_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    voided_by: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
+    )
+    void_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
     project: Mapped[Project] = relationship()
     lines: Mapped[list[InvoiceLine]] = relationship(
         back_populates="invoice",
@@ -267,6 +310,8 @@ class Invoice(Base):
         CheckConstraint(
             _address_check("payee_bank"), name="ck_invoices_payee_bank_address"
         ),
+        CheckConstraint(ISSUED_FIELDS_CHECK, name="ck_invoices_issued_fields"),
+        CheckConstraint(VOID_FIELDS_CHECK, name="ck_invoices_void_fields"),
         Index("ix_invoices_project_id_status", "project_id", "status"),
         Index(
             "uq_invoices_number",

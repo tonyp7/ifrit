@@ -2,6 +2,7 @@ import type {
   AccountScheme,
   AddressType,
   BankAddress,
+  IdentifierType,
   PaymentMeansCode,
 } from "@/types/company";
 import type { ProjectStatus, ProjectType, ReferenceKind, Uom } from "@/types/project";
@@ -84,7 +85,8 @@ export type InvoiceWarningCode =
   | "zero_quantity"
   | "no_payee_account"
   | "payee_currency"
-  | "inactive_company";
+  | "inactive_company"
+  | "due_before_invoice_date";
 
 export interface UnlockedServiceLine {
   name: string | null;
@@ -120,6 +122,25 @@ export interface InvoiceDetail {
   created_at: string;
   updated_at: string;
   warnings: InvoiceWarning[];
+  /** Set once issued; null on a draft. */
+  number: string | null;
+  invoice_date: string | null;
+  document_name: string | null;
+  vendor_identifiers: SnapshotIdentifier[];
+  client_identifiers: SnapshotIdentifier[];
+  issued_at: string | null;
+  issued_by_name: string | null;
+  voided_at: string | null;
+  voided_by_name: string | null;
+  void_reason: string | null;
+}
+
+/** A company identifier as it stood when the invoice was issued. */
+export interface SnapshotIdentifier {
+  id_type: IdentifierType;
+  scheme_id: string | null;
+  id_value: string;
+  is_primary: boolean;
 }
 
 export interface InvoiceLineInput {
@@ -156,6 +177,9 @@ export interface InvoiceListItem {
   payment_terms: PaymentTerms | null;
   due_date: string | null;
   created_at: string;
+  number: string | null;
+  invoice_date: string | null;
+  issued_at: string | null;
 }
 
 export interface InvoiceListResponse {
@@ -241,3 +265,19 @@ export interface GenerateResult {
   omitted: OmittedServiceLine[];
   warnings: InvoiceWarning[];
 }
+
+export type BlockingReason = "project_not_active" | "no_lines";
+
+/** What issuing a draft today would give; the number is the likely one, not reserved. */
+export interface IssuePreview {
+  invoice_date: string;
+  due_date: string | null;
+  payment_terms: PaymentTerms | null;
+  number: string;
+  warnings: InvoiceWarning[];
+  blocking: BlockingReason[];
+}
+
+export const INVOICE_STATUSES: InvoiceStatus[] = ["draft", "issued", "void"];
+/** What the list shows when no status is picked: void invoices are hidden unless asked for. */
+export const DEFAULT_STATUS_FILTER: InvoiceStatus[] = ["draft", "issued"];

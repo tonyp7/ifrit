@@ -1,28 +1,32 @@
 # Invoices
 
 Users with the **billing** role turn a project's logged hours into invoices. Invoices are listed
-under the **Invoices** icon in the navigation bar. In this version an invoice is a **draft**: it
-can be prepared, saved, duplicated and deleted. Issuing comes in a later version.
+under the **Invoices** icon in the navigation bar. An invoice starts as a **draft**, which can be
+prepared, saved, duplicated and deleted. **Issuing** gives it a number and freezes it; an issued
+invoice that turns out wrong is **voided**, never deleted.
 
 Invoices can be started for **Active** projects of type **Time & Material** or **Capped T&M**.
 Capped T&M is invoiced exactly like Time & Material: the cap is not checked.
 
 ## The list
 
-The list shows every invoice, newest first, 50 per page:
+The list shows the invoices, newest first, 50 per page. Void invoices are hidden unless you tick
+**Void** in the **Status** filter.
 
 | Column | Shows |
 |---|---|
+| Number | The invoice number; empty for a draft |
 | Project | The project the invoice is for |
 | Client | The Bill To name on the invoice |
 | Billed for | The period whose hours were billed, for example `1–30 Sep 2026` |
-| Status | Draft |
+| Status | Draft, Issued or Void |
 | Total | In the invoice currency |
 | Created | When the draft was created |
-| Due | A fixed due date, or the payment terms preset's name, greyed out, until the invoice is issued |
+| Issued | The invoice date; hover it for the exact time it was issued |
+| Due | The due date. On a draft with a payment terms preset, the preset's name, greyed out, until it is issued |
 
 Click a column header to sort, and use **Project** to show one project's invoices. Click a row to
-open the invoice. The row menu offers **Open**, **Duplicate** and **Delete**.
+open the invoice. The row menu offers **Open**, **Duplicate** and, for a draft, **Delete**.
 
 ## Creating an invoice
 
@@ -106,11 +110,48 @@ Warnings never stop you from saving:
 - **Payee account currency**: the payee account is not in the invoice currency.
 - **Inactive company**: the project's vendor or client has been deactivated.
 
+## Issuing
+
+**Issue** turns a draft into an invoice. Any unsaved changes are saved first, then a confirmation
+shows:
+
+- the **invoice date**: today, in the server's time zone (see
+  [Time zone](../configuration.md#time-zone));
+- the **due date**: worked out from the payment terms preset, or the fixed date you picked;
+- the **number** it should receive, from the numbering an administrator set under
+  Configuration → Invoices. It is the likely number: if someone else issues an invoice first, the
+  next one is used;
+- every warning, including a due date that would already be past.
+
+Issuing needs at least one line, and the project must be **Active**. While a draft's project is
+closed, back to draft or deleted, the draft shows a red banner and cannot be issued; it can still
+be edited, saved, duplicated and deleted, and becomes issuable again once the project is Active.
+
+Once issued, the invoice is **read-only** and keeps showing exactly what was sent, whatever
+changes later: the parties' names and addresses, the vendor's and client's VAT, legal registration
+and Peppol identifiers as they stood that day, the payee account details, the references, the
+lines and amounts, the dates, and the document name (such as "Tax Invoice"). The due date reads
+for example `13 Nov 2026 (Net 30)`.
+
+If the number would already be in use, for example after the numbering format was changed,
+issuing is refused and nothing changes; an administrator sets the next number under
+Configuration → Invoices.
+
+## Voiding
+
+**Void** cancels an issued invoice, after a confirmation where you can give a reason. A void
+invoice keeps its number and stays in the list, marked void, with who voided it, when and why. It
+cannot be changed or deleted, and voiding cannot be undone. Voiding is not a credit note: to bill
+again, create a new invoice, for example by duplicating the void one.
+
 ## Duplicate and delete
 
-**Duplicate** creates a new draft with everything the source has: project, parties, period, lines,
-references, payment terms and payee account. It works even if the project is no longer Active.
+**Duplicate**, on any invoice, creates a new draft with everything the source has: project,
+parties, period, lines, references, payment terms and payee account details. The copy has no
+number and no invoice date, and takes the payment terms preset rather than the due date it gave.
+It works even if the project is no longer Active.
 
-**Delete** removes a draft for good, after a confirmation.
+**Delete** removes a draft for good, after a confirmation. Issued and void invoices are never
+deleted.
 
 A draft stays editable if its project is closed or deleted afterwards.

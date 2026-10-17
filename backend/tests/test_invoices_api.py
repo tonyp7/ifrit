@@ -1,5 +1,5 @@
 import uuid
-from datetime import date
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -17,6 +17,7 @@ from tests.invoice_helpers import (
     log_hours,
     login,
     make_consultant,
+    make_issued_invoice,
     make_project,
 )
 
@@ -500,6 +501,10 @@ async def test_an_issued_invoice_cannot_be_changed_or_deleted(
     invoice = await db_session.get(Invoice, uuid.UUID(created["id"]))
     assert invoice is not None
     invoice.status = "issued"
+    invoice.number = "INV-2026-0001"
+    invoice.invoice_date = date(2026, 10, 14)
+    invoice.issued_at = datetime(2026, 10, 14, 9, tzinfo=UTC)
+    invoice.currency_minor_unit = 2
     await db_session.commit()
 
     assert (
@@ -688,3 +693,147 @@ async def test_inactive_company_warning(client, db_session) -> None:
 
     [inactive] = [w for w in body["warnings"] if w["code"] == "inactive_company"]
     assert inactive["companies"] == ["client"]
+
+
+# --- issuing and voiding through the API -----------------------------------------
+
+
+async def _issue(client, invoice_id: str):
+    return await client.post(f"{URL}/{invoice_id}/issue")
+
+
+async def test_issue_and_void_through_the_api(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    created = await _create(client, project, payment_terms="net_30", payee=PAYEE)
+
+    preview = await client.get(f"{URL}/{created['id']}/issue-preview")
+    issued = await _issue(client, created["id"])
+    voided = await client.post(
+        f"{URL}/{created['id']}/void", json={"reason": "  Wrong period "}
+    )
+
+    assert preview.status_code == 200
+    assert preview.json()["blocking"] == []
+    assert issued.status_code == 200
+    body = issued.json()
+    assert body["status"] == "issued"
+    assert body["number"] == preview.json()["number"]
+    assert body["invoice_date"] == preview.json()["invoice_date"]
+    assert body["due_date"] == preview.json()["due_date"]
+    assert body["issued_by_name"]
+    assert body["warnings"] == []
+    assert voided.status_code == 200
+    assert voided.json()["status"] == "void"
+    assert voided.json()["void_reason"] == "Wrong period"
+    assert voided.json()["number"] == body["number"]
+
+
+async def test_issue_refusals(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    no_lines = await _create(client, project, lines=[])
+    blocked = await _create(client, project)
+
+    lines_response = await _issue(client, no_lines["id"])
+    project.status = "closed"
+    await db_session.commit()
+    project_response = await _issue(client, blocked["id"])
+
+    assert lines_response.status_code == 409
+    assert lines_response.json()["detail"] == "An invoice needs at least one line"
+    assert project_response.status_code == 409
+    assert project_response.json()["detail"] == (
+        "This invoice cannot be issued because its project is not Active."
+    )
+    assert (await _issue(client, str(uuid.uuid4()))).status_code == 404
+
+
+async def test_void_refusals_and_reason_length(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    draft = await _create(client, project)
+
+    assert (await client.post(f"{URL}/{draft['id']}/void", json={})).status_code == 409
+    await _issue(client, draft["id"])
+    too_long = await client.post(
+        f"{URL}/{draft['id']}/void", json={"reason": "x" * 501}
+    )
+    assert too_long.status_code == 422
+    blank = await client.post(f"{URL}/{draft['id']}/void", json={"reason": "   "})
+    assert blank.json()["void_reason"] is None
+
+
+async def test_issue_preview_is_only_for_drafts(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    created = await _create(client, project)
+    await _issue(client, created["id"])
+
+    assert (await client.get(f"{URL}/{created['id']}/issue-preview")).status_code == 409
+
+
+async def test_issue_routes_require_billing(client, db_session) -> None:
+    await login(client, db_session, "manager")
+    some_id = uuid.uuid4()
+    for response in (
+        await client.post(f"{URL}/{some_id}/issue"),
+        await client.post(f"{URL}/{some_id}/void", json={}),
+        await client.get(f"{URL}/{some_id}/issue-preview"),
+    ):
+        assert response.status_code == 403
+
+
+async def test_void_is_hidden_unless_asked_for(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    await make_issued_invoice(db_session, "INV-2026-0001", project=project)
+    await make_issued_invoice(
+        db_session, "INV-2026-0002", status="void", project=project
+    )
+    draft = await _create(client, project)
+
+    default = (await client.get(URL)).json()
+    with_void = (
+        await client.get(
+            URL, params=[("status", "draft"), ("status", "issued"), ("status", "void")]
+        )
+    ).json()
+    only_void = (await client.get(URL, params={"status": "void"})).json()
+
+    assert {item["number"] for item in default["items"]} == {"INV-2026-0001", None}
+    assert default["total"] == 2
+    assert with_void["total"] == 3
+    assert [item["number"] for item in only_void["items"]] == ["INV-2026-0002"]
+    assert any(item["id"] == draft["id"] for item in default["items"])
+
+
+async def test_list_sorts_by_number_and_issued(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    await make_issued_invoice(db_session, "INV-2026-0002", project=project)
+    await make_issued_invoice(db_session, "INV-2026-0001", project=project)
+
+    by_number = (await client.get(URL, params={"sort_by": "number"})).json()
+    by_issued = await client.get(URL, params={"sort_by": "issued", "sort_dir": "desc"})
+
+    assert [item["number"] for item in by_number["items"]] == [
+        "INV-2026-0001",
+        "INV-2026-0002",
+    ]
+    assert by_issued.status_code == 200
+    assert all(item["issued_at"] for item in by_issued.json()["items"])
+
+
+async def test_duplicate_an_issued_invoice_through_the_api(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    created = await _create(client, project, payment_terms="net_30", payee=PAYEE)
+    await _issue(client, created["id"])
+
+    copy = (await client.post(f"{URL}/{created['id']}/duplicate")).json()
+
+    assert copy["status"] == "draft"
+    assert copy["number"] is None and copy["invoice_date"] is None
+    assert copy["payment_terms"] == "net_30" and copy["due_date"] is None
+    assert copy["payee"]["account_identifier"] == "BE71096123456769"

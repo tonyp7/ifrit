@@ -7,6 +7,8 @@ import type {
   InvoiceDetail,
   InvoiceInput,
   InvoiceListResponse,
+  InvoiceStatus,
+  IssuePreview,
 } from "@/types/invoice";
 
 export function listInvoices(params: {
@@ -14,12 +16,14 @@ export function listInvoices(params: {
   sort_by?: string;
   sort_dir?: "asc" | "desc";
   projectId?: string;
+  statuses?: InvoiceStatus[];
 }) {
   const query = new URLSearchParams();
   query.set("page", String(params.page ?? 1));
   if (params.sort_by) query.set("sort_by", params.sort_by);
   if (params.sort_dir) query.set("sort_dir", params.sort_dir);
   if (params.projectId) query.set("project_id", params.projectId);
+  for (const status of params.statuses ?? []) query.append("status", status);
   return apiClient.get<InvoiceListResponse>(`/invoices?${query.toString()}`);
 }
 
@@ -59,4 +63,19 @@ export function deleteInvoice(invoiceId: string) {
 
 export function duplicateInvoice(invoiceId: string) {
   return apiClient.post<InvoiceDetail>(`/invoices/${invoiceId}/duplicate`);
+}
+
+export function getIssuePreview(invoiceId: string) {
+  return apiClient.get<IssuePreview>(`/invoices/${invoiceId}/issue-preview`);
+}
+
+export function issueInvoice(invoiceId: string) {
+  return apiClient.post<InvoiceDetail>(`/invoices/${invoiceId}/issue`);
+}
+
+/** An empty reason is sent as none. */
+export function voidInvoice(invoiceId: string, reason: string) {
+  return apiClient.post<InvoiceDetail>(`/invoices/${invoiceId}/void`, {
+    reason: reason.trim() || null,
+  });
 }

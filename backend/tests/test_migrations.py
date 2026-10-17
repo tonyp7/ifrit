@@ -145,6 +145,9 @@ def test_the_migration_can_be_undone_and_applied_again(scratch_database) -> None
     command.upgrade(scratch_database, "head")
     assert {"app_settings", "billing_milestones", "project_references"} <= _tables()
 
+    command.downgrade(scratch_database, "0005")
+    assert "issued_at" not in _columns("invoices")
+
     numbering = {"invoice_numbering_formats", "invoice_number_counters"}
     assert numbering <= _tables()
     command.downgrade(scratch_database, "0004")
@@ -272,7 +275,17 @@ def test_the_invoice_checks_match_the_models() -> None:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 
-    assert module._INVOICE_CHECKS == _model_checks(Invoice)
+    issue_path = BACKEND_DIR / "alembic" / "versions" / "0006_invoice_issue_void.py"
+    issue_spec = importlib.util.spec_from_file_location("migration_0006", issue_path)
+    assert issue_spec is not None and issue_spec.loader is not None
+    issue = importlib.util.module_from_spec(issue_spec)
+    issue_spec.loader.exec_module(issue)
+
+    assert {
+        **module._INVOICE_CHECKS,
+        "ck_invoices_issued_fields": issue._ISSUED_FIELDS_CHECK,
+        "ck_invoices_void_fields": issue._VOID_FIELDS_CHECK,
+    } == _model_checks(Invoice)
     assert module._LINE_CHECKS == _model_checks(InvoiceLine)
     assert module._REFERENCE_CHECKS == _model_checks(InvoiceReference)
 
@@ -287,3 +300,44 @@ def test_an_invoice_does_not_depend_on_payee_accounts(scratch_database) -> None:
         )
     )
     assert {row["target"] for row in rows} == {"projects", "currencies", "users"}
+
+
+def _columns(table: str) -> set[str]:
+    rows = asyncio.run(
+        _fetch(
+            "SELECT column_name FROM information_schema.columns "
+            f"WHERE table_schema = 'public' AND table_name = '{table}'"
+        )
+    )
+    return {row["column_name"] for row in rows}
+
+
+def test_downgrading_below_issuing_is_refused_once_an_invoice_is_issued(
+    scratch_database,
+) -> None:
+    command.upgrade(scratch_database, "head")
+    asyncio.run(
+        _fetch(
+            """
+            WITH c AS (
+                INSERT INTO companies (id, legal_name, country_of_registration, is_vendor)
+                VALUES (gen_random_uuid(), 'C', 'BE', true) RETURNING id
+            ), p AS (
+                INSERT INTO projects (id, name, vendor_company_id, client_company_id,
+                    invoicing_currency, project_type, status)
+                SELECT gen_random_uuid(), 'P', c.id, c.id, 'EUR', 'time_and_material', 'active'
+                FROM c RETURNING id
+            )
+            INSERT INTO invoices (id, status, number, project_id, currency_code,
+                bill_from_name, bill_to_name, subtotal, total, invoice_date, issued_at,
+                currency_minor_unit)
+            SELECT gen_random_uuid(), 'issued', 'INV-1', p.id, 'EUR', 'F', 'T', 0, 0,
+                current_date, now(), 2
+            FROM p RETURNING id
+            """
+        )
+    )
+
+    with pytest.raises(RuntimeError, match="issued or void"):
+        command.downgrade(scratch_database, "0005")
+    assert "issued_at" in _columns("invoices")

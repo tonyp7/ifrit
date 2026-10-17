@@ -4,9 +4,14 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Literal
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from app.models.company import AccountScheme, AddressType, PaymentMeansCode
+from app.models.company import (
+    AccountScheme,
+    AddressType,
+    IdentifierType,
+    PaymentMeansCode,
+)
 from app.models.invoice import InvoiceStatus, PaymentTerms
 from app.models.project import ProjectStatus, ProjectType, ReferenceKind, Uom
 from app.schemas.company import BankAddress, PayeeAccountWrite
@@ -177,6 +182,7 @@ WarningCode = Literal[
     "no_payee_account",
     "payee_currency",
     "inactive_company",
+    "due_before_invoice_date",
 ]
 
 
@@ -231,6 +237,15 @@ class InvoiceReferenceOut(BaseModel):
     value: str
 
 
+class SnapshotIdentifier(BaseModel):
+    """A company identifier as it stood when the invoice was issued."""
+
+    id_type: IdentifierType
+    scheme_id: str | None
+    id_value: str
+    is_primary: bool
+
+
 class InvoiceDetail(BaseModel):
     id: uuid.UUID
     status: InvoiceStatus
@@ -252,6 +267,17 @@ class InvoiceDetail(BaseModel):
     created_at: datetime
     updated_at: datetime
     warnings: list[InvoiceWarning]
+    # Set once issued; all null on a draft.
+    number: str | None
+    invoice_date: date | None
+    document_name: str | None
+    vendor_identifiers: list[SnapshotIdentifier]
+    client_identifiers: list[SnapshotIdentifier]
+    issued_at: datetime | None
+    issued_by_name: str | None
+    voided_at: datetime | None
+    voided_by_name: str | None
+    void_reason: str | None
 
 
 class InvoiceListItem(BaseModel):
@@ -268,6 +294,9 @@ class InvoiceListItem(BaseModel):
     payment_terms: PaymentTerms | None
     due_date: date | None
     created_at: datetime
+    number: str | None
+    invoice_date: date | None
+    issued_at: datetime | None
 
 
 class InvoiceListResponse(BaseModel):
@@ -334,3 +363,25 @@ class BillingContext(BaseModel):
     payee_accounts: list[ContextPayeeAccount]
     service_lines: list[ContextServiceLine]
     references: list[InvoiceReferenceOut]
+
+
+BlockingReason = Literal["project_not_active", "no_lines"]
+
+
+class IssuePreview(BaseModel):
+    """What issuing a draft today would give, for the confirmation and the draft header.
+    The number is the likely one: another invoice issued first would take it."""
+
+    invoice_date: date
+    due_date: date | None
+    payment_terms: PaymentTerms | None
+    number: str
+    warnings: list[InvoiceWarning]
+    blocking: list[BlockingReason]
+
+
+class VoidWrite(BaseModel):
+    # Trimmed first, so a reason of only spaces counts as none.
+    model_config = ConfigDict(str_strip_whitespace=True)
+
+    reason: str | None = Field(default=None, max_length=500)

@@ -5,7 +5,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import require_roles
 from app.core.db import get_db
-from app.models.invoice import Invoice
+from app.models.invoice import Invoice, InvoiceStatus
 from app.models.user import User
 from app.schemas.invoice import (
     BillingContext,
@@ -16,11 +16,17 @@ from app.schemas.invoice import (
     InvoiceListItem,
     InvoiceListResponse,
     InvoiceWrite,
+    IssuePreview,
+    VoidWrite,
 )
 from app.services import invoice_service
 from app.services.invoice_service import (
     InvalidInvoiceDataError,
     InvoiceNotDraftError,
+    InvoiceNotIssuedError,
+    NoLinesError,
+    NumberAlreadyUsedError,
+    ProjectNotActiveError,
     ProjectNotInvoiceableError,
 )
 
@@ -30,6 +36,8 @@ router = APIRouter(prefix="/invoices", tags=["invoices"], dependencies=[_billing
 
 _NOT_INVOICEABLE = "A new invoice can only be started for an Active Time & Material or Capped T&M project"
 _NOT_DRAFT = "Only a draft invoice can be changed or deleted"
+# The same sentence the form's banner shows.
+_PROJECT_NOT_ACTIVE = "This invoice cannot be issued because its project is not Active."
 
 
 async def _get_invoice_or_404(db: AsyncSession, invoice_id: uuid.UUID) -> Invoice:
@@ -87,10 +95,18 @@ async def list_invoices(
     sort_by: str | None = None,
     sort_dir: str | None = None,
     project_id: uuid.UUID | None = None,
+    # Repeated (?status=draft&status=void). Left out, the list is drafts and issued
+    # invoices: void ones are hidden unless asked for.
+    status_filter: list[InvoiceStatus] | None = Query(default=None, alias="status"),
     db: AsyncSession = Depends(get_db),
 ) -> InvoiceListResponse:
     rows, total = await invoice_service.list_invoices(
-        db, page, sort_by=sort_by, sort_dir=sort_dir, project_id=project_id
+        db,
+        page,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+        project_id=project_id,
+        statuses=status_filter,
     )
     return InvoiceListResponse(
         items=[
@@ -108,6 +124,9 @@ async def list_invoices(
                 payment_terms=invoice.payment_terms,
                 due_date=invoice.due_date,
                 created_at=invoice.created_at,
+                number=invoice.number,
+                invoice_date=invoice.invoice_date,
+                issued_at=invoice.issued_at,
             )
             for invoice, project_name, minor_unit in rows
         ],
@@ -202,3 +221,79 @@ async def duplicate_invoice(
             status_code=status.HTTP_409_CONFLICT, detail=_NOT_INVOICEABLE
         ) from err
     return await invoice_service.to_detail(db, await _get_invoice_or_404(db, copy.id))
+
+
+@router.get("/{invoice_id}/issue-preview", response_model=IssuePreview)
+async def get_issue_preview(
+    invoice_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> IssuePreview:
+    invoice = await _get_invoice_or_404(db, invoice_id)
+    try:
+        return await invoice_service.issue_preview(db, invoice)
+    except InvoiceNotDraftError as err:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only a draft invoice can be issued",
+        ) from err
+
+
+@router.post("/{invoice_id}/issue", response_model=InvoiceDetail)
+async def issue_invoice(
+    invoice_id: uuid.UUID,
+    user: User = _billing,
+    db: AsyncSession = Depends(get_db),
+) -> InvoiceDetail:
+    try:
+        issued = await invoice_service.issue(db, invoice_id, user.id)
+    except InvoiceNotDraftError as err:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only a draft invoice can be issued",
+        ) from err
+    except ProjectNotActiveError as err:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=_PROJECT_NOT_ACTIVE
+        ) from err
+    except NoLinesError as err:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="An invoice needs at least one line",
+        ) from err
+    except NumberAlreadyUsedError as err:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"The number {err.number} is already used. An administrator must set the "
+                "next number in Configuration → Invoices."
+            ),
+        ) from err
+    if issued is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found"
+        )
+    return await invoice_service.to_detail(
+        db, await _get_invoice_or_404(db, invoice_id)
+    )
+
+
+@router.post("/{invoice_id}/void", response_model=InvoiceDetail)
+async def void_invoice(
+    invoice_id: uuid.UUID,
+    payload: VoidWrite,
+    user: User = _billing,
+    db: AsyncSession = Depends(get_db),
+) -> InvoiceDetail:
+    try:
+        voided = await invoice_service.void(db, invoice_id, payload.reason, user.id)
+    except InvoiceNotIssuedError as err:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Only an issued invoice can be voided",
+        ) from err
+    if voided is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="Invoice not found"
+        )
+    return await invoice_service.to_detail(
+        db, await _get_invoice_or_404(db, invoice_id)
+    )
