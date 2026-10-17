@@ -10,6 +10,7 @@ from app.models.file import (
     SettingFile,
     StoredFile,
 )
+from app.models.invoice import Invoice, InvoiceLine, InvoiceReference
 from app.models.project import BillingMilestone, Project, ServiceLine
 from app.models.time_entry import TimeEntry
 from app.models.user import Role, User
@@ -24,6 +25,9 @@ __all__ = [
     "Currency",
     "File",
     "FileTag",
+    "Invoice",
+    "InvoiceLine",
+    "InvoiceReference",
     "PartyIdentifier",
     "PayeeAccount",
     "Project",

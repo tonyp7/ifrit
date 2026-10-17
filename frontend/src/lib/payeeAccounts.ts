@@ -117,7 +117,7 @@ function blankToNull(value: string): string | null {
   return trimmed ? trimmed : null;
 }
 
-function toBankAddress(address: AddressFieldValues): BankAddress | null {
+export function toBankAddress(address: AddressFieldValues): BankAddress | null {
   if (isAddressEmpty(address)) return null;
   return {
     line1: address.line1.trim(),

@@ -35,4 +35,5 @@ nav:
       - Timesheet: guide/timesheet.md
       - Reporting: guide/reporting.md
       - Projects: guide/projects.md
+      - Invoices: guide/invoices.md
       - Administration: guide/administration.md

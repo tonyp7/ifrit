@@ -89,6 +89,14 @@ export function valueToPercent(value: string, contract: string): string | null {
   return format(divideRounded(numerator, denominator), 2);
 }
 
+/** The exact product of two decimal strings, unrounded; `null` when either is not a number. */
+export function multiplyDecimal(a: string, b: string): string | null {
+  const x = parse(a);
+  const y = parse(b);
+  if (!x || !y) return null;
+  return format(x.digits * y.digits, x.scale + y.scale);
+}
+
 /** The exact sum of `values`, at the largest scale among them. */
 export function sumValues(values: string[]): string {
   const parsed = values.map(parse).filter((v): v is Scaled => v !== null);

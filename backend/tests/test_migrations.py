@@ -9,16 +9,19 @@ It is a plain (synchronous) test on purpose: Alembic's env.py drives the migrati
 """
 
 import asyncio
+import importlib.util
 from collections.abc import Iterator
 from pathlib import Path
 
 import asyncpg
 import pytest
 from alembic.config import Config
+from sqlalchemy import CheckConstraint, Table
 from sqlalchemy.engine import URL, make_url
 
 from alembic import command
 from app.core.config import settings
+from app.models.invoice import Invoice, InvoiceLine, InvoiceReference
 from tests.conftest import _test_database_url
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -142,6 +145,9 @@ def test_the_migration_can_be_undone_and_applied_again(scratch_database) -> None
     command.upgrade(scratch_database, "head")
     assert {"app_settings", "billing_milestones", "project_references"} <= _tables()
 
+    command.downgrade(scratch_database, "0003")
+    assert not {"invoices", "invoice_lines", "invoice_references"} & _tables()
+
     command.downgrade(scratch_database, "0002")
     roles = asyncio.run(_fetch("SELECT name FROM roles"))
     assert "billing" not in {row["name"] for row in roles}
@@ -239,3 +245,39 @@ def test_the_role_merge_folds_both_project_roles_into_manager(scratch_database) 
         _PM_ONLY: {"project_admin", "project_manager"},
         _BOTH: {"project_admin", "project_manager", "administrator"},
     }
+
+
+def _model_checks(model: type) -> dict[str, str]:
+    table = model.__table__
+    assert isinstance(table, Table)
+    return {
+        c.name: str(c.sqltext)
+        for c in table.constraints
+        if isinstance(c, CheckConstraint) and isinstance(c.name, str)
+    }
+
+
+def test_the_invoice_checks_match_the_models() -> None:
+    # `alembic check` compares columns, indexes and foreign keys but not CHECK constraints,
+    # so the invoice tables' vocabularies and all-or-nothing rules are compared here.
+    path = BACKEND_DIR / "alembic" / "versions" / "0004_invoices.py"
+    spec = importlib.util.spec_from_file_location("migration_0004", path)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+
+    assert module._INVOICE_CHECKS == _model_checks(Invoice)
+    assert module._LINE_CHECKS == _model_checks(InvoiceLine)
+    assert module._REFERENCE_CHECKS == _model_checks(InvoiceReference)
+
+
+def test_an_invoice_does_not_depend_on_payee_accounts(scratch_database) -> None:
+    command.upgrade(scratch_database, "head")
+
+    rows = asyncio.run(
+        _fetch(
+            "SELECT confrelid::regclass::text AS target FROM pg_constraint "
+            "WHERE conrelid = 'invoices'::regclass AND contype = 'f'"
+        )
+    )
+    assert {row["target"] for row in rows} == {"projects", "currencies", "users"}

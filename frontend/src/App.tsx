@@ -26,6 +26,9 @@ const ProjectFormPage = lazy(() =>
 const InvoicesPage = lazy(() =>
   import("@/pages/InvoicesPage").then((m) => ({ default: m.InvoicesPage })),
 );
+const InvoiceFormPage = lazy(() =>
+  import("@/pages/InvoiceFormPage").then((m) => ({ default: m.InvoiceFormPage })),
+);
 const ConfigurationGeneralPage = lazy(() =>
   import("@/pages/ConfigurationGeneralPage").then((m) => ({
     default: m.ConfigurationGeneralPage,
@@ -68,6 +71,8 @@ export default function App() {
           </Route>
           <Route element={<RequireRoles roles={["billing"]} />}>
             <Route path="/invoices" element={<InvoicesPage />} />
+            <Route path="/invoices/new" element={<InvoiceFormPage />} />
+            <Route path="/invoices/:invoiceId" element={<InvoiceFormPage />} />
           </Route>
           <Route element={<RequireRoles roles={["administrator"]} />}>
             {/* Bare /configuration redirects to the default tab; unknown sub-paths still

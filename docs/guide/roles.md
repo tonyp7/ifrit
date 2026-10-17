@@ -8,7 +8,7 @@ other way round.
 |---|---|---|
 | **Consultant** | Logs hours on service lines they are assigned to. | Timesheet (every user has it) |
 | **Manager** | Creates and maintains projects, their service lines, assignments and documents, and reviews, corrects, locks and exports hours. On every project: being listed as a project's manager only decides what "Only see my projects" shows. | Reporting, Projects |
-| **Billing** | Raises invoices. The Invoices screen is in place; creating invoices is not available yet. Billing alone gives no access to projects or companies. | Invoices |
+| **Billing** | Prepares invoices from projects' logged hours. Billing alone gives no access to the Projects or Configuration screens. | Invoices |
 | **Administrator** | Manages users, companies and application-wide settings. | Configuration |
 
 ## Navigation
@@ -51,4 +51,5 @@ review the users who held only one of the two roles.
 - [Timesheet](timesheet.md): logging hours, for everyone with the consultant role.
 - [Reporting](reporting.md): review, correction, locking and export, for managers.
 - [Projects](projects.md): projects, service lines, assignments and documents, for managers.
+- [Invoices](invoices.md): preparing invoices, for the billing role.
 - [Administration](administration.md): users, companies and settings, for administrators.
