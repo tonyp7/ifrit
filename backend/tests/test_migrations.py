@@ -145,6 +145,12 @@ def test_the_migration_can_be_undone_and_applied_again(scratch_database) -> None
     command.upgrade(scratch_database, "head")
     assert {"app_settings", "billing_milestones", "project_references"} <= _tables()
 
+    numbering = {"invoice_numbering_formats", "invoice_number_counters"}
+    assert numbering <= _tables()
+    command.downgrade(scratch_database, "0004")
+    assert not numbering & _tables()
+    assert "invoices" in _tables()
+
     command.downgrade(scratch_database, "0003")
     assert not {"invoices", "invoice_lines", "invoice_references"} & _tables()
 

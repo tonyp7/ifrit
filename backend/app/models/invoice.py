@@ -12,6 +12,7 @@ from sqlalchemy import (
     Integer,
     Numeric,
     String,
+    text,
 )
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -113,6 +114,9 @@ class Invoice(Base):
     status: Mapped[InvoiceStatus] = mapped_column(
         String(10), nullable=False, default="draft", server_default="draft"
     )
+    # Set when the invoice is issued, never on a draft; unique once set (see the index
+    # below), and kept by a void invoice.
+    number: Mapped[str | None] = mapped_column(String(100), nullable=True)
     # RESTRICT: projects are only ever deactivated by the app, so this never fires there,
     # but it stops a manual delete from taking an invoice's project out from under it.
     project_id: Mapped[uuid.UUID] = mapped_column(
@@ -264,6 +268,12 @@ class Invoice(Base):
             _address_check("payee_bank"), name="ck_invoices_payee_bank_address"
         ),
         Index("ix_invoices_project_id_status", "project_id", "status"),
+        Index(
+            "uq_invoices_number",
+            "number",
+            unique=True,
+            postgresql_where=text("number IS NOT NULL"),
+        ),
     )
 
 

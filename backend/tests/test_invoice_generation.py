@@ -16,7 +16,7 @@ URL = "/api/invoices/generate"
 SEPTEMBER = {"period_start": "2026-09-01", "period_end": "2026-09-30"}
 
 
-def _body(project, *lines, **overrides) -> dict:
+def _body(project, *lines, **overrides) -> dict[str, object]:
     return {
         "project_id": str(project.id),
         "service_line_ids": [str(line.id) for line in lines],

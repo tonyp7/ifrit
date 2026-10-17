@@ -44,6 +44,7 @@ by an administrator, see [Settings you change in the application](#settings-you-
 | [`SEED_ADMIN_PASSWORD`](#bootstrap-administrator) | Bootstrap | a long random value | Password of the first administrator. |
 | [`STORAGE_ROOT`](#uploads) | Uploads | `/app/storage` | Where uploaded files are kept. |
 | [`MAX_UPLOAD_BYTES`](#uploads) | Uploads | `10485760` | Largest accepted upload, in bytes. |
+| [`TZ`](#time-zone) | Optional | `Europe/Paris` | Time zone for invoice dates and numbers; UTC when unset. |
 | [`PGADMIN_EMAIL`](#optional-pgadmin-4) | Optional | `dba@your-company.com` | pgAdmin sign-in; only in a stack that includes pgAdmin. |
 | [`PGADMIN_PASSWORD`](#optional-pgadmin-4) | Optional | a long random value | pgAdmin password; only in a stack that includes pgAdmin. |
 
@@ -210,6 +211,18 @@ the new limit are rejected by the web server before they reach the application.
 
 A reverse proxy in front of Ifrit has its own body-size limit, which must be at least as large as
 the one above, see [Reverse Proxy](reverse-proxy.md).
+
+## Time zone
+
+`TZ` sets the server's time zone, as an IANA name such as `Europe/Paris` or `America/Toronto`. It is
+the only optional variable: without it the application runs in UTC, as it always has.
+
+It decides what "today" is for invoices: the date an invoice is issued on, and the year, month and
+day written into invoice numbers. An invoice issued shortly after midnight on 1 January in Paris
+belongs to the new year only if `TZ` is `Europe/Paris`; in UTC it is still 31 December.
+
+Set it once, before issuing invoices, to the time zone your organization works in, and restart the
+container. Changing it later does not change invoices already issued.
 
 ## Optional: pgAdmin 4
 
