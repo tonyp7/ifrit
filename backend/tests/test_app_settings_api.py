@@ -65,7 +65,11 @@ async def test_reading_returns_defaults_when_nothing_is_stored(
     await _login(client, db_session, "administrator")
 
     assert (await client.get(GROUP_URL)).json() == DEFAULTS
-    assert (await client.get(URL)).json() == {"pdf-export": DEFAULTS}
+    assert (await client.get(URL)).json() == {
+        "pdf-export": DEFAULTS,
+        "general": {"standard_workday_seconds": 28800},
+        "invoicing": {"document_name": "Invoice"},
+    }
 
 
 async def test_reading_an_unknown_group_is_404(client, db_session) -> None:
@@ -207,3 +211,85 @@ async def test_org_logo_is_not_treated_as_a_group(client, db_session) -> None:
     assert response.status_code == 404
     assert response.json()["detail"] == "No logo uploaded"
     assert "org-logo" not in (await client.get(URL)).json()
+
+
+# --- general ---------------------------------------------------------------------
+
+GENERAL_URL = "/api/settings/general"
+
+
+async def test_general_defaults_to_an_eight_hour_workday(client, db_session) -> None:
+    await _login(client, db_session, "administrator")
+    assert (await client.get(GENERAL_URL)).json() == {"standard_workday_seconds": 28800}
+
+
+@pytest.mark.parametrize("seconds", [1800, 86400])
+async def test_workday_bounds_are_accepted(client, db_session, seconds) -> None:
+    await _login(client, db_session, "administrator")
+    response = await client.patch(
+        GENERAL_URL, json={"standard_workday_seconds": seconds}
+    )
+    assert response.status_code == 200
+    assert response.json() == {"standard_workday_seconds": seconds}
+
+
+@pytest.mark.parametrize("seconds", [1799, 86401, 28800.5, "28800"])
+async def test_invalid_workdays_are_422_and_write_nothing(
+    client, db_session, seconds
+) -> None:
+    await _login(client, db_session, "administrator")
+    response = await client.patch(
+        GENERAL_URL, json={"standard_workday_seconds": seconds}
+    )
+    assert response.status_code == 422
+    assert await _rows(db_session) == {}
+
+
+async def test_workday_reset_restores_eight_hours(client, db_session) -> None:
+    await _login(client, db_session, "administrator")
+    await client.patch(GENERAL_URL, json={"standard_workday_seconds": 25200})
+    response = await client.delete(f"{GENERAL_URL}/standard_workday_seconds")
+    assert response.json() == {"standard_workday_seconds": 28800}
+
+
+# --- invoicing -------------------------------------------------------------------
+
+INVOICING_URL = "/api/settings/invoicing"
+
+
+async def test_document_name_defaults_to_invoice(client, db_session) -> None:
+    await _login(client, db_session, "administrator")
+    assert (await client.get(INVOICING_URL)).json() == {"document_name": "Invoice"}
+
+
+async def test_document_name_is_stored_trimmed(client, db_session) -> None:
+    await _login(client, db_session, "administrator")
+    response = await client.patch(
+        INVOICING_URL, json={"document_name": "  Tax Invoice "}
+    )
+    assert response.status_code == 200
+    assert response.json() == {"document_name": "Tax Invoice"}
+    assert await _rows(db_session) == {"document_name": "Tax Invoice"}
+
+
+@pytest.mark.parametrize("name", ["", "   ", "x" * 61, 5])
+async def test_invalid_document_names_are_422_and_write_nothing(
+    client, db_session, name
+) -> None:
+    await _login(client, db_session, "administrator")
+    response = await client.patch(INVOICING_URL, json={"document_name": name})
+    assert response.status_code == 422
+    assert await _rows(db_session) == {}
+
+
+async def test_a_sixty_character_document_name_is_accepted(client, db_session) -> None:
+    await _login(client, db_session, "administrator")
+    response = await client.patch(INVOICING_URL, json={"document_name": "x" * 60})
+    assert response.status_code == 200
+
+
+async def test_document_name_reset_restores_invoice(client, db_session) -> None:
+    await _login(client, db_session, "administrator")
+    await client.patch(INVOICING_URL, json={"document_name": "Tax Invoice"})
+    response = await client.delete(f"{INVOICING_URL}/document_name")
+    assert response.json() == {"document_name": "Invoice"}

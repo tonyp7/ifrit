@@ -265,8 +265,9 @@ container); see the pgAdmin container documentation for the full list.
 ## Settings you change in the application
 
 Some options are not environment variables and are changed by an administrator in the application,
-under **Configuration → General**: the organization logo, and whether and how large that logo is
-placed on exported PDF reports. See [Administration](guide/administration.md#general).
+under **Configuration → General**: the organization logo, whether and how large that logo is placed
+on exported PDF reports, and the standard workday length. **Configuration → Invoices** holds the
+document name that invoices carry. See [Administration](guide/administration.md#general).
 
 ## Example values
 

@@ -21,5 +21,18 @@
   "Logo height, in mm": "Logo height, in mm",
   "Couldn't load the PDF export settings.": "Couldn't load the PDF export settings.",
   "PDF export settings saved": "PDF export settings saved",
-  "The setting didn't save. Check your connection and try again.": "The setting didn't save. Check your connection and try again."
+  "The setting didn't save. Check your connection and try again.": "The setting didn't save. Check your connection and try again.",
+  "Standard Workday Length": "Standard Workday Length",
+  "Converts logged hours into days on invoices, for service lines billed in days.": "Converts logged hours into days on invoices, for service lines billed in days.",
+  "Hours": "Hours",
+  "Minutes": "Minutes",
+  "Seconds": "Seconds",
+  "Couldn't load the workday length.": "Couldn't load the workday length.",
+  "Workday length saved": "Workday length saved",
+  "Document Name": "Document Name",
+  "The title invoices carry. Some jurisdictions require a title such as \"Tax Invoice\".": "The title invoices carry. Some jurisdictions require a title such as \"Tax Invoice\".",
+  "Document name": "Document name",
+  "A document name is required": "A document name is required",
+  "Couldn't load the document name.": "Couldn't load the document name.",
+  "Document name saved": "Document name saved"
 }

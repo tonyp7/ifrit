@@ -82,7 +82,7 @@ async def test_an_unknown_group_is_an_error(db_session) -> None:
 
 async def test_get_all_groups_lists_every_registered_group(db_session) -> None:
     groups = await app_settings.get_all_groups(db_session)
-    assert list(groups) == ["pdf-export"]
+    assert list(groups) == ["pdf-export", "general", "invoicing"]
 
 
 async def test_a_read_right_after_a_write_sees_the_new_value(db_session) -> None:

@@ -328,6 +328,40 @@ async def test_create_sso_user_without_password(client, db_session) -> None:
     assert response.json()["is_sso"] is True
 
 
+async def test_create_billing_only_user(client, db_session) -> None:
+    await _login_admin(client, db_session)
+    await ensure_role(db_session, "billing")
+
+    response = await client.post(
+        "/api/users",
+        json={
+            "full_name": "New Biller",
+            "name_id": "new-biller@example.com",
+            "is_sso": False,
+            "roles": ["billing"],
+            "password": "a-strong-password-123",
+        },
+    )
+    assert response.status_code == 201
+    assert response.json()["roles"] == ["billing"]
+
+
+async def test_create_user_rejects_unknown_role(client, db_session) -> None:
+    await _login_admin(client, db_session)
+
+    response = await client.post(
+        "/api/users",
+        json={
+            "full_name": "New Consultant",
+            "name_id": "new-consultant@example.com",
+            "is_sso": False,
+            "roles": ["accountant"],
+            "password": "a-strong-password-123",
+        },
+    )
+    assert response.status_code == 422
+
+
 async def test_create_user_requires_at_least_one_role(client, db_session) -> None:
     await _login_admin(client, db_session)
 

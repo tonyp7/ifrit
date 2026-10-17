@@ -12,6 +12,7 @@ export const NAMESPACES = [
   "company",
   "user",
   "configuration",
+  "invoices",
 ] as const;
 
 void i18n

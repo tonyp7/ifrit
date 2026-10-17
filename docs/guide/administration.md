@@ -1,8 +1,8 @@
 # Administration
 
 Administrators manage the people, companies and global settings that everything else builds on.
-Everything is under the **Configuration** icon in the navigation bar, which has three tabs:
-**General**, **Companies** and **Users**.
+Everything is under the **Configuration** icon in the navigation bar, which has four tabs:
+**General**, **Companies**, **Users** and **Invoices**.
 
 Removing a user or a company *deactivates* it: it disappears from lists and can no longer be used,
 but everything recorded against it is kept. Deactivation cannot be undone from the application.
@@ -22,6 +22,26 @@ The **PDF Report Export** card controls the logo in exported PDF reports:
 - a slider, **Logo height, in mm**, from 1 to 60 (20 by default).
 
 The slider keeps its value while the switch is off.
+
+### Standard workday length
+
+The **Standard Workday Length** card sets how long a working day is, from 00:30:00 to 24:00:00
+(8 hours by default). Invoices use it to turn the hours logged on a service line billed in days
+into a number of days: 20 hours with an 8-hour day is 2.5 days. Timesheets are always entered in
+hours.
+
+Enter the length in the **Hours**, **Minutes** and **Seconds** fields. It is saved when you leave
+the fields or press Enter. A value outside the allowed range is brought to the nearest limit
+before it is saved, and the fields show what was saved. Changing the length only affects invoice
+lines generated afterwards.
+
+## Invoices
+
+### Document name
+
+The **Document Name** card sets the title that invoices carry, "Invoice" by default. Some
+jurisdictions require another title, such as "Tax Invoice". The name can be up to 60 characters
+and cannot be empty. It is saved when you leave the field or press Enter.
 
 ## Companies
 

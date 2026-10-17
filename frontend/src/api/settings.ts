@@ -1,6 +1,6 @@
 import { apiClient } from "@/api/client";
 import type { StoredFileInfo } from "@/types/file";
-import type { PdfExportSettings } from "@/types/settings";
+import type { GeneralSettings, InvoicingSettings, PdfExportSettings } from "@/types/settings";
 
 export const ORG_LOGO_PATH = "/settings/org-logo";
 
@@ -32,4 +32,26 @@ export function getPdfExportSettings() {
 /** Changes only the settings sent; the response is the whole updated group. */
 export function patchPdfExportSettings(patch: Partial<PdfExportSettings>) {
   return apiClient.patch<PdfExportSettings>(PDF_EXPORT_PATH, patch);
+}
+
+const GENERAL_PATH = "/settings/general";
+
+export function getGeneralSettings() {
+  return apiClient.get<GeneralSettings>(GENERAL_PATH);
+}
+
+/** Changes only the settings sent; the response is the whole updated group. */
+export function patchGeneralSettings(patch: Partial<GeneralSettings>) {
+  return apiClient.patch<GeneralSettings>(GENERAL_PATH, patch);
+}
+
+const INVOICING_PATH = "/settings/invoicing";
+
+export function getInvoicingSettings() {
+  return apiClient.get<InvoicingSettings>(INVOICING_PATH);
+}
+
+/** Changes only the settings sent; the response is the whole updated group. */
+export function patchInvoicingSettings(patch: Partial<InvoicingSettings>) {
+  return apiClient.patch<InvoicingSettings>(INVOICING_PATH, patch);
 }

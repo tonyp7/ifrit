@@ -115,7 +115,7 @@ def test_the_migration_seeds_its_reference_data(scratch_database) -> None:
     command.upgrade(scratch_database, "head")
 
     roles = asyncio.run(_fetch("SELECT name FROM roles"))
-    assert {row["name"] for row in roles} == {"administrator", "manager", "consultant"}
+    assert {row["name"] for row in roles} == {"administrator", "manager", "consultant", "billing"}
     (currencies,) = asyncio.run(
         _fetch(
             "SELECT count(*) AS total, count(*) FILTER (WHERE is_enabled) AS enabled "
@@ -141,6 +141,10 @@ def test_the_migration_seeds_its_reference_data(scratch_database) -> None:
 def test_the_migration_can_be_undone_and_applied_again(scratch_database) -> None:
     command.upgrade(scratch_database, "head")
     assert {"app_settings", "billing_milestones", "project_references"} <= _tables()
+
+    command.downgrade(scratch_database, "0002")
+    roles = asyncio.run(_fetch("SELECT name FROM roles"))
+    assert "billing" not in {row["name"] for row in roles}
 
     command.downgrade(scratch_database, "0001")
     assert not {"billing_milestones", "project_references"} & _tables()

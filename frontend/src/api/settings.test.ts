@@ -1,6 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getPdfExportSettings, patchPdfExportSettings } from "@/api/settings";
+import {
+  getGeneralSettings,
+  getInvoicingSettings,
+  getPdfExportSettings,
+  patchGeneralSettings,
+  patchInvoicingSettings,
+  patchPdfExportSettings,
+} from "@/api/settings";
 
 const fetchMock = vi.fn();
 
@@ -52,5 +59,35 @@ describe("PDF export settings API", () => {
       status: 422,
       message: "Input should be at most 60",
     });
+  });
+});
+
+describe("general and invoicing settings API", () => {
+  // Two requests per test, and a Response body can only be read once.
+  beforeEach(() => {
+    fetchMock.mockImplementation(() => Promise.resolve(new Response("{}", { status: 200 })));
+  });
+
+  it("reads and patches the general group", async () => {
+    await getGeneralSettings();
+    await patchGeneralSettings({ standard_workday_seconds: 25200 });
+
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/settings/general");
+    expect(fetchMock.mock.calls[0][1].method).toBe("GET");
+    const [url, init] = fetchMock.mock.calls[1];
+    expect(url).toBe("/api/settings/general");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body)).toEqual({ standard_workday_seconds: 25200 });
+  });
+
+  it("reads and patches the invoicing group", async () => {
+    await getInvoicingSettings();
+    await patchInvoicingSettings({ document_name: "Tax Invoice" });
+
+    expect(fetchMock.mock.calls[0][0]).toBe("/api/settings/invoicing");
+    const [url, init] = fetchMock.mock.calls[1];
+    expect(url).toBe("/api/settings/invoicing");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body)).toEqual({ document_name: "Tax Invoice" });
   });
 });

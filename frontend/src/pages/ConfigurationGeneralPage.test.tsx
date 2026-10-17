@@ -32,4 +32,12 @@ describe("ConfigurationGeneralPage", () => {
     expect(logoAt).toBeGreaterThan(-1);
     expect(pdfAt).toBeGreaterThan(logoAt);
   });
+
+  it("shows the Standard Workday Length card third", () => {
+    const html = render();
+
+    expect(html.indexOf("Standard Workday Length")).toBeGreaterThan(
+      html.indexOf("PDF Report Export"),
+    );
+  });
 });

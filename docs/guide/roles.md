@@ -1,6 +1,6 @@
 # Roles
 
-Every user has one or more of three roles. What a user sees and can do is the union of their roles.
+Every user has one or more of four roles. What a user sees and can do is the union of their roles.
 Roles are matched literally: being an `administrator` does not make someone a `manager`, and the
 other way round.
 
@@ -8,6 +8,7 @@ other way round.
 |---|---|---|
 | **Consultant** | Logs hours on service lines they are assigned to. | Timesheet (every user has it) |
 | **Manager** | Creates and maintains projects, their service lines, assignments and documents, and reviews, corrects, locks and exports hours. On every project: being listed as a project's manager only decides what "Only see my projects" shows. | Reporting, Projects |
+| **Billing** | Raises invoices. The Invoices screen is in place; creating invoices is not available yet. Billing alone gives no access to projects or companies. | Invoices |
 | **Administrator** | Manages users, companies and application-wide settings. | Configuration |
 
 ## Navigation
@@ -19,6 +20,7 @@ roles give you, each as an icon with a tooltip:
 |---|---|
 | Consultant | Timesheet, profile |
 | Manager | Timesheet, Reporting, Projects, profile |
+| Billing | Timesheet, Invoices, profile |
 | Administrator | Timesheet, Configuration, profile |
 | Several roles | Everything each of them grants |
 
