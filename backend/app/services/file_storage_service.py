@@ -499,6 +499,11 @@ async def attach_setting_file(
             db.add(
                 SettingFile(file_id=file.id, kind="setting", setting_key=setting_key)
             )
+            await db.flush()
+            # Read back inside the transaction: once committed, a concurrent replacement
+            # can delete this file before a reload, which would then find nothing and
+            # fail an upload that did succeed.
+            loaded = await _load_file(db, file.id)
             await db.commit()
         except IntegrityError:
             await db.rollback()
@@ -515,7 +520,7 @@ async def attach_setting_file(
         else:
             # Only still present when the content was already stored.
             await _discard(prepared.tmp_path)
-            return await _load_file(db, file.id)
+            return loaded
     raise AssertionError("unreachable")  # pragma: no cover
 
 

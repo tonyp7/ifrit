@@ -361,6 +361,45 @@ async def test_concurrent_replacements_leave_exactly_one_logo(db_session):
     assert await _count(db_session, File) == 1
 
 
+async def test_replacement_survives_being_replaced_before_it_returns(
+    db_session, monkeypatch
+):
+    """An upload that committed must succeed even when another upload replaces its file
+    before it returns: it used to reload the file after committing and find nothing."""
+    user = await _admin(db_session)
+    factory = async_sessionmaker(db_session.bind, expire_on_commit=False)
+    real_discard = storage._discard
+    replaced = {"done": False}
+
+    async def discard_after_a_rival_replaced_it(path):
+        # Runs right after the first upload committed, which is the window that matters.
+        if not replaced["done"]:
+            replaced["done"] = True
+            async with factory() as other:
+                await storage.attach_setting_file(
+                    other,
+                    upload=make_upload(png_bytes((11, 11)), "b.png"),
+                    setting_key="org_logo",
+                    uploaded_by=user,
+                )
+        await real_discard(path)
+
+    monkeypatch.setattr(storage, "_discard", discard_after_a_rival_replaced_it)
+
+    async with factory() as session:
+        result = await storage.attach_setting_file(
+            session,
+            upload=make_upload(png_bytes((10, 10)), "a.png"),
+            setting_key="org_logo",
+            uploaded_by=user,
+        )
+
+    assert result.original_filename == "a.png"
+    assert result.stored_file is not None
+    assert await _count(db_session, SettingFile) == 1
+    assert await _count(db_session, File) == 1
+
+
 async def test_delete_setting_file_reports_whether_anything_was_removed(db_session):
     assert await storage.delete_setting_file(db_session, "org_logo") is False
     await _attach(db_session, png_bytes(), "logo.png")
