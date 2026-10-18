@@ -59,7 +59,9 @@ def _is_manager(user: User) -> bool:
     return any(role.name == "manager" for role in user.roles)
 
 
-async def _pm_project_ids(db: AsyncSession, project_manager_id: uuid.UUID) -> set[uuid.UUID]:
+async def _pm_project_ids(
+    db: AsyncSession, project_manager_id: uuid.UUID
+) -> set[uuid.UUID]:
     result = await db.execute(
         select(project_manager_assignments.c.project_id).where(
             project_manager_assignments.c.user_id == project_manager_id
@@ -228,7 +230,10 @@ async def _upsert_one(
 
     if existing is not None and existing.is_locked:
         return TimeEntryUpsertResult(
-            service_line_id=item.service_line_id, date=item.date, ok=False, error="locked"
+            service_line_id=item.service_line_id,
+            date=item.date,
+            ok=False,
+            error="locked",
         )
 
     if item.hours == 0:
@@ -255,7 +260,9 @@ async def _upsert_one(
         # who merely re-saves (or tabs through) a consultant's cell would take over
         # the audit trail. Lock and eligibility were already checked above, so
         # rejections behave exactly as before; only the no-op write is dropped.
-        context = await _fetch_entry_with_context(db, owner_id, item.service_line_id, item.date)
+        context = await _fetch_entry_with_context(
+            db, owner_id, item.service_line_id, item.date
+        )
         assert context is not None
         entry, line, project = context
         return TimeEntryUpsertResult(
@@ -288,7 +295,9 @@ async def _upsert_one(
     )
     await db.execute(stmt)
     await db.commit()
-    context = await _fetch_entry_with_context(db, owner_id, item.service_line_id, item.date)
+    context = await _fetch_entry_with_context(
+        db, owner_id, item.service_line_id, item.date
+    )
     assert context is not None
     entry, line, project = context
     return TimeEntryUpsertResult(
@@ -346,10 +355,10 @@ async def set_service_line_lock(
     if not _is_manager(caller):
         raise NotAuthorizedError("Only a manager can lock or unlock a service line")
 
-    if not await _is_eligible_ignoring_active_status(db, request.user_id, request.service_line_id):
-        raise NotAuthorizedError(
-            "This consultant is not assigned to this service line"
-        )
+    if not await _is_eligible_ignoring_active_status(
+        db, request.user_id, request.service_line_id
+    ):
+        raise NotAuthorizedError("This consultant is not assigned to this service line")
 
     # TimeEntryLockRequest already rejected an inverted or over-long range (422).
     day_count = (request.end_date - request.start_date).days
@@ -386,15 +395,19 @@ async def set_service_line_lock(
         await db.commit()
     else:
         existing_rows = (
-            await db.execute(
-                select(TimeEntry).where(
-                    TimeEntry.user_id == request.user_id,
-                    TimeEntry.service_line_id == request.service_line_id,
-                    TimeEntry.date >= request.start_date,
-                    TimeEntry.date <= request.end_date,
+            (
+                await db.execute(
+                    select(TimeEntry).where(
+                        TimeEntry.user_id == request.user_id,
+                        TimeEntry.service_line_id == request.service_line_id,
+                        TimeEntry.date >= request.start_date,
+                        TimeEntry.date <= request.end_date,
+                    )
                 )
             )
-        ).scalars().all()
+            .scalars()
+            .all()
+        )
         for row in existing_rows:
             if row.time_entry == timedelta(0):
                 # A genuine consultant save of 0 hours is always translated to a
@@ -423,7 +436,9 @@ async def set_service_line_lock(
         # branch above writes with a core upsert).
         .execution_options(populate_existing=True)
     )
-    return [to_time_entry_out(entry, line, project) for entry, line, project in result.all()]
+    return [
+        to_time_entry_out(entry, line, project) for entry, line, project in result.all()
+    ]
 
 
 async def _is_eligible_ignoring_active_status(
@@ -483,7 +498,9 @@ async def list_report_filters(
         .distinct()
     )
     if scope is not None:
-        historical_ids_stmt = historical_ids_stmt.where(ServiceLine.project_id.in_(scope))
+        historical_ids_stmt = historical_ids_stmt.where(
+            ServiceLine.project_id.in_(scope)
+        )
     historical_ids = {row[0] for row in (await db.execute(historical_ids_stmt)).all()}
 
     consultant_ids = eligible_ids | historical_ids
@@ -492,7 +509,9 @@ async def list_report_filters(
         consultants = list(
             (
                 await db.execute(
-                    select(User).where(User.id.in_(consultant_ids)).order_by(User.full_name)
+                    select(User)
+                    .where(User.id.in_(consultant_ids))
+                    .order_by(User.full_name)
                 )
             )
             .scalars()
@@ -514,7 +533,8 @@ async def list_report_filters(
             for line, project in service_line_rows
         ],
         consultants=[
-            ReportFilterConsultantOut(user_id=c.id, full_name=c.full_name) for c in consultants
+            ReportFilterConsultantOut(user_id=c.id, full_name=c.full_name)
+            for c in consultants
         ],
     )
 
@@ -560,7 +580,9 @@ async def list_time_entries_report(
         ServiceLine.project_id.in_(projects_by_id.keys())
     )
     if service_line_ids:
-        service_line_stmt = service_line_stmt.where(ServiceLine.id.in_(service_line_ids))
+        service_line_stmt = service_line_stmt.where(
+            ServiceLine.id.in_(service_line_ids)
+        )
     service_lines = (await db.execute(service_line_stmt)).scalars().all()
     service_lines_by_id = {line.id: line for line in service_lines}
     if not service_lines_by_id:
@@ -575,7 +597,9 @@ async def list_time_entries_report(
         assignment_stmt = assignment_stmt.where(
             service_line_consultants.c.user_id.in_(consultant_ids)
         )
-    assigned_pairs = {(row[0], row[1]) for row in (await db.execute(assignment_stmt)).all()}
+    assigned_pairs = {
+        (row[0], row[1]) for row in (await db.execute(assignment_stmt)).all()
+    }
 
     # Pair membership part 2: historical entries in the requested period, whether or
     # not currently assigned: same "history stays visible" principle applied one
@@ -591,7 +615,9 @@ async def list_time_entries_report(
     )
     if consultant_ids:
         historical_stmt = historical_stmt.where(TimeEntry.user_id.in_(consultant_ids))
-    historical_pairs = {(row[0], row[1]) for row in (await db.execute(historical_stmt)).all()}
+    historical_pairs = {
+        (row[0], row[1]) for row in (await db.execute(historical_stmt)).all()
+    }
 
     pairs = assigned_pairs | historical_pairs
     if not pairs:
@@ -600,9 +626,7 @@ async def list_time_entries_report(
     pair_user_ids = {p[0] for p in pairs}
     consultants_by_id = {
         c.id: c
-        for c in (
-            await db.execute(select(User).where(User.id.in_(pair_user_ids)))
-        )
+        for c in (await db.execute(select(User).where(User.id.in_(pair_user_ids))))
         .scalars()
         .all()
     }
@@ -621,7 +645,9 @@ async def list_time_entries_report(
         )
         .order_by(TimeEntry.date)
     )
-    entries_by_pair: dict[tuple[uuid.UUID, uuid.UUID], list[TimeEntryOut]] = defaultdict(list)
+    entries_by_pair: dict[tuple[uuid.UUID, uuid.UUID], list[TimeEntryOut]] = (
+        defaultdict(list)
+    )
     for entry, line, project in (await db.execute(entries_stmt)).all():
         entries_by_pair[(entry.user_id, entry.service_line_id)].append(
             to_time_entry_out(entry, line, project)
@@ -631,7 +657,10 @@ async def list_time_entries_report(
     # own docstring for why this is deliberately _eligibility_filters()-restricted,
     # unlike the broader membership rule above.
     assigned_eligible_stmt = (
-        select(service_line_consultants.c.user_id, service_line_consultants.c.service_line_id)
+        select(
+            service_line_consultants.c.user_id,
+            service_line_consultants.c.service_line_id,
+        )
         .join(ServiceLine, ServiceLine.id == service_line_consultants.c.service_line_id)
         .join(Project, Project.id == ServiceLine.project_id)
         .where(
@@ -665,6 +694,11 @@ async def list_time_entries_report(
         )
 
     rows.sort(
-        key=lambda r: (r.full_name, r.project_name, r.service_line_name or "", str(r.service_line_id))
+        key=lambda r: (
+            r.full_name,
+            r.project_name,
+            r.service_line_name or "",
+            str(r.service_line_id),
+        )
     )
     return rows

@@ -91,7 +91,9 @@ class UserUpdate(BaseModel):
 
 
 class PasswordResetRequest(BaseModel):
-    new_password: str = Field(min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH)
+    new_password: str = Field(
+        min_length=PASSWORD_MIN_LENGTH, max_length=PASSWORD_MAX_LENGTH
+    )
 
     @model_validator(mode="after")
     def check_password(self) -> PasswordResetRequest:

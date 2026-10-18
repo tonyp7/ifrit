@@ -81,7 +81,9 @@ async def _get_billing_milestone_or_404(
 async def _get_project_reference_or_404(
     db: AsyncSession, project_id: uuid.UUID, reference_id: uuid.UUID
 ) -> ProjectReference:
-    reference = await project_service.get_project_reference(db, project_id, reference_id)
+    reference = await project_service.get_project_reference(
+        db, project_id, reference_id
+    )
     if reference is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Reference not found"
@@ -503,9 +505,7 @@ async def upload_project_file(
     return project_file_service.to_project_file_out(link)
 
 
-@router.delete(
-    "/{project_id}/files/{file_id}", status_code=status.HTTP_204_NO_CONTENT
-)
+@router.delete("/{project_id}/files/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_project_file(
     project_id: uuid.UUID, file_id: uuid.UUID, db: AsyncSession = Depends(get_db)
 ) -> None:

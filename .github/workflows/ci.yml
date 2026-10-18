@@ -2,7 +2,8 @@
 # included) and on pushes to main. Read-only and secret-free on purpose: it uses `pull_request`,
 # never `pull_request_target`, so code from a PR never runs with elevated rights.
 #
-# Not gated yet: `ruff format --check`, which fails on existing code.
+# The backend job fails on code `ruff format` would change: run `uv run ruff format .` in
+# backend/ to fix it. Prettier is not gated for the frontend.
 name: CI
 
 on:
@@ -66,6 +67,7 @@ jobs:
           cache-dependency-glob: backend/uv.lock
       # --locked fails if pyproject.toml and uv.lock disagree (e.g. a half-applied bump).
       - run: uv sync --locked
+      - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run pyrefly check
       # One worker per vCPU; each builds its schema once and empties it after every test.

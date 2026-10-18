@@ -64,7 +64,12 @@ async def _setup_project_with_consultant(
 
 
 async def _setup_project_with_consultant_and_pm(
-    client, db_session, *, consultant_name_id: str, pm_name_id: str, project_name: str = "Acme Rollout"
+    client,
+    db_session,
+    *,
+    consultant_name_id: str,
+    pm_name_id: str,
+    project_name: str = "Acme Rollout",
 ):
     """Same as _setup_project_with_consultant, plus a project_manager assigned to
     the project: needed for the project_manager endpoints (GET
@@ -149,7 +154,9 @@ async def test_upsert_and_list_time_entry(client, db_session) -> None:
 
     upsert = await client.put(
         "/api/time-entries",
-        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "1.5"}],
+        json=[
+            {"service_line_id": service_line_id, "date": "2026-08-05", "hours": "1.5"}
+        ],
     )
     assert upsert.status_code == 200
     results = upsert.json()
@@ -221,13 +228,17 @@ async def test_upsert_rejects_invalid_hours(client, db_session) -> None:
     # rules, locked, not eligible).
     too_high = await client.put(
         "/api/time-entries",
-        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "25"}],
+        json=[
+            {"service_line_id": service_line_id, "date": "2026-08-05", "hours": "25"}
+        ],
     )
     assert too_high.status_code == 422
 
     not_half_step = await client.put(
         "/api/time-entries",
-        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "1.3"}],
+        json=[
+            {"service_line_id": service_line_id, "date": "2026-08-05", "hours": "1.3"}
+        ],
     )
     assert not_half_step.status_code == 422
 
@@ -442,10 +453,16 @@ async def test_lock_materializes_gaps_and_preserves_existing_value(
     client, db_session
 ) -> None:
     await _login_manager_first(client, db_session)
-    _project_id, service_line_id, consultant_id, _pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        _project_id,
+        service_line_id,
+        consultant_id,
+        _pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "c@example.com")
     await client.put(
@@ -485,12 +502,20 @@ async def test_lock_materializes_gaps_and_preserves_existing_value(
     assert blocked.json()[0]["error"] == "locked"
 
 
-async def test_unlock_deletes_gap_rows_and_unlocks_real_ones(client, db_session) -> None:
+async def test_unlock_deletes_gap_rows_and_unlocks_real_ones(
+    client, db_session
+) -> None:
     await _login_manager_first(client, db_session)
-    _project_id, service_line_id, consultant_id, _pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        _project_id,
+        service_line_id,
+        consultant_id,
+        _pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "c@example.com")
     await client.put(
@@ -538,10 +563,16 @@ async def test_unlock_deletes_gap_rows_and_unlocks_real_ones(client, db_session)
 
 async def test_lock_rejects_non_project_manager(client, db_session) -> None:
     await _login_manager_first(client, db_session)
-    _project_id, service_line_id, consultant_id, _pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        _project_id,
+        service_line_id,
+        consultant_id,
+        _pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "c@example.com")
     response = await client.put(
@@ -561,10 +592,16 @@ async def test_lock_allows_manager_not_listed_on_the_project(
     client, db_session
 ) -> None:
     await _login_manager_first(client, db_session)
-    _project_id, service_line_id, consultant_id, _pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        _project_id,
+        service_line_id,
+        consultant_id,
+        _pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await create_user(
         db_session, name_id="other-pm@example.com", password="pw", role_name="manager"
@@ -586,13 +623,22 @@ async def test_lock_allows_manager_not_listed_on_the_project(
 
 async def test_lock_rejects_unassigned_consultant(client, db_session) -> None:
     await _login_manager_first(client, db_session)
-    _project_id, service_line_id, _consultant_id, _pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        _project_id,
+        service_line_id,
+        _consultant_id,
+        _pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await create_user(
-        db_session, name_id="not-assigned@example.com", password="pw", role_name="consultant"
+        db_session,
+        name_id="not-assigned@example.com",
+        password="pw",
+        role_name="consultant",
     )
     await _login_as(client, "project_admin@example.com", "project_admin-pw")
     not_assigned_id = next(
@@ -622,10 +668,16 @@ async def test_override_allows_project_manager_to_edit_consultant_entry(
     client, db_session
 ) -> None:
     await _login_manager_first(client, db_session)
-    _project_id, service_line_id, consultant_id, _pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        _project_id,
+        service_line_id,
+        consultant_id,
+        _pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "pm@example.com")
     response = await client.put(
@@ -673,10 +725,16 @@ async def test_resaving_unchanged_hours_does_not_touch_audit_trail(
     client, db_session
 ) -> None:
     await _login_manager_first(client, db_session)
-    _project_id, service_line_id, consultant_id, _pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        _project_id,
+        service_line_id,
+        consultant_id,
+        _pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "c@example.com")
     payload = [{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "4"}]
@@ -698,10 +756,16 @@ async def test_override_with_unchanged_hours_keeps_original_last_updated_by(
     client, db_session
 ) -> None:
     await _login_manager_first(client, db_session)
-    _project_id, service_line_id, consultant_id, _pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        _project_id,
+        service_line_id,
+        consultant_id,
+        _pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "c@example.com")
     await client.put(
@@ -734,10 +798,16 @@ async def test_override_with_changed_hours_records_project_manager(
     client, db_session
 ) -> None:
     await _login_manager_first(client, db_session)
-    _project_id, service_line_id, consultant_id, pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        _project_id,
+        service_line_id,
+        consultant_id,
+        pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "c@example.com")
     await client.put(
@@ -763,7 +833,9 @@ async def test_override_with_changed_hours_records_project_manager(
     assert response.status_code == 200
     assert response.json()[0]["ok"] is True
     assert response.json()[0]["entry"]["hours"] == "6.00"
-    last_updated_by, updated_at, time_entry = await _audit_trail(db_session, service_line_id)
+    last_updated_by, updated_at, time_entry = await _audit_trail(
+        db_session, service_line_id
+    )
     assert time_entry == timedelta(hours=6)
     assert last_updated_by == pm_id
     assert updated_at > before[1]
@@ -813,13 +885,22 @@ async def test_bulk_upsert_same_cell_repeated_ends_on_last_value(
 
 async def test_override_rejects_non_project_manager(client, db_session) -> None:
     await _login_manager_first(client, db_session)
-    _project_id, service_line_id, consultant_id, _pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        _project_id,
+        service_line_id,
+        consultant_id,
+        _pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await create_user(
-        db_session, name_id="other-consultant@example.com", password="pw", role_name="consultant"
+        db_session,
+        name_id="other-consultant@example.com",
+        password="pw",
+        role_name="consultant",
     )
     await _login_as(client, "other-consultant@example.com")
     response = await client.put(
@@ -842,10 +923,16 @@ async def test_override_allows_manager_not_listed_on_the_project(
     client, db_session
 ) -> None:
     await _login_manager_first(client, db_session)
-    _project_id, service_line_id, consultant_id, _pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        _project_id,
+        service_line_id,
+        consultant_id,
+        _pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await create_user(
         db_session, name_id="other-pm2@example.com", password="pw", role_name="manager"
@@ -868,10 +955,16 @@ async def test_override_allows_manager_not_listed_on_the_project(
 
 async def test_override_respects_lock(client, db_session) -> None:
     await _login_manager_first(client, db_session)
-    _project_id, service_line_id, consultant_id, _pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        _project_id,
+        service_line_id,
+        consultant_id,
+        _pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "pm@example.com")
     await client.put(
@@ -924,7 +1017,10 @@ async def _close_project(client, project_id: str, *, pm_id: str) -> None:
 async def test_report_filters_requires_project_manager_role(client, db_session) -> None:
     await _login_manager_first(client, db_session)
     await _setup_project_with_consultant_and_pm(
-        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "c@example.com")
     response = await client.get("/api/time-entries/report/filters")
@@ -935,10 +1031,16 @@ async def test_report_filters_includes_closed_project_and_inactive_line(
     client, db_session
 ) -> None:
     await _login_manager_first(client, db_session)
-    project_id, service_line_id, _consultant_id, pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        project_id,
+        service_line_id,
+        _consultant_id,
+        pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "project_admin@example.com", "project_admin-pw")
     await _close_project(client, project_id, pm_id=pm_id)
@@ -953,14 +1055,22 @@ async def test_report_filters_includes_closed_project_and_inactive_line(
     assert service_line_id in {sl["service_line_id"] for sl in body["service_lines"]}
 
 
-async def test_report_mine_only_excludes_projects_not_listed(client, db_session) -> None:
+async def test_report_mine_only_excludes_projects_not_listed(
+    client, db_session
+) -> None:
     """A consultant on a project the manager is NOT listed on shows up in the report
     only without `mine_only`: the listing narrows the view, never the access."""
     await _login_manager_first(client, db_session)
-    _project_id, service_line_id, _consultant_id, _pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        _project_id,
+        service_line_id,
+        _consultant_id,
+        _pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await create_user(
         db_session, name_id="outside@example.com", password="pw", role_name="consultant"
@@ -999,7 +1109,9 @@ async def test_report_mine_only_excludes_projects_not_listed(client, db_session)
     await _login_as(client, "pm@example.com")
     period = {"start_date": "2026-08-01", "end_date": "2026-08-31"}
     mine = (
-        await client.get("/api/time-entries/report", params={**period, "mine_only": True})
+        await client.get(
+            "/api/time-entries/report", params={**period, "mine_only": True}
+        )
     ).json()["items"]
     assert {r["service_line_id"] for r in mine} == {service_line_id}
     assert outside_id not in {r["user_id"] for r in mine}
@@ -1014,7 +1126,10 @@ async def test_report_mine_only_excludes_projects_not_listed(client, db_session)
 async def test_report_requires_project_manager_role(client, db_session) -> None:
     await _login_manager_first(client, db_session)
     await _setup_project_with_consultant_and_pm(
-        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "c@example.com")
     response = await client.get(
@@ -1024,14 +1139,22 @@ async def test_report_requires_project_manager_role(client, db_session) -> None:
     assert response.status_code == 403
 
 
-async def test_report_default_includes_zero_data_assigned_row(client, db_session) -> None:
+async def test_report_default_includes_zero_data_assigned_row(
+    client, db_session
+) -> None:
     """No filters: the whole scope shows, including a currently-assigned pairing
     with nothing logged this period (row membership's core resolved rule)."""
     await _login_manager_first(client, db_session)
-    _project_id, service_line_id, consultant_id, _pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        _project_id,
+        service_line_id,
+        consultant_id,
+        _pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "pm@example.com")
     response = await client.get(
@@ -1047,12 +1170,20 @@ async def test_report_default_includes_zero_data_assigned_row(client, db_session
     assert rows[0]["is_assigned"] is True
 
 
-async def test_report_includes_historical_row_after_unassignment(client, db_session) -> None:
+async def test_report_includes_historical_row_after_unassignment(
+    client, db_session
+) -> None:
     await _login_manager_first(client, db_session)
-    project_id, service_line_id, consultant_id, _pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        project_id,
+        service_line_id,
+        consultant_id,
+        _pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "c@example.com")
     await client.put(
@@ -1087,10 +1218,16 @@ async def test_report_includes_historical_row_after_unassignment(client, db_sess
 
 async def test_report_is_assigned_false_on_closed_project(client, db_session) -> None:
     await _login_manager_first(client, db_session)
-    project_id, service_line_id, _consultant_id, pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        project_id,
+        service_line_id,
+        _consultant_id,
+        pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "c@example.com")
     await client.put(
@@ -1118,13 +1255,21 @@ async def test_report_filters_narrow_by_consultant_project_and_status(
     client, db_session
 ) -> None:
     await _login_manager_first(client, db_session)
-    project_id, service_line_id, consultant_id, pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        project_id,
+        service_line_id,
+        consultant_id,
+        pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     # A second, unrelated project+consultant under the same pm.
-    await create_user(db_session, name_id="c2@example.com", password="pw", role_name="consultant")
+    await create_user(
+        db_session, name_id="c2@example.com", password="pw", role_name="consultant"
+    )
     await _login_as(client, "project_admin@example.com", "project_admin-pw")
     vendor = await create_company(db_session, legal_name="Other Vendor", is_vendor=True)
     client_company = await create_company(db_session, legal_name="Other Client")
@@ -1180,7 +1325,9 @@ async def test_report_filters_narrow_by_consultant_project_and_status(
             "consultant_ids": [consultant_id],
         },
     )
-    assert {r["service_line_id"] for r in by_consultant.json()["items"]} == {service_line_id}
+    assert {r["service_line_id"] for r in by_consultant.json()["items"]} == {
+        service_line_id
+    }
 
     # Filtered to just the other project.
     by_project = await client.get(
@@ -1204,7 +1351,9 @@ async def test_report_filters_narrow_by_consultant_project_and_status(
         },
     )
     assert with_bogus_id.status_code == 200
-    assert {r["service_line_id"] for r in with_bogus_id.json()["items"]} == {service_line_id}
+    assert {r["service_line_id"] for r in with_bogus_id.json()["items"]} == {
+        service_line_id
+    }
 
     # Filtered by status=draft: neither project is draft, so nothing shows.
     by_status = await client.get(
@@ -1282,7 +1431,10 @@ async def test_report_sort_order(client, db_session) -> None:
 async def test_export_requires_project_manager_role(client, db_session) -> None:
     await _login_manager_first(client, db_session)
     await _setup_project_with_consultant_and_pm(
-        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "c@example.com")
     response = await client.get(
@@ -1299,10 +1451,16 @@ async def test_export_requires_project_manager_role(client, db_session) -> None:
 
 async def test_export_pdf_returns_pdf_with_expected_headers(client, db_session) -> None:
     await _login_manager_first(client, db_session)
-    _project_id, service_line_id, _consultant_id, _pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        _project_id,
+        service_line_id,
+        _consultant_id,
+        _pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "c@example.com")
     await client.put(
@@ -1323,14 +1481,20 @@ async def test_export_pdf_returns_pdf_with_expected_headers(client, db_session) 
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/pdf"
     assert response.headers["x-content-type-options"] == "nosniff"
-    assert 'attachment; filename="august-2026.pdf"' == response.headers["content-disposition"]
+    assert (
+        'attachment; filename="august-2026.pdf"'
+        == response.headers["content-disposition"]
+    )
     assert response.content.startswith(b"%PDF")
 
 
 async def test_export_unrecognized_format_returns_422(client, db_session) -> None:
     await _login_manager_first(client, db_session)
     await _setup_project_with_consultant_and_pm(
-        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "pm@example.com")
     response = await client.get(
@@ -1345,17 +1509,27 @@ async def test_export_unrecognized_format_returns_422(client, db_session) -> Non
     assert response.status_code == 422
 
 
-async def test_export_xlsx_returns_workbook_with_expected_headers(client, db_session) -> None:
+async def test_export_xlsx_returns_workbook_with_expected_headers(
+    client, db_session
+) -> None:
     await _login_manager_first(client, db_session)
-    _project_id, service_line_id, _consultant_id, _pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        _project_id,
+        service_line_id,
+        _consultant_id,
+        _pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "c@example.com")
     await client.put(
         "/api/time-entries",
-        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "3.5"}],
+        json=[
+            {"service_line_id": service_line_id, "date": "2026-08-05", "hours": "3.5"}
+        ],
     )
 
     await _login_as(client, "pm@example.com")
@@ -1374,13 +1548,20 @@ async def test_export_xlsx_returns_workbook_with_expected_headers(client, db_ses
         == "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     assert response.headers["x-content-type-options"] == "nosniff"
-    assert 'attachment; filename="august-2026.xlsx"' == response.headers["content-disposition"]
+    assert (
+        'attachment; filename="august-2026.xlsx"'
+        == response.headers["content-disposition"]
+    )
 
     workbook = openpyxl.load_workbook(io.BytesIO(response.content))
     assert workbook.sheetnames == ["Report", "Details"]
 
     report_ws = workbook["Report"]
-    assert [c.value for c in report_ws[1][:3]] == ["Project", "Service Line", "Consultant"]
+    assert [c.value for c in report_ws[1][:3]] == [
+        "Project",
+        "Service Line",
+        "Consultant",
+    ]
     assert report_ws.cell(row=1, column=1).fill.start_color.rgb == "00F0FFFF"
 
     details_ws = workbook["Details"]
@@ -1400,15 +1581,23 @@ async def test_export_xlsx_returns_workbook_with_expected_headers(client, db_ses
 
 async def test_export_csv_returns_details_rows(client, db_session) -> None:
     await _login_manager_first(client, db_session)
-    _project_id, service_line_id, _consultant_id, _pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        _project_id,
+        service_line_id,
+        _consultant_id,
+        _pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "c@example.com")
     await client.put(
         "/api/time-entries",
-        json=[{"service_line_id": service_line_id, "date": "2026-08-05", "hours": "3.5"}],
+        json=[
+            {"service_line_id": service_line_id, "date": "2026-08-05", "hours": "3.5"}
+        ],
     )
 
     await _login_as(client, "pm@example.com")
@@ -1424,7 +1613,10 @@ async def test_export_csv_returns_details_rows(client, db_session) -> None:
     assert response.status_code == 200
     assert response.headers["content-type"] == "text/csv; charset=utf-8"
     assert response.headers["x-content-type-options"] == "nosniff"
-    assert 'attachment; filename="august-2026.csv"' == response.headers["content-disposition"]
+    assert (
+        'attachment; filename="august-2026.csv"'
+        == response.headers["content-disposition"]
+    )
 
     # Plain UTF-8, no BOM.
     assert not response.content.startswith(b"\xef\xbb\xbf")
@@ -1433,10 +1625,15 @@ async def test_export_csv_returns_details_rows(client, db_session) -> None:
     assert lines[1] == "Acme Rollout,Discovery,Jane Doe,2026-08-05,3.5"
 
 
-async def test_export_details_omits_rows_with_no_entries_in_period(client, db_session) -> None:
+async def test_export_details_omits_rows_with_no_entries_in_period(
+    client, db_session
+) -> None:
     await _login_manager_first(client, db_session)
     await _setup_project_with_consultant_and_pm(
-        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     # No time entries logged at all: the row still exists for Report (current
     # assignment), but Details has nothing to flatten.
@@ -1536,24 +1733,35 @@ async def test_export_escapes_formula_injection_in_project_service_line_consulta
     report_ws = workbook["Report"]
     assert report_ws.cell(row=2, column=1).value == "'=cmd|'/c calc'!A1"
     assert report_ws.cell(row=2, column=2).value == "'+SUM(1,1)"
-    assert report_ws.cell(row=2, column=3).value == "'=HYPERLINK(\"http://evil.example\",\"click\")"
+    assert (
+        report_ws.cell(row=2, column=3).value
+        == '\'=HYPERLINK("http://evil.example","click")'
+    )
 
     details_ws = workbook["Details"]
     assert details_ws.cell(row=2, column=1).value == "'=cmd|'/c calc'!A1"
     assert details_ws.cell(row=2, column=2).value == "'+SUM(1,1)"
-    assert details_ws.cell(row=2, column=3).value == "'=HYPERLINK(\"http://evil.example\",\"click\")"
+    assert (
+        details_ws.cell(row=2, column=3).value
+        == '\'=HYPERLINK("http://evil.example","click")'
+    )
 
 
-async def test_export_filename_single_project_and_consultant(client, db_session) -> None:
+async def test_export_filename_single_project_and_consultant(
+    client, db_session
+) -> None:
     await _login_manager_first(client, db_session)
-    project_id, _service_line_id, consultant_id, _pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client,
-            db_session,
-            consultant_name_id="c@example.com",
-            pm_name_id="pm@example.com",
-            project_name="Meridian Web App",
-        )
+    (
+        project_id,
+        _service_line_id,
+        consultant_id,
+        _pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
+        project_name="Meridian Web App",
     )
     await _login_as(client, "pm@example.com")
     response = await client.get(
@@ -1576,14 +1784,21 @@ async def test_export_filename_single_project_and_consultant(client, db_session)
     )
 
 
-async def test_export_filename_names_a_project_the_caller_does_not_manage(client, db_session) -> None:
+async def test_export_filename_names_a_project_the_caller_does_not_manage(
+    client, db_session
+) -> None:
     await _login_manager_first(client, db_session)
     await _setup_project_with_consultant_and_pm(
-        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     # A second project this pm is NOT assigned to.
     await _login_as(client, "project_admin@example.com", "project_admin-pw")
-    vendor = await create_company(db_session, legal_name="Other Vendor 2", is_vendor=True)
+    vendor = await create_company(
+        db_session, legal_name="Other Vendor 2", is_vendor=True
+    )
     client_company = await create_company(db_session, legal_name="Other Client 2")
     currency = (await client.get("/api/currencies")).json()
     other_project = await client.post(
@@ -1617,10 +1832,15 @@ async def test_export_filename_names_a_project_the_caller_does_not_manage(client
     )
 
 
-async def test_export_week_period_filename_includes_iso_year(client, db_session) -> None:
+async def test_export_week_period_filename_includes_iso_year(
+    client, db_session
+) -> None:
     await _login_manager_first(client, db_session)
     await _setup_project_with_consultant_and_pm(
-        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "pm@example.com")
     response = await client.get(
@@ -1634,7 +1854,8 @@ async def test_export_week_period_filename_includes_iso_year(client, db_session)
     )
     assert response.status_code == 200
     assert (
-        response.headers["content-disposition"] == 'attachment; filename="2026-week-32.pdf"'
+        response.headers["content-disposition"]
+        == 'attachment; filename="2026-week-32.pdf"'
     )
 
 
@@ -1647,13 +1868,18 @@ _INVERTED = {"start_date": "2026-09-20", "end_date": "2026-09-01"}
 async def test_date_ranges_are_bounded_on_read_endpoints(client, db_session) -> None:
     await _login_manager_first(client, db_session)
     await _setup_project_with_consultant_and_pm(
-        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "pm@example.com")
 
     for bad in (_TOO_WIDE, _INVERTED):
         assert (await client.get("/api/time-entries", params=bad)).status_code == 422
-        assert (await client.get("/api/time-entries/report", params=bad)).status_code == 422
+        assert (
+            await client.get("/api/time-entries/report", params=bad)
+        ).status_code == 422
         for fmt in ("pdf", "xlsx", "csv"):
             export = await client.get(
                 "/api/time-entries/report/export",
@@ -1676,10 +1902,16 @@ async def test_date_ranges_are_bounded_on_read_endpoints(client, db_session) -> 
 
 async def test_lock_rejects_unbounded_or_inverted_range(client, db_session) -> None:
     await _login_manager_first(client, db_session)
-    _project_id, service_line_id, consultant_id, _pm_id = (
-        await _setup_project_with_consultant_and_pm(
-            client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
-        )
+    (
+        _project_id,
+        service_line_id,
+        consultant_id,
+        _pm_id,
+    ) = await _setup_project_with_consultant_and_pm(
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "pm@example.com")
     for bad in (_TOO_WIDE, _INVERTED):
@@ -1710,7 +1942,9 @@ async def _add_unlisted_project(client, db_session) -> tuple[str, str, str]:
         full_name="Out Sider",
     )
     await _login_as(client, "project_admin@example.com", "project_admin-pw")
-    vendor = await create_company(db_session, legal_name="Unlisted Vendor", is_vendor=True)
+    vendor = await create_company(
+        db_session, legal_name="Unlisted Vendor", is_vendor=True
+    )
     client_company = await create_company(db_session, legal_name="Unlisted Client")
     currency = (await client.get("/api/currencies")).json()
     outside_id = next(
@@ -1754,9 +1988,14 @@ async def test_report_filters_mine_only_lists_only_listed_projects(
 ) -> None:
     await _login_manager_first(client, db_session)
     listed_id, _line, consultant_id, _pm = await _setup_project_with_consultant_and_pm(
-        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
-    _unlisted_id, _unlisted_line, _outside = await _add_unlisted_project(client, db_session)
+    _unlisted_id, _unlisted_line, _outside = await _add_unlisted_project(
+        client, db_session
+    )
 
     await _login_as(client, "pm@example.com")
     body = (
@@ -1772,12 +2011,19 @@ async def test_report_filters_without_mine_only_include_every_project_even_delet
 ) -> None:
     await _login_manager_first(client, db_session)
     listed_id, _line, _consultant, _pm = await _setup_project_with_consultant_and_pm(
-        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
-    unlisted_id, unlisted_line, outside_id = await _add_unlisted_project(client, db_session)
+    unlisted_id, unlisted_line, outside_id = await _add_unlisted_project(
+        client, db_session
+    )
     # Reporting is a historical record: a deleted project stays reachable.
     await _login_as(client, "project_admin@example.com", "project_admin-pw")
-    assert (await client.post(f"/api/projects/{unlisted_id}/deactivate")).status_code == 204
+    assert (
+        await client.post(f"/api/projects/{unlisted_id}/deactivate")
+    ).status_code == 204
 
     await _login_as(client, "pm@example.com")
     body = (await client.get("/api/time-entries/report/filters")).json()
@@ -1794,12 +2040,19 @@ async def test_report_filters_without_mine_only_include_every_project_even_delet
     assert unlisted_line in {r["service_line_id"] for r in rows}
 
 
-async def test_report_mine_only_drops_an_unlisted_project_id(client, db_session) -> None:
+async def test_report_mine_only_drops_an_unlisted_project_id(
+    client, db_session
+) -> None:
     await _login_manager_first(client, db_session)
     await _setup_project_with_consultant_and_pm(
-        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
-    unlisted_id, unlisted_line, _outside = await _add_unlisted_project(client, db_session)
+    unlisted_id, unlisted_line, _outside = await _add_unlisted_project(
+        client, db_session
+    )
 
     await _login_as(client, "pm@example.com")
     params = {
@@ -1807,7 +2060,9 @@ async def test_report_mine_only_drops_an_unlisted_project_id(client, db_session)
         "end_date": "2026-08-31",
         "project_ids": [unlisted_id],
     }
-    mine = await client.get("/api/time-entries/report", params={**params, "mine_only": True})
+    mine = await client.get(
+        "/api/time-entries/report", params={**params, "mine_only": True}
+    )
     assert mine.status_code == 200
     assert mine.json()["items"] == []
 
@@ -1818,7 +2073,10 @@ async def test_report_mine_only_drops_an_unlisted_project_id(client, db_session)
 async def test_export_follows_mine_only(client, db_session) -> None:
     await _login_manager_first(client, db_session)
     await _setup_project_with_consultant_and_pm(
-        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _add_unlisted_project(client, db_session)
 
@@ -1845,7 +2103,10 @@ async def test_export_filename_has_no_project_part_for_an_unknown_project(
 ) -> None:
     await _login_manager_first(client, db_session)
     await _setup_project_with_consultant_and_pm(
-        client, db_session, consultant_name_id="c@example.com", pm_name_id="pm@example.com"
+        client,
+        db_session,
+        consultant_name_id="c@example.com",
+        pm_name_id="pm@example.com",
     )
     await _login_as(client, "pm@example.com")
     response = await client.get(
@@ -1859,4 +2120,7 @@ async def test_export_filename_has_no_project_part_for_an_unknown_project(
         },
     )
     assert response.status_code == 200
-    assert response.headers["content-disposition"] == 'attachment; filename="august-2026.pdf"'
+    assert (
+        response.headers["content-disposition"]
+        == 'attachment; filename="august-2026.pdf"'
+    )

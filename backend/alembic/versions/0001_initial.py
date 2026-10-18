@@ -316,7 +316,9 @@ def upgrade() -> None:
         sa.Column("id_type", sa.String(length=20), nullable=False),
         sa.Column("scheme_id", sa.String(length=10), nullable=True),
         sa.Column("id_value", sa.String(length=255), nullable=False),
-        sa.Column("is_primary", sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column(
+            "is_primary", sa.Boolean(), nullable=False, server_default=sa.false()
+        ),
         sa.Column("valid_from", sa.Date(), nullable=True),
         sa.Column("valid_to", sa.Date(), nullable=True),
         sa.CheckConstraint(
@@ -355,7 +357,9 @@ def upgrade() -> None:
         sa.Column("postal_zone", sa.String(length=20), nullable=True),
         sa.Column("country_subdivision", sa.String(length=100), nullable=True),
         sa.Column("country_code", sa.String(length=2), nullable=False),
-        sa.Column("is_primary", sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column(
+            "is_primary", sa.Boolean(), nullable=False, server_default=sa.false()
+        ),
         sa.Column("valid_from", sa.Date(), nullable=True),
         sa.Column("valid_to", sa.Date(), nullable=True),
         sa.CheckConstraint(
@@ -381,7 +385,9 @@ def upgrade() -> None:
         sa.Column("minor_unit", sa.SmallInteger(), nullable=True),
         sa.Column("symbol", sa.String(length=10), nullable=True),
         sa.Column("is_active", sa.Boolean(), nullable=False, server_default=sa.true()),
-        sa.Column("is_enabled", sa.Boolean(), nullable=False, server_default=sa.false()),
+        sa.Column(
+            "is_enabled", sa.Boolean(), nullable=False, server_default=sa.false()
+        ),
         sa.UniqueConstraint("numeric_code", name="uq_currencies_numeric_code"),
     )
 
@@ -772,8 +778,9 @@ def upgrade() -> None:
         "addendum",
     ):
         op.execute(
-            sa.text("INSERT INTO file_tags (id, name) VALUES (gen_random_uuid(), :name)")
-            .bindparams(name=name)
+            sa.text(
+                "INSERT INTO file_tags (id, name) VALUES (gen_random_uuid(), :name)"
+            ).bindparams(name=name)
         )
 
 

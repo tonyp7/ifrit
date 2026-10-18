@@ -120,7 +120,7 @@ async def logout(
             user = await get_user_by_id(db, uuid.UUID(payload["sub"]))
             if user is not None and payload.get("tv") == user.token_version:
                 await revoke_sessions(db, user)
-        except (InvalidTokenError, ValueError, KeyError):
+        except InvalidTokenError, ValueError, KeyError:
             pass
     response.delete_cookie(ACCESS_COOKIE, path="/")
     response.delete_cookie(REFRESH_COOKIE, path="/")
