@@ -98,6 +98,7 @@ async def list_invoices(
     # Repeated (?status=draft&status=void). Left out, the list is drafts and issued
     # invoices: void ones are hidden unless asked for.
     status_filter: list[InvoiceStatus] | None = Query(default=None, alias="status"),
+    search: str | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> InvoiceListResponse:
     rows, total = await invoice_service.list_invoices(
@@ -107,6 +108,7 @@ async def list_invoices(
         sort_dir=sort_dir,
         project_id=project_id,
         statuses=status_filter,
+        search=search,
     )
     return InvoiceListResponse(
         items=[

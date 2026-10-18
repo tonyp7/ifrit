@@ -28,6 +28,11 @@ The list shows the invoices, newest first, 50 per page. Void invoices are hidden
 | Issued | The invoice date; hover it for the exact time it was issued |
 | Due | The due date. On a draft with a payment terms preset, the preset's name, greyed out, until it is issued |
 
+Type in the search box above the list to find an invoice. It matches the invoice number, the
+project name, the client (Bill To) name and the description of any line, ignoring upper and lower
+case, and shows the invoices that contain what you typed. It does not search dates, totals or
+statuses. The search works together with the **Status** and **Project** filters.
+
 Click a column header to sort, and use **Project** to show one project's invoices. Click a row to
 open the invoice. The row menu offers **Open**, **Duplicate** and, for a draft, **Delete**.
 

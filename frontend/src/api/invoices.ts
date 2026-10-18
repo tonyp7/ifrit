@@ -17,6 +17,7 @@ export function listInvoices(params: {
   sort_dir?: "asc" | "desc";
   projectId?: string;
   statuses?: InvoiceStatus[];
+  search?: string;
 }) {
   const query = new URLSearchParams();
   query.set("page", String(params.page ?? 1));
@@ -24,6 +25,7 @@ export function listInvoices(params: {
   if (params.sort_dir) query.set("sort_dir", params.sort_dir);
   if (params.projectId) query.set("project_id", params.projectId);
   for (const status of params.statuses ?? []) query.append("status", status);
+  if (params.search) query.set("search", params.search);
   return apiClient.get<InvoiceListResponse>(`/invoices?${query.toString()}`);
 }
 

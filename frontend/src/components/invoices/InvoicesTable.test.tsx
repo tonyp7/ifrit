@@ -140,4 +140,17 @@ describe("InvoicesTable", () => {
     expect(html).toContain("Project");
     expect(html).toContain("Status");
   });
+
+  it("puts the search box first, before the filters, and full width on a phone", () => {
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <InvoicesTable />
+      </MemoryRouter>,
+    );
+    const search = html.indexOf('placeholder="Search invoices…"');
+    expect(search).toBeGreaterThan(-1);
+    expect(search).toBeLessThan(html.indexOf("Status"));
+    expect(search).toBeLessThan(html.indexOf("Project"));
+    expect(html).toContain("w-full sm:w-96");
+  });
 });
