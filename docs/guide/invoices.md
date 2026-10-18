@@ -57,7 +57,8 @@ Choose **+ New**. The form has five steps.
    **This month**, **Last month** (the default), **This week**, **Last week**, or any range in the
    calendar. Weeks run Monday to Sunday, like the timesheet.
 4. **Generate.** **Generate line items** builds the lines from the hours logged in the period.
-   Generating again replaces the lines, after asking.
+   The lines are added after any already on the draft, which are left as they are, so generating
+   the same selection twice adds it twice. Delete the lines you do not want.
 5. **Line items.** Edit the lines, add more, add taxes under the subtotal (see
    [Taxes](#taxes)), and save with **Save draft**.
 

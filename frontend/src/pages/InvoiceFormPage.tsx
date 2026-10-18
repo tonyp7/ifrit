@@ -34,12 +34,11 @@ import { VoidInvoiceDialog } from "@/components/invoices/VoidInvoiceDialog";
 import { InvoiceReferencesFields } from "@/components/invoices/InvoiceReferencesFields";
 import { InvoiceWarnings } from "@/components/invoices/InvoiceWarnings";
 import {
+  appendGeneratedLines,
   BLANK_INVOICE_FORM,
   fromInvoiceDetail,
   invoiceSchema,
-  newLineKey,
   toInvoiceInput,
-  trimZeros,
   type InvoiceFormValues,
 } from "@/components/invoices/invoiceForm";
 import { PartyFields } from "@/components/invoices/PartyFields";
@@ -149,7 +148,6 @@ export function InvoiceFormPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [formError, setFormError] = useState<string | null>(null);
   const [pendingProject, setPendingProject] = useState<string | null>(null);
-  const [confirmRegenerate, setConfirmRegenerate] = useState(false);
   // Fixed Price only: the milestones to generate from. Never ticked for the user.
   const [milestoneIds, setMilestoneIds] = useState<string[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -288,16 +286,12 @@ export function InvoiceFormPage() {
           : "";
       setValue(
         "lines",
-        result.lines.map((line) => ({
-          key: newLineKey(),
+        appendGeneratedLines(getValues("lines"), result.lines, (line) =>
           // A milestone's description is the line as the contract names it, kept as is.
-          description: byMilestone
+          byMilestone
             ? (line.name ?? "")
             : t("{{name}} — {{period}}", { name: lineLabel(line), period }),
-          quantity: trimZeros(line.quantity),
-          uom: line.uom,
-          unit_price: trimZeros(line.unit_price),
-        })),
+        ),
         { shouldDirty: true },
       );
       setOmitted(result.omitted);
@@ -307,11 +301,6 @@ export function InvoiceFormPage() {
     } finally {
       setBusy(null);
     }
-  }
-
-  function handleGenerate() {
-    if (getValues("lines").length > 0) setConfirmRegenerate(true);
-    else void runGenerate();
   }
 
   /** Saves the draft; null when it could not be saved (the error is shown). */
@@ -649,14 +638,11 @@ export function InvoiceFormPage() {
                     type="button"
                     variant="outline"
                     disabled={!canGenerate || busy !== null}
-                    onClick={handleGenerate}
+                    onClick={() => void runGenerate()}
                   >
                     {busy === "generating" && <Spinner />}
                     {busy === "generating" ? t("Generating…") : t("Generate line items")}
                   </Button>
-                  <span className="text-muted-foreground text-sm">
-                    {t("Generating again replaces the lines, after asking.")}
-                  </span>
                 </div>
                 <InvoiceWarnings
                   warnings={warnings}
@@ -795,30 +781,6 @@ export function InvoiceFormPage() {
               }}
             >
               {t("Change project")}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      <AlertDialog open={confirmRegenerate} onOpenChange={setConfirmRegenerate}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>{t("Replace the line items?")}</AlertDialogTitle>
-            <AlertDialogDescription>
-              {t(
-                "Generating again replaces every line, including the ones edited or added by hand.",
-              )}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>{t("Cancel", { ns: "common" })}</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setConfirmRegenerate(false);
-                void runGenerate();
-              }}
-            >
-              {t("Replace lines")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
