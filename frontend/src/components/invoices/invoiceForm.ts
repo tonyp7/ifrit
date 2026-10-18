@@ -20,6 +20,7 @@ import {
 } from "@/lib/payeeAccounts";
 import {
   PAYMENT_TERMS,
+  type GeneratedLine,
   type InvoiceDetail,
   type InvoiceInput,
   type PaymentTerms,
@@ -354,4 +355,26 @@ export function fromInvoiceDetail(detail: InvoiceDetail): InvoiceFormValues {
 /** `152.50000` → `152.5`, `95.0000` → `95`: what a person types, not the column's scale. */
 export function trimZeros(value: string): string {
   return value.includes(".") ? value.replace(/0+$/, "").replace(/\.$/, "") : value;
+}
+
+/**
+ * The draft's lines with the generated ones after them. Nothing already on the draft is touched,
+ * hand-edited lines included, and a generated line is not compared with them: generating the same
+ * selection twice adds it twice.
+ */
+export function appendGeneratedLines(
+  existing: InvoiceLineFormValues[],
+  generated: GeneratedLine[],
+  describe: (line: GeneratedLine) => string,
+): InvoiceLineFormValues[] {
+  return [
+    ...existing,
+    ...generated.map((line) => ({
+      key: newLineKey(),
+      description: describe(line),
+      quantity: trimZeros(line.quantity),
+      uom: line.uom,
+      unit_price: trimZeros(line.unit_price),
+    })),
+  ];
 }
