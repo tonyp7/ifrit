@@ -127,14 +127,18 @@ export function useReportGrid({ days, rows }: UseReportGridOptions) {
   const dayTotal = useCallback(
     (dayKey: string) =>
       sumHours(
-        serviceLines.map((line) => entries[cellKey(line.user_id, line.service_line_id, dayKey)]?.hours),
+        serviceLines.map(
+          (line) => entries[cellKey(line.user_id, line.service_line_id, dayKey)]?.hours,
+        ),
       ),
     [serviceLines, entries],
   );
 
   const serviceLineTotal = useCallback(
     (userId: string, serviceLineId: string) =>
-      sumHours(days.map((day) => entries[cellKey(userId, serviceLineId, toDayKey(day))]?.hours)),
+      sumHours(
+        days.map((day) => entries[cellKey(userId, serviceLineId, toDayKey(day))]?.hours),
+      ),
     [days, entries],
   );
 
@@ -147,7 +151,12 @@ export function useReportGrid({ days, rows }: UseReportGridOptions) {
     [serviceLines, serviceLineTotal],
   );
 
-  function handleCellChange(userId: string, serviceLineId: string, dayKey: string, value: string) {
+  function handleCellChange(
+    userId: string,
+    serviceLineId: string,
+    dayKey: string,
+    value: string,
+  ) {
     const key = cellKey(userId, serviceLineId, dayKey);
     setEntries((prev) => ({
       ...prev,
@@ -267,7 +276,10 @@ export function useReportGrid({ days, rows }: UseReportGridOptions) {
           const key = cellKey(userId, serviceLineId, dayKey);
           const entry = updatedByDate.get(dayKey);
           if (entry) {
-            next[key] = { hours: formatHours(Number(entry.hours)), is_locked: entry.is_locked };
+            next[key] = {
+              hours: formatHours(Number(entry.hours)),
+              is_locked: entry.is_locked,
+            };
           } else if (!nextLocked) {
             // Unlock deleted this gap-day row (it had no real hours): same as
             // useTimesheetGrid's applyLockResult.

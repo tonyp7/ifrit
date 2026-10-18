@@ -3,11 +3,7 @@ import { useCallback, useEffect, useReducer } from "react";
 import { ApiError } from "@/api/client";
 import { getNumbering, saveNumberingFormat, setNextNumber } from "@/api/invoiceNumbering";
 import type { SettingsLoad } from "@/hooks/usePdfExportSettings";
-import {
-  editorReducer,
-  initialEditorState,
-  tokensFromItems,
-} from "@/lib/invoiceNumbering";
+import { editorReducer, initialEditorState, tokensFromItems } from "@/lib/invoiceNumbering";
 import type { NumberingState } from "@/types/invoiceNumbering";
 
 export interface NumberingLoadState {

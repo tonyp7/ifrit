@@ -57,7 +57,7 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
+    <div className="bg-background flex min-h-screen items-center justify-center p-4">
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>{t("Sign in to Ifrit")}</CardTitle>
@@ -88,7 +88,7 @@ export function LoginPage() {
                 />
                 <FieldError errors={errors.password && [errors.password]} />
               </Field>
-              {formError && <p className="text-sm text-destructive">{formError}</p>}
+              {formError && <p className="text-destructive text-sm">{formError}</p>}
               <Button type="submit" disabled={isSubmitting} className="mt-2">
                 {isSubmitting && <Spinner />}
                 {isSubmitting ? t("Signing in…") : t("Sign in")}

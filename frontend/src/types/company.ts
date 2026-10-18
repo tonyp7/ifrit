@@ -1,10 +1,5 @@
 export type IdentifierType =
-  | "legal_registration"
-  | "vat"
-  | "peppol_participant"
-  | "duns"
-  | "gln"
-  | "internal";
+  "legal_registration" | "vat" | "peppol_participant" | "duns" | "gln" | "internal";
 
 export type AddressType = "registered" | "bill_to" | "ship_to" | "postal";
 

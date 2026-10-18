@@ -118,7 +118,7 @@ export function ProjectManagersPicker({
                 <button
                   type="button"
                   onClick={() => toggle(manager)}
-                  className="rounded-full p-0.5 hover:bg-background"
+                  className="hover:bg-background rounded-full p-0.5"
                 >
                   <X className="h-3 w-3" aria-hidden="true" />
                   <span className="sr-only">

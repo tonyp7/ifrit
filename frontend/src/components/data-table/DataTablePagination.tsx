@@ -27,7 +27,7 @@ export function DataTablePagination({
 
   return (
     <div className="flex items-center justify-between">
-      <p className="text-sm text-muted-foreground">{countLabel}</p>
+      <p className="text-muted-foreground text-sm">{countLabel}</p>
       <div className="flex gap-2">
         <Button
           variant="outline"

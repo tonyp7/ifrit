@@ -45,7 +45,8 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   // The OS colour scheme is an external value, so it is read through a subscription. The
   // resolved theme is then derived from it and the preference instead of being stored.
   const systemTheme = useSyncExternalStore(subscribeToSystemTheme, getSystemTheme);
-  const resolvedTheme: ResolvedTheme = themePreference === "system" ? systemTheme : themePreference;
+  const resolvedTheme: ResolvedTheme =
+    themePreference === "system" ? systemTheme : themePreference;
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", resolvedTheme === "dark");

@@ -80,10 +80,13 @@ export function IdentifierFormDialog({
           id_value: z.string().min(1, t("Value is required")),
           is_primary: z.boolean(),
         })
-        .refine((data) => !SCHEME_REQUIRED.includes(data.id_type) || !!data.scheme_id?.trim(), {
-          message: t("Scheme ID is required for this identifier type"),
-          path: ["scheme_id"],
-        }),
+        .refine(
+          (data) => !SCHEME_REQUIRED.includes(data.id_type) || !!data.scheme_id?.trim(),
+          {
+            message: t("Scheme ID is required for this identifier type"),
+            path: ["scheme_id"],
+          },
+        ),
     [t],
   );
 
@@ -138,7 +141,9 @@ export function IdentifierFormDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{identifierId ? t("Edit identifier") : t("Add identifier")}</DialogTitle>
+          <DialogTitle>
+            {identifierId ? t("Edit identifier") : t("Add identifier")}
+          </DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
           <div className="flex flex-col gap-2">
@@ -168,7 +173,7 @@ export function IdentifierFormDialog({
             </Label>
             <Input id="scheme_id" {...register("scheme_id")} />
             {errors.scheme_id && (
-              <p className="text-sm text-destructive">{errors.scheme_id.message}</p>
+              <p className="text-destructive text-sm">{errors.scheme_id.message}</p>
             )}
           </div>
 
@@ -176,7 +181,7 @@ export function IdentifierFormDialog({
             <Label htmlFor="id_value">{t("Value")}</Label>
             <Input id="id_value" {...register("id_value")} />
             {errors.id_value && (
-              <p className="text-sm text-destructive">{errors.id_value.message}</p>
+              <p className="text-destructive text-sm">{errors.id_value.message}</p>
             )}
           </div>
 
@@ -189,7 +194,7 @@ export function IdentifierFormDialog({
             <Label htmlFor="is_primary">{t("Primary")}</Label>
           </div>
 
-          {formError && <p className="text-sm text-destructive">{formError}</p>}
+          {formError && <p className="text-destructive text-sm">{formError}</p>}
 
           <DialogFooter>
             <Button type="submit" disabled={isSubmitting}>

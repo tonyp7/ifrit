@@ -108,15 +108,19 @@ export function ServiceLineFormDialog({
     () =>
       z.object({
         name: z.string(),
-        quantity: z.string().refine(
-          (v) => DECIMAL_PATTERN.test(stripGrouping(v)) && Number(stripGrouping(v)) > 0,
-          { message: t("Quantity must be greater than zero") },
-        ),
+        quantity: z
+          .string()
+          .refine(
+            (v) => DECIMAL_PATTERN.test(stripGrouping(v)) && Number(stripGrouping(v)) > 0,
+            { message: t("Quantity must be greater than zero") },
+          ),
         uom: z.enum(UOM_VALUES),
-        unit_price: z.string().refine(
-          (v) => DECIMAL_PATTERN.test(stripGrouping(v)) && Number(stripGrouping(v)) >= 0,
-          { message: t("Unit price must not be negative") },
-        ),
+        unit_price: z
+          .string()
+          .refine(
+            (v) => DECIMAL_PATTERN.test(stripGrouping(v)) && Number(stripGrouping(v)) >= 0,
+            { message: t("Unit price must not be negative") },
+          ),
         user_ids: z.array(z.string()),
       }),
     [t],
@@ -133,7 +137,9 @@ export function ServiceLineFormDialog({
       ...values,
       quantity: values.quantity !== undefined ? formatQuantity(values.quantity) : undefined,
       unit_price:
-        values.unit_price !== undefined ? formatMoney(values.unit_price, minorUnit) : undefined,
+        values.unit_price !== undefined
+          ? formatMoney(values.unit_price, minorUnit)
+          : undefined,
     };
   }
 
@@ -253,7 +259,7 @@ export function ServiceLineFormDialog({
               <Label htmlFor="quantity">{t("Quantity")}</Label>
               <Input id="quantity" inputMode="decimal" {...register("quantity")} />
               {errors.quantity && (
-                <p className="text-sm text-destructive">{errors.quantity.message}</p>
+                <p className="text-destructive text-sm">{errors.quantity.message}</p>
               )}
             </div>
             <div className="flex flex-col gap-2">
@@ -277,7 +283,7 @@ export function ServiceLineFormDialog({
             <Label htmlFor="unit_price">{t("Unit price")}</Label>
             <Input id="unit_price" inputMode="decimal" {...register("unit_price")} />
             {errors.unit_price && (
-              <p className="text-sm text-destructive">{errors.unit_price.message}</p>
+              <p className="text-destructive text-sm">{errors.unit_price.message}</p>
             )}
           </div>
 
@@ -330,7 +336,7 @@ export function ServiceLineFormDialog({
                     <button
                       type="button"
                       onClick={() => toggleConsultant(consultant)}
-                      className="rounded-full p-0.5 hover:bg-background"
+                      className="hover:bg-background rounded-full p-0.5"
                     >
                       <X className="h-3 w-3" aria-hidden="true" />
                       <span className="sr-only">
@@ -342,13 +348,13 @@ export function ServiceLineFormDialog({
               </div>
             )}
             {hasDeletedConsultant && (
-              <p className="text-sm text-destructive">
+              <p className="text-destructive text-sm">
                 {t("Remove deleted consultants before saving.")}
               </p>
             )}
           </div>
 
-          {formError && <p className="text-sm text-destructive">{formError}</p>}
+          {formError && <p className="text-destructive text-sm">{formError}</p>}
 
           <DialogFooter>
             <Button type="submit" disabled={isSubmitting}>

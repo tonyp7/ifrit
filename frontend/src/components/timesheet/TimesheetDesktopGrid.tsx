@@ -58,7 +58,12 @@ interface TimesheetDesktopGridProps {
   unassignedTooltip?: (userId: string, serviceLineId: string) => string;
   onCellChange: (userId: string, serviceLineId: string, dayKey: string, value: string) => void;
   onCellFocus: (userId: string, serviceLineId: string, dayKey: string) => void;
-  onCellBlur: (userId: string, serviceLineId: string, dayKey: string, badInput: boolean) => void;
+  onCellBlur: (
+    userId: string,
+    serviceLineId: string,
+    dayKey: string,
+    badInput: boolean,
+  ) => void;
   // Keeps `selectedKey` pointed at whatever day the user is actually looking at on
   // desktop, so a later Week<->Month switch re-anchors on that day instead of a
   // stale value.
@@ -142,7 +147,7 @@ export function TimesheetDesktopGrid({
             <tr>
               <th
                 className={cn(
-                  "sticky left-0 top-0 z-30 border-b border-r bg-background p-2 text-left",
+                  "bg-background sticky top-0 left-0 z-30 border-r border-b p-2 text-left",
                   firstColWidth,
                 )}
               >
@@ -159,10 +164,10 @@ export function TimesheetDesktopGrid({
                       dayColWidth,
                       isWeekend(day) && "bg-muted/40",
                       !isWeekend(day) && "bg-background",
-                      isToday(day) && "border-t-2 border-t-primary",
+                      isToday(day) && "border-t-primary border-t-2",
                     )}
                   >
-                    <div className="text-xs text-muted-foreground">
+                    <div className="text-muted-foreground text-xs">
                       {periodType === "week"
                         ? formatWeekdayShort(day)
                         : formatWeekdayNarrow(day)}
@@ -173,7 +178,7 @@ export function TimesheetDesktopGrid({
               })}
               <th
                 className={cn(
-                  "sticky right-0 top-0 z-30 border-b border-l bg-background p-2 text-right",
+                  "bg-background sticky top-0 right-0 z-30 border-b border-l p-2 text-right",
                   lastColWidth,
                 )}
               >
@@ -186,7 +191,7 @@ export function TimesheetDesktopGrid({
               <tr key={`${line.user_id}__${line.service_line_id}`}>
                 <td
                   className={cn(
-                    "sticky left-0 z-10 border-b border-r border-l-4 bg-background p-2",
+                    "bg-background sticky left-0 z-10 border-r border-b border-l-4 p-2",
                     firstColWidth,
                     serviceLineBorderColor(index),
                   )}
@@ -197,7 +202,7 @@ export function TimesheetDesktopGrid({
                         {line.project_name}
                       </p>
                       <p
-                        className="truncate text-xs text-muted-foreground"
+                        className="text-muted-foreground truncate text-xs"
                         title={line.service_line_name ?? t("(unnamed service line)")}
                       >
                         {line.service_line_name ?? t("(unnamed service line)")}
@@ -207,7 +212,7 @@ export function TimesheetDesktopGrid({
                           line to disambiguate. */}
                       {line.consultant_name && (
                         <p
-                          className="truncate text-xs text-muted-foreground"
+                          className="text-muted-foreground truncate text-xs"
                           title={line.consultant_name}
                         >
                           {line.consultant_name}
@@ -216,7 +221,10 @@ export function TimesheetDesktopGrid({
                     </div>
                     {isFullyLockedInPeriod && onToggleLock && (
                       <LockServiceLineControl
-                        isFullyLocked={isFullyLockedInPeriod(line.user_id, line.service_line_id)}
+                        isFullyLocked={isFullyLockedInPeriod(
+                          line.user_id,
+                          line.service_line_id,
+                        )}
                         onToggle={() => onToggleLock(line.user_id, line.service_line_id)}
                       />
                     )}
@@ -230,9 +238,14 @@ export function TimesheetDesktopGrid({
                             line.user_id,
                             line.service_line_id,
                           )}
-                          isUnassigned={isUnassignedInPeriod(line.user_id, line.service_line_id)}
+                          isUnassigned={isUnassignedInPeriod(
+                            line.user_id,
+                            line.service_line_id,
+                          )}
                           periodLabel={periodLabel}
-                          onRemove={() => onRemoveServiceLine(line.user_id, line.service_line_id)}
+                          onRemove={() =>
+                            onRemoveServiceLine(line.user_id, line.service_line_id)
+                          }
                           onConfirmedClear={() =>
                             onClearAndRemoveServiceLine(line.user_id, line.service_line_id)
                           }
@@ -287,7 +300,12 @@ export function TimesheetDesktopGrid({
                         }
                         value={cell?.hours ?? ""}
                         onChange={(e) =>
-                          onCellChange(line.user_id, line.service_line_id, dayKey, e.target.value)
+                          onCellChange(
+                            line.user_id,
+                            line.service_line_id,
+                            dayKey,
+                            e.target.value,
+                          )
                         }
                         onBlur={(e) =>
                           onCellBlur(
@@ -303,7 +321,7 @@ export function TimesheetDesktopGrid({
                         }}
                         aria-label={t("Hours")}
                         className={cn(
-                          "w-full rounded border border-transparent bg-transparent text-center text-sm outline-none transition-colors",
+                          "w-full rounded border border-transparent bg-transparent text-center text-sm transition-colors outline-none",
                           dayInputPadding,
                           // At-rest + hover affordance for editable cells only (see
                           // conversation before this change): reuses this project's
@@ -333,7 +351,7 @@ export function TimesheetDesktopGrid({
                 })}
                 <td
                   className={cn(
-                    "sticky right-0 z-10 border-b border-l bg-background p-2 text-right font-medium",
+                    "bg-background sticky right-0 z-10 border-b border-l p-2 text-right font-medium",
                     lastColWidth,
                   )}
                 >
@@ -344,7 +362,7 @@ export function TimesheetDesktopGrid({
           </tbody>
           <tfoot>
             <tr>
-              <td className="sticky left-0 z-10 border-r bg-background p-2 font-semibold">
+              <td className="bg-background sticky left-0 z-10 border-r p-2 font-semibold">
                 {t("Total")}
               </td>
               {days.map((day) => {
@@ -362,7 +380,7 @@ export function TimesheetDesktopGrid({
                   </td>
                 );
               })}
-              <td className="border-l bg-background p-2 text-right font-semibold">
+              <td className="bg-background border-l p-2 text-right font-semibold">
                 {formatHours(periodTotal) || "0"}h
               </td>
             </tr>
@@ -373,7 +391,7 @@ export function TimesheetDesktopGrid({
       {onAddServiceLine && (
         <>
           {shouldShowAddLineHint(serviceLines.length, addOptions?.length) && (
-            <p className="text-sm text-muted-foreground">
+            <p className="text-muted-foreground text-sm">
               {t(
                 "No service lines added yet. Use “Add service line” below to start logging time.",
               )}

@@ -98,13 +98,18 @@ export function AddressesTable({
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium">{t("Addresses")}</h3>
-        <Button type="button" size="sm" variant="outline" onClick={() => void handleAddClick()}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => void handleAddClick()}
+        >
           <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
           {t("Add", { ns: "common" })}
         </Button>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="text-destructive text-sm">{error}</p>}
 
       <div className="rounded-md border">
         <Table>
@@ -121,7 +126,7 @@ export function AddressesTable({
           <TableBody>
             {addresses.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="h-16 text-center text-muted-foreground">
+                <TableCell colSpan={6} className="text-muted-foreground h-16 text-center">
                   {t("No addresses yet.")}
                 </TableCell>
               </TableRow>
@@ -162,7 +167,10 @@ export function AddressesTable({
                           <DropdownMenuItem
                             onClick={() =>
                               companyId &&
-                              setDialogState({ companyId, initialValues: toFormValues(address) })
+                              setDialogState({
+                                companyId,
+                                initialValues: toFormValues(address),
+                              })
                             }
                           >
                             {t("Duplicate", { ns: "common" })}

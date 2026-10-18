@@ -127,12 +127,16 @@ export function CompaniesTable() {
   const columns: ColumnDef<typeof features, CompanyListItem>[] = [
     {
       accessorKey: "legal_name",
-      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Legal name")} />,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t("Legal name")} />
+      ),
       enableHiding: false,
     },
     {
       accessorKey: "trading_name",
-      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Trading name")} />,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t("Trading name")} />
+      ),
       enableHiding: false,
       cell: ({ row }) => row.original.trading_name ?? "—",
     },
@@ -157,9 +161,7 @@ export function CompaniesTable() {
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem
-                onClick={() =>
-                  navigate(`/configuration/companies/${row.original.id}`)
-                }
+                onClick={() => navigate(`/configuration/companies/${row.original.id}`)}
               >
                 {t("Edit", { ns: "common" })}
               </DropdownMenuItem>
@@ -213,7 +215,7 @@ export function CompaniesTable() {
         </Button>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="text-destructive text-sm">{error}</p>}
 
       <DataTable
         table={table}
@@ -248,7 +250,10 @@ export function CompaniesTable() {
             <AlertDialogCancel disabled={isDeleting}>
               {t("Cancel", { ns: "common" })}
             </AlertDialogCancel>
-            <AlertDialogAction disabled={isDeleting} onClick={() => void handleConfirmDelete()}>
+            <AlertDialogAction
+              disabled={isDeleting}
+              onClick={() => void handleConfirmDelete()}
+            >
               {isDeleting && <Spinner />}
               {isDeleting ? t("Deleting…", { ns: "common" }) : t("Delete", { ns: "common" })}
             </AlertDialogAction>

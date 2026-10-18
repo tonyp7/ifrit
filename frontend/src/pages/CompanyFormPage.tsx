@@ -160,7 +160,7 @@ export function CompanyFormPage() {
   }
 
   if (routeCompanyId && loadError) {
-    return <p className="p-4 text-sm text-destructive">{loadError}</p>;
+    return <p className="text-destructive p-4 text-sm">{loadError}</p>;
   }
 
   return (
@@ -257,7 +257,7 @@ export function CompanyFormPage() {
                 ensureSaved={ensureSaved}
               />
 
-              {formError && <p className="text-sm text-destructive">{formError}</p>}
+              {formError && <p className="text-destructive text-sm">{formError}</p>}
 
               <Separator />
 

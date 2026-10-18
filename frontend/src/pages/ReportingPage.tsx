@@ -45,7 +45,11 @@ import {
   startOfWeekMonday,
   toDayKey,
 } from "@/lib/timesheetDates";
-import type { PeriodType, TimesheetReportFilters, TimesheetReportRow } from "@/types/timesheet";
+import type {
+  PeriodType,
+  TimesheetReportFilters,
+  TimesheetReportRow,
+} from "@/types/timesheet";
 
 // Reporting screen: a manager's cross-consultant view over timesheets,
 // filterable by Consultants/Projects/Service Lines/Project Status, built on the
@@ -238,7 +242,9 @@ export function ReportingPage() {
             icon={NotebookText}
             options={(filterOptions?.service_lines ?? []).map((l) => ({
               id: l.service_line_id,
-              label: l.service_line_name ? `${l.project_name} — ${l.service_line_name}` : l.project_name,
+              label: l.service_line_name
+                ? `${l.project_name} — ${l.service_line_name}`
+                : l.project_name,
             }))}
             selected={serviceLineIds}
             onChange={setServiceLineIds}
@@ -283,7 +289,7 @@ export function ReportingPage() {
       <Separator />
 
       {rows.length === 0 && (
-        <p className="p-4 text-sm text-muted-foreground">
+        <p className="text-muted-foreground p-4 text-sm">
           {t("No timesheets match the current filters.")}
         </p>
       )}

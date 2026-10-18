@@ -87,9 +87,10 @@ describe("OrganizationLogoCardView", () => {
     const html = render({ logo });
 
     // The card's root carries no classes beyond the shadcn defaults; the page supplies
-    // padding and spacing.
-    expect(html).toContain(
-      '<div class="rounded-lg border bg-card text-card-foreground shadow-sm">',
+    // padding and spacing. Compared as a set: Prettier's Tailwind plugin owns the class order.
+    const root = /<div class="([^"]*)"/.exec(html)?.[1] ?? "";
+    expect(root.split(" ").sort()).toEqual(
+      ["bg-card", "border", "rounded-lg", "shadow-sm", "text-card-foreground"].sort(),
     );
     expect(html).not.toContain("max-w-2xl");
     expect(html).not.toContain("m-4");
