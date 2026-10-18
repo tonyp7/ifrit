@@ -34,6 +34,8 @@ services:
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:-ifrit-local-trial}
       STORAGE_ROOT: /app/storage
       MAX_UPLOAD_BYTES: "10485760"
+      # The server's time zone for invoice dates and numbers.
+      TZ: ${TZ:-UTC}
     volumes:
       - ifrit-storage:/app/storage
     depends_on:

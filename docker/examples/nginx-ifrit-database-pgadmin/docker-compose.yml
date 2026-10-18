@@ -18,6 +18,8 @@ services:
       SEED_ADMIN_PASSWORD: ${SEED_ADMIN_PASSWORD:?}
       STORAGE_ROOT: ${STORAGE_ROOT:?}
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:?}
+      # Optional, unlike the rest: the server's time zone for invoice dates and numbers.
+      TZ: ${TZ:-UTC}
     volumes:
       - ifrit-storage:${STORAGE_ROOT:?}
     depends_on:
