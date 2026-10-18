@@ -23,7 +23,7 @@ import {
   X,
 } from "lucide-react";
 import type { CSSProperties, KeyboardEvent, ReactNode } from "react";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -51,7 +51,6 @@ import {
   findSequence,
   formatErrors,
   formatWarnings,
-  movableIds,
   NEW_SEQUENCE,
   PRESETS,
   previewStart,
@@ -59,7 +58,6 @@ import {
   sameTokens,
   sequenceExample,
   tokensFromItems,
-  type Chip,
   type EditorAction,
   type EditorItem,
   type EditorState,
@@ -67,7 +65,12 @@ import {
   type FormatWarning,
 } from "@/lib/invoiceNumbering";
 import { cn } from "@/lib/utils";
-import type { NumberingState, Restart, SequenceToken } from "@/types/invoiceNumbering";
+import type {
+  NumberingState,
+  NumberingToken,
+  Restart,
+  SequenceToken,
+} from "@/types/invoiceNumbering";
 
 const DIGITS = Array.from({ length: 10 }, (_, i) => i + 1);
 const RESTARTS: Restart[] = ["never", "yearly", "monthly", "daily"];
@@ -156,7 +159,7 @@ export function InvoiceNumberingCardView({
     : [];
   const changed = saved !== null && !sameTokens(tokens, saved.tokens);
 
-  function insertTile(token: Chip["token"]) {
+  function insertTile(token: NumberingToken) {
     if (token.type === "sequence" && sequence) {
       setSequenceOpen(true);
       return;
@@ -218,8 +221,6 @@ export function InvoiceNumberingCardView({
                     className={TOUCH}
                     disabled={disabled}
                     data-tile
-                    // Keeps the caret where it is, so the chip lands there.
-                    onMouseDown={(event) => event.preventDefault()}
                     onClick={() => insertTile({ type: tile.type })}
                   >
                     {t(tile.label)}
@@ -238,11 +239,28 @@ export function InvoiceNumberingCardView({
                   disabled={disabled}
                   data-tile
                   aria-description={sequence ? t("Already in the format") : undefined}
-                  onMouseDown={(event) => event.preventDefault()}
                   onClick={() => insertTile(NEW_SEQUENCE)}
                 >
                   {sequence && <Check className="h-4 w-4" aria-hidden="true" />}
                   {t("Sequence #")}
+                </Button>
+              </Tile>
+              <span className="bg-border mx-1 h-6 w-px" aria-hidden="true" />
+              <Tile
+                hint={t(
+                  "Text that stays the same on every invoice, for example INV- or a dash.",
+                )}
+              >
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className={TOUCH}
+                  disabled={disabled}
+                  data-tile
+                  onClick={() => insertTile({ type: "text", value: "" })}
+                >
+                  {t("Label")}
                 </Button>
               </Tile>
             </div>
@@ -399,8 +417,10 @@ function useChipText() {
   const restartText = (restart: Restart) =>
     restart === "never" ? t("never restarts") : t(RESTART_LABELS[restart]).toLowerCase();
   return {
-    label(token: Chip["token"]): string {
+    label(token: NumberingToken): string {
       switch (token.type) {
+        case "text":
+          return token.value || t("Label");
         case "year":
           return t("Year");
         case "month":
@@ -414,7 +434,7 @@ function useChipText() {
           });
       }
     },
-    announce(token: Chip["token"]): string {
+    announce(token: NumberingToken): string {
       if (token.type !== "sequence") return this.label(token);
       return t("Sequence, {{digits}} digits, {{restart}}", {
         digits: token.digits,
@@ -432,8 +452,8 @@ interface FormatInputProps {
   onSequenceOpenChange: (open: boolean) => void;
 }
 
-/** The format as text slots and chips. Every caret position is inside a text slot, which
- * keeps typing between chips simple; chips and non-empty texts can be dragged. */
+/** The format as a row of chips. Fixed text lives in Label chips, which hold a text box;
+ * every chip can be dragged and removed. */
 function FormatInput({
   editor,
   dispatch,
@@ -443,9 +463,8 @@ function FormatInput({
 }: FormatInputProps) {
   const { t } = useTranslation(["configuration"]);
   const chipText = useChipText();
-  const ids = movableIds(editor.items);
-  const isEmpty =
-    editor.items.length === 1 && editor.items[0].kind === "text" && !editor.items[0].value;
+  const ids = editor.items.map((item) => item.id);
+  const isEmpty = editor.items.length === 0;
 
   const sensors = useSensors(
     useSensor(MouseSensor, { activationConstraint: { distance: 5 } }),
@@ -456,7 +475,7 @@ function FormatInput({
   const describe = (id: UniqueIdentifier | undefined) => {
     const item = editor.items.find((candidate) => candidate.id === id);
     if (!item) return "";
-    return item.kind === "text" ? item.value : chipText.announce(item.token);
+    return chipText.announce(item.token);
   };
   const announcements: Announcements = {
     onDragStart: ({ active }) => t("Picked up {{name}}.", { name: describe(active.id) }),
@@ -478,7 +497,7 @@ function FormatInput({
     }
   }
 
-  // Alt with an arrow moves the focused chip or text one place.
+  // Alt with an arrow moves the focused chip one place.
   function moveKeys(event: KeyboardEvent, id: string) {
     if (!event.altKey || (event.key !== "ArrowLeft" && event.key !== "ArrowRight"))
       return false;
@@ -511,18 +530,17 @@ function FormatInput({
             disabled && "opacity-50",
           )}
         >
-          {editor.items.map((item, index) =>
-            item.kind === "text" ? (
-              <TextSlotInput
+          {isEmpty && (
+            <span className="text-muted-foreground text-sm">
+              {t("Click a tile to start building your format.")}
+            </span>
+          )}
+          {editor.items.map((item) =>
+            item.token.type === "text" ? (
+              <LabelChip
                 key={item.id}
                 item={item}
-                index={index}
-                movable={!!item.value}
-                placeholder={
-                  isEmpty
-                    ? t("Click a tile or type to start building your format.")
-                    : undefined
-                }
+                autoFocus={item.id === editor.focusId}
                 disabled={disabled}
                 dispatch={dispatch}
                 onMoveKeys={(event) => moveKeys(event, item.id)}
@@ -555,111 +573,83 @@ function useSortableStyle(id: string, enabled: boolean) {
   return { ...sortable, style };
 }
 
-interface TextSlotInputProps {
-  item: Extract<EditorItem, { kind: "text" }>;
-  index: number;
-  movable: boolean;
-  placeholder?: string;
+interface LabelChipProps {
+  item: EditorItem;
+  autoFocus: boolean;
   disabled: boolean;
   dispatch: (action: EditorAction) => void;
   onMoveKeys: (event: KeyboardEvent) => boolean;
 }
 
-function TextSlotInput({
-  item,
-  index,
-  movable,
-  placeholder,
-  disabled,
-  dispatch,
-  onMoveKeys,
-}: TextSlotInputProps) {
+/** Fixed text as a chip: a grip, an auto-width text box and a remove button, like the other
+ * chips. A new one takes focus, so typing can start straight away. */
+function LabelChip({ item, autoFocus, disabled, dispatch, onMoveKeys }: LabelChipProps) {
   const { t } = useTranslation(["configuration"]);
-  // One useSortable per id: the wrapper owns it and the grip borrows it.
   const { setNodeRef, setActivatorNodeRef, attributes, listeners, style } = useSortableStyle(
     item.id,
-    movable && !disabled,
+    !disabled,
   );
-  // Wide enough for its text, and still a target when empty.
-  const width = placeholder ? "100%" : `${Math.max(item.value.length, 1) + 1}ch`;
+  const input = useRef<HTMLInputElement>(null);
+  const value = item.token.type === "text" ? item.token.value : "";
+  const shown = value || t("Label");
+
+  useEffect(() => {
+    if (autoFocus) input.current?.focus();
+  }, [autoFocus]);
 
   return (
     <span
       ref={setNodeRef}
       style={style}
-      className={cn("flex items-center", placeholder && "flex-1")}
-    >
-      {movable && !disabled && (
-        <button
-          type="button"
-          ref={setActivatorNodeRef}
-          className="text-muted-foreground cursor-grab touch-none"
-          aria-label={t("Move the text {{text}}", { text: item.value })}
-          {...attributes}
-          {...listeners}
-        >
-          <GripVertical className="h-3.5 w-3.5" aria-hidden="true" />
-        </button>
+      className={cn(
+        "bg-secondary flex h-8 max-w-full items-center gap-1 rounded-md border",
+        TOUCH,
       )}
-      <input
-        type="text"
-        value={item.value}
+    >
+      <button
+        type="button"
+        ref={setActivatorNodeRef}
         disabled={disabled}
-        placeholder={placeholder}
-        aria-label={index === 0 ? t("Text at the start") : t("Text")}
-        className={cn(
-          "focus-visible:ring-ring h-8 rounded-sm bg-transparent px-0.5 font-mono text-sm outline-none focus-visible:ring-2",
-          TOUCH,
-          placeholder && "placeholder:text-muted-foreground placeholder:font-sans",
-        )}
-        style={{ width }}
+        className="text-muted-foreground cursor-grab touch-none pl-1"
+        aria-label={t("Move the label {{text}}", { text: shown })}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
+      <input
+        ref={input}
+        type="text"
+        value={value}
+        disabled={disabled}
+        placeholder={t("Label")}
+        aria-label={t("Label text")}
+        className="focus-visible:ring-ring h-6 min-w-0 rounded-sm bg-transparent px-0.5 font-mono text-sm outline-none focus-visible:ring-2"
+        style={{ width: `${Math.max(value.length, 5) + 1}ch` }}
         onChange={(event) =>
-          dispatch({
-            type: "type",
-            slotId: item.id,
-            value: event.target.value,
-            offset: event.target.selectionStart ?? event.target.value.length,
-          })
+          dispatch({ type: "label", id: item.id, value: event.target.value })
         }
-        onSelect={(event) =>
-          dispatch({
-            type: "focus",
-            caret: { slotId: item.id, offset: event.currentTarget.selectionStart ?? 0 },
-          })
-        }
-        onFocus={(event) =>
-          dispatch({
-            type: "focus",
-            caret: { slotId: item.id, offset: event.currentTarget.selectionStart ?? 0 },
-          })
-        }
-        onBlur={(event) => {
-          // The caret survives a move to a tile (so the chip lands where the user was typing)
-          // or to another part of the format; it is cleared only when focus leaves both.
-          const to = event.relatedTarget as HTMLElement | null;
-          if (!to?.closest("[data-tile], [data-numbering-format]")) {
-            dispatch({ type: "focus", caret: null });
-          }
-        }}
+        // An empty Label is dropped once the user is done with it.
+        onBlur={() => dispatch({ type: "prune" })}
         onKeyDown={(event) => {
-          if (movable && onMoveKeys(event)) return;
-          const input = event.currentTarget;
-          if (
-            event.key === "Backspace" &&
-            input.selectionStart === 0 &&
-            input.selectionEnd === 0
-          ) {
-            event.preventDefault();
-            dispatch({ type: "backspace", slotId: item.id });
-          }
+          onMoveKeys(event);
         }}
       />
+      <button
+        type="button"
+        disabled={disabled}
+        className="hover:bg-muted flex h-full items-center rounded-r-md px-1"
+        aria-label={t("Remove {{part}}", { part: shown })}
+        onClick={() => dispatch({ type: "remove", id: item.id })}
+      >
+        <X className="h-3.5 w-3.5" aria-hidden="true" />
+      </button>
     </span>
   );
 }
 
 interface ChipItemProps {
-  item: Chip;
+  item: EditorItem;
   disabled: boolean;
   dispatch: (action: EditorAction) => void;
   sequenceOpen: boolean;

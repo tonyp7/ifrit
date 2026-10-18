@@ -54,15 +54,16 @@ Build the format from:
 
 - **Presets**: `INV-00001`, `2026-0001` and `202610-001`, the usual starting points. Pick one, then
   adjust it.
-- **Tiles**: **Year**, **Month** and **Day** (of the day the invoice is issued) and **Sequence #**,
-  the counter. A format has exactly one sequence.
-- **Text** typed directly between the tiles, such as `INV-` or `/`. Letters, digits, `-`, `/` and `_`
-  are allowed.
+- **Tiles**: **Year**, **Month** and **Day** (of the day the invoice is issued), **Sequence #**, the
+  counter, and **Label**. A format has exactly one sequence.
+- **Label** is text that stays the same on every invoice, such as `INV-` or `/`. Letters, digits,
+  `-`, `/` and `_` are allowed. A format can have as many labels as you like.
 
-Click a tile to insert it where the cursor is, or at the end. Drag the parts to reorder them, or
-select one and press **Alt** with the left or right arrow. Backspace removes the part before the
-cursor, and each part has its own remove button. **Undo**, **Redo** and **Reset to default** are
-below the format.
+Click a tile to add it at the end of the format. A new label takes the cursor, so type its text
+straight away; a label left empty disappears when you click elsewhere. Drag the parts by their
+handle to reorder them, or select one and press **Alt** with the left or right arrow. Every part,
+a label too, has its own remove button. **Undo**, **Redo** and **Reset to default** are below the
+format.
 
 Click the sequence to set:
 

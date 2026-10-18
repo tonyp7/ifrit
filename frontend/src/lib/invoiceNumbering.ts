@@ -83,7 +83,9 @@ export function findSequence(tokens: NumberingToken[]): SequenceToken | undefine
 
 /** `00001, 00002, 00003, ...` for a sequence's popover. */
 export function sequenceExample(sequence: SequenceToken): string {
-  return [0, 1, 2].map((i) => pad(sequence.start_at + i, sequence.digits)).join(", ") + ", ...";
+  return (
+    [0, 1, 2].map((i) => pad(sequence.start_at + i, sequence.digits)).join(", ") + ", ..."
+  );
 }
 
 const WIDTH: Record<"year" | "month" | "day", number> = { year: 4, month: 2, day: 2 };
@@ -97,7 +99,8 @@ export function longestLength(tokens: NumberingToken[]): number {
   }, 0);
 }
 
-export type FormatError = "no_sequence" | "two_sequences" | "bad_text" | "too_long" | "too_many";
+export type FormatError =
+  "no_sequence" | "two_sequences" | "bad_text" | "too_long" | "too_many";
 export type FormatWarning = "daily_repeats" | "monthly_repeats" | "yearly_repeats";
 
 /** What blocks saving, the same rules as the server. */
@@ -133,19 +136,12 @@ export function formatWarnings(tokens: NumberingToken[]): FormatWarning[] {
 
 // --- the chip input --------------------------------------------------------------
 
-export interface TextSlot {
-  kind: "text";
+/** One part of the format as the editor holds it: a chip with a stable id. A text token is a
+ * Label chip, fixed text typed into the chip itself. */
+export interface EditorItem {
   id: string;
-  value: string;
+  token: NumberingToken;
 }
-
-export interface Chip {
-  kind: "chip";
-  id: string;
-  token: Exclude<NumberingToken, { type: "text" }>;
-}
-
-export type EditorItem = TextSlot | Chip;
 
 let nextId = 0;
 function newId(): string {
@@ -153,75 +149,43 @@ function newId(): string {
   return `n${nextId}`;
 }
 
-/**
- * The input always alternates text slot, chip, text slot ... text slot (a slot may be
- * empty), so every caret position is inside some text slot: typing edits that slot, a tile
- * splits it, and Backspace at its start removes the chip before it.
- */
-export function normalize(items: EditorItem[]): EditorItem[] {
-  // Drop empty texts and join neighbouring ones, keeping the first one's id.
-  const compact: EditorItem[] = [];
-  for (const item of items) {
-    if (item.kind === "text" && !item.value) continue;
-    const previous = compact[compact.length - 1];
-    if (item.kind === "text" && previous?.kind === "text") {
-      compact[compact.length - 1] = { ...previous, value: previous.value + item.value };
-    } else {
-      compact.push(item);
-    }
-  }
-  // Re-add an empty slot wherever two chips meet and at both ends.
-  const result: EditorItem[] = [];
-  for (const item of compact) {
-    const previous = result[result.length - 1];
-    if (item.kind === "chip" && previous?.kind !== "text") {
-      result.push({ kind: "text", id: newId(), value: "" });
-    }
-    result.push(item);
-  }
-  if (result[result.length - 1]?.kind !== "text") {
-    result.push({ kind: "text", id: newId(), value: "" });
-  }
-  return result;
-}
-
 export function itemsFromTokens(tokens: NumberingToken[]): EditorItem[] {
-  return normalize(
-    tokens.map((token) =>
-      token.type === "text"
-        ? { kind: "text", id: newId(), value: token.value }
-        : { kind: "chip", id: newId(), token },
-    ),
-  );
+  return tokens.map((token) => ({ id: newId(), token }));
 }
 
+/** The saved format: empty Labels dropped and neighbouring ones joined, as the server stores
+ * them. The editor keeps them apart so that each can still be removed on its own. */
 export function tokensFromItems(items: EditorItem[]): NumberingToken[] {
-  return normalize(items)
-    .filter((item) => item.kind === "chip" || item.value)
-    .map((item) => (item.kind === "text" ? { type: "text", value: item.value } : item.token));
-}
-
-export interface Caret {
-  slotId: string;
-  offset: number;
+  const tokens: NumberingToken[] = [];
+  for (const { token } of items) {
+    if (token.type === "text") {
+      if (!token.value) continue;
+      const previous = tokens[tokens.length - 1];
+      if (previous?.type === "text") {
+        tokens[tokens.length - 1] = { type: "text", value: previous.value + token.value };
+        continue;
+      }
+    }
+    tokens.push(token);
+  }
+  return tokens;
 }
 
 export interface EditorState {
   items: EditorItem[];
-  /** Where a tile goes; null puts it at the end. */
-  caret: Caret | null;
   past: EditorItem[][];
   future: EditorItem[][];
-  /** The slot whose typing is gathered into the current history entry. */
+  /** The Label whose typing is gathered into the current history entry. */
   typingIn: string | null;
+  /** A Label just added, whose text box should take focus; null once anything else happens. */
+  focusId: string | null;
 }
 
 export type EditorAction =
   | { type: "load"; tokens: NumberingToken[] }
-  | { type: "focus"; caret: Caret | null }
-  | { type: "type"; slotId: string; value: string; offset: number }
-  | { type: "insert"; token: Chip["token"] }
-  | { type: "backspace"; slotId: string }
+  | { type: "insert"; token: NumberingToken }
+  | { type: "label"; id: string; value: string }
+  | { type: "prune" }
   | { type: "remove"; id: string }
   | { type: "move"; id: string; direction: -1 | 1 }
   | { type: "reorder"; activeId: string; overId: string }
@@ -231,119 +195,118 @@ export type EditorAction =
   | { type: "redo" };
 
 export function initialEditorState(tokens: NumberingToken[]): EditorState {
-  return { items: itemsFromTokens(tokens), caret: null, past: [], future: [], typingIn: null };
-}
-
-function commit(state: EditorState, items: EditorItem[], caret: Caret | null = state.caret): EditorState {
   return {
-    items,
-    caret,
-    past: [...state.past, state.items],
+    items: itemsFromTokens(tokens),
+    past: [],
     future: [],
     typingIn: null,
+    focusId: null,
   };
 }
 
-/** The items that can be dragged: chips and texts with content, never the empty slots. */
-export function movableIds(items: EditorItem[]): string[] {
-  return items.filter((item) => item.kind === "chip" || item.value).map((item) => item.id);
+function commit(state: EditorState, items: EditorItem[]): EditorState {
+  return {
+    items,
+    past: [...state.past, state.items],
+    future: [],
+    typingIn: null,
+    focusId: null,
+  };
 }
 
 function moveTo(items: EditorItem[], from: number, to: number): EditorItem[] {
-  const movable = items.filter((item) => item.kind === "chip" || item.value);
-  if (from < 0 || to < 0 || from >= movable.length || to >= movable.length) return items;
-  const next = [...movable];
+  if (from < 0 || to < 0 || from >= items.length || to >= items.length) return items;
+  const next = [...items];
   const [moved] = next.splice(from, 1);
   next.splice(to, 0, moved);
-  return normalize(next);
+  return next;
 }
 
 export function editorReducer(state: EditorState, action: EditorAction): EditorState {
   switch (action.type) {
     case "load":
       return initialEditorState(action.tokens);
-    case "focus":
-      return { ...state, caret: action.caret, typingIn: action.caret ? state.typingIn : null };
-    case "type": {
-      const items = state.items.map((item) =>
-        item.id === action.slotId && item.kind === "text" ? { ...item, value: action.value } : item,
-      );
-      const caret = { slotId: action.slotId, offset: action.offset };
-      // Typing within one slot is one undo step, until focus leaves it.
-      if (state.typingIn === action.slotId) return { ...state, items, caret };
-      return { ...commit(state, items, caret), typingIn: action.slotId };
-    }
     case "insert": {
-      if (action.token.type === "sequence" && state.items.some((i) => i.kind === "chip" && i.token.type === "sequence")) {
+      if (
+        action.token.type === "sequence" &&
+        state.items.some((item) => item.token.type === "sequence")
+      ) {
         return state;
       }
-      const chip: Chip = { kind: "chip", id: newId(), token: action.token };
-      const at = state.caret ? state.items.findIndex((i) => i.id === state.caret?.slotId) : -1;
-      if (at < 0) {
-        const items = normalize([...state.items, chip]);
-        return commit(state, items, null);
-      }
-      const slot = state.items[at] as TextSlot;
-      const offset = Math.min(state.caret?.offset ?? slot.value.length, slot.value.length);
-      const after: TextSlot = { kind: "text", id: newId(), value: slot.value.slice(offset) };
-      const items = normalize([
-        ...state.items.slice(0, at),
-        { ...slot, value: slot.value.slice(0, offset) },
-        chip,
-        after,
-        ...state.items.slice(at + 1),
-      ]);
-      // The caret goes right after the new chip.
-      const landing = items[items.findIndex((i) => i.id === chip.id) + 1];
-      return commit(state, items, landing ? { slotId: landing.id, offset: 0 } : null);
+      const item: EditorItem = { id: newId(), token: action.token };
+      const next = commit(state, [...state.items, item]);
+      return action.token.type === "text" ? { ...next, focusId: item.id } : next;
     }
-    case "backspace": {
-      const at = state.items.findIndex((i) => i.id === action.slotId);
-      if (at < 2 || state.items[at - 1].kind !== "chip") return state;
-      const previous = state.items[at - 2] as TextSlot;
-      const items = normalize([...state.items.slice(0, at - 1), ...state.items.slice(at)]);
-      // The two slots merged under the earlier one's id; the caret sits at the join.
-      const merged = items.find((i) => i.id === previous.id) ?? items[0];
-      return commit(state, items, { slotId: merged.id, offset: previous.value.length });
+    case "label": {
+      const items = state.items.map((item) =>
+        item.id === action.id && item.token.type === "text"
+          ? { ...item, token: { type: "text" as const, value: action.value } }
+          : item,
+      );
+      // Typing in one Label is one undo step, until anything else happens.
+      if (state.typingIn === action.id) return { ...state, items, focusId: null };
+      return { ...commit(state, items), typingIn: action.id };
+    }
+    case "prune": {
+      // Not a history entry: an empty Label adds nothing to the format, so undo bringing one
+      // back is harmless and the next blur removes it again.
+      const items = state.items.filter(
+        (item) => item.token.type !== "text" || item.token.value !== "",
+      );
+      return items.length === state.items.length
+        ? state
+        : { ...state, items, typingIn: null, focusId: null };
     }
     case "remove":
-      return commit(state, normalize(state.items.filter((i) => i.id !== action.id)), null);
+      return commit(
+        state,
+        state.items.filter((item) => item.id !== action.id),
+      );
     case "move": {
-      const ids = movableIds(state.items);
-      const from = ids.indexOf(action.id);
+      const from = state.items.findIndex((item) => item.id === action.id);
       const items = moveTo(state.items, from, from + action.direction);
       return items === state.items ? state : commit(state, items);
     }
     case "reorder": {
-      const ids = movableIds(state.items);
-      const items = moveTo(state.items, ids.indexOf(action.activeId), ids.indexOf(action.overId));
+      const ids = state.items.map((item) => item.id);
+      const items = moveTo(
+        state.items,
+        ids.indexOf(action.activeId),
+        ids.indexOf(action.overId),
+      );
       return items === state.items ? state : commit(state, items);
     }
     case "sequence": {
       const items = state.items.map((item) =>
-        item.kind === "chip" && item.token.type === "sequence"
+        item.token.type === "sequence"
           ? { ...item, token: { ...item.token, ...action.patch } }
           : item,
       );
       return commit(state, items);
     }
     case "replace":
-      return commit(state, itemsFromTokens(action.tokens), null);
+      return commit(state, itemsFromTokens(action.tokens));
     case "undo": {
       const previous = state.past[state.past.length - 1];
       if (!previous) return state;
       return {
         items: previous,
-        caret: null,
         past: state.past.slice(0, -1),
         future: [state.items, ...state.future],
         typingIn: null,
+        focusId: null,
       };
     }
     case "redo": {
       const [next, ...rest] = state.future;
       if (!next) return state;
-      return { items: next, caret: null, past: [...state.past, state.items], future: rest, typingIn: null };
+      return {
+        items: next,
+        past: [...state.past, state.items],
+        future: rest,
+        typingIn: null,
+        focusId: null,
+      };
     }
   }
 }
