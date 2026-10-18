@@ -70,11 +70,11 @@ export function CountryPicker({ id, value, onChange, disabled, invalid }: Countr
           aria-expanded={open}
           aria-invalid={invalid}
           disabled={disabled}
-          className="flex h-10 w-full items-center justify-between gap-2 rounded-md border border-input bg-background px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+          className="border-input bg-background focus:ring-ring flex h-10 w-full items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm focus:ring-2 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
         >
           <span className="flex min-w-0 items-center gap-2 text-left">
             {!value ? (
-              <span className="truncate text-muted-foreground">{t("Select a country…")}</span>
+              <span className="text-muted-foreground truncate">{t("Select a country…")}</span>
             ) : known ? (
               <>
                 <Flag code={value} size={16} />
@@ -116,7 +116,7 @@ export function CountryPicker({ id, value, onChange, disabled, invalid }: Countr
                 >
                   <Flag code={country.code} size={20} />
                   <span className="truncate">{country.name}</span>
-                  <span className="ml-auto pl-2 text-xs text-muted-foreground">
+                  <span className="text-muted-foreground ml-auto pl-2 text-xs">
                     {country.code}
                   </span>
                   <Check

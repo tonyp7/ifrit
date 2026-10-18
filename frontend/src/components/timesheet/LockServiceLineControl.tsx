@@ -13,7 +13,10 @@ interface LockServiceLineControlProps {
 
 // Left of RemoveServiceLineControl's "x": no confirmation dialog: a single click
 // locks/unlocks the whole displayed period for this service line at once.
-export function LockServiceLineControl({ isFullyLocked, onToggle }: LockServiceLineControlProps) {
+export function LockServiceLineControl({
+  isFullyLocked,
+  onToggle,
+}: LockServiceLineControlProps) {
   const { t } = useTranslation(["timesheet"]);
   const [isToggling, setIsToggling] = useState(false);
 

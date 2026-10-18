@@ -28,7 +28,10 @@ import { Spinner } from "@/components/ui/spinner";
 import { ADDRESS_TYPE_LABELS, type AddressType } from "@/types/company";
 
 const ADDRESS_TYPES = Object.entries(ADDRESS_TYPE_LABELS) as [AddressType, string][];
-const ADDRESS_TYPE_VALUES = Object.keys(ADDRESS_TYPE_LABELS) as [AddressType, ...AddressType[]];
+const ADDRESS_TYPE_VALUES = Object.keys(ADDRESS_TYPE_LABELS) as [
+  AddressType,
+  ...AddressType[],
+];
 
 // Shape-only, used purely for type inference: the validated instance (with
 // translated messages) is built inside the component via useMemo below, since
@@ -199,7 +202,7 @@ export function AddressFormDialog({
             <Label htmlFor="is_primary">{t("Primary")}</Label>
           </div>
 
-          {formError && <p className="text-sm text-destructive">{formError}</p>}
+          {formError && <p className="text-destructive text-sm">{formError}</p>}
 
           <DialogFooter>
             <Button type="submit" disabled={isSubmitting}>

@@ -193,7 +193,7 @@ export function UserFormPage() {
   }
 
   if (routeUserId && loadError) {
-    return <p className="p-4 text-sm text-destructive">{loadError}</p>;
+    return <p className="text-destructive p-4 text-sm">{loadError}</p>;
   }
 
   return (
@@ -263,7 +263,7 @@ export function UserFormPage() {
                     and leaving it on triggers a real Chromium bug where this nested FieldGroup
                     (a container-query element inside another one) collapses to 0 height on the
                     next re-render: reproduced live by unchecking a role checkbox. */}
-                <FieldGroup className="gap-3 [container-type:normal]">
+                <FieldGroup className="[container-type:normal] gap-3">
                   {ALL_ROLES.map((role) => (
                     <Field orientation="horizontal" key={role}>
                       <Checkbox
@@ -286,7 +286,7 @@ export function UserFormPage() {
                 <FieldError errors={errors.roles && [errors.roles]} />
               </FieldSet>
 
-              {formError && <p className="text-sm text-destructive">{formError}</p>}
+              {formError && <p className="text-destructive text-sm">{formError}</p>}
 
               <Separator />
 

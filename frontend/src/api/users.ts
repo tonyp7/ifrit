@@ -5,13 +5,15 @@ export function updateThemePreference(theme: ThemePreference) {
   return apiClient.patch<User>("/users/me/theme-preference", { theme_preference: theme });
 }
 
-export function listUsers(params: {
-  role?: string;
-  search?: string;
-  page?: number;
-  sort_by?: string;
-  sort_dir?: "asc" | "desc";
-} = {}) {
+export function listUsers(
+  params: {
+    role?: string;
+    search?: string;
+    page?: number;
+    sort_by?: string;
+    sort_dir?: "asc" | "desc";
+  } = {},
+) {
   const query = new URLSearchParams();
   if (params.role) query.set("role", params.role);
   if (params.search) query.set("search", params.search);

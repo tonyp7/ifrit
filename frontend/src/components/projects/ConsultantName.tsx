@@ -1,6 +1,11 @@
 import { useTranslation } from "react-i18next";
 
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import type { ServiceLineConsultant } from "@/types/project";
 
 interface ConsultantNameProps {

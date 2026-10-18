@@ -1,9 +1,4 @@
-import {
-  CircleUserRound,
-  Languages as LanguagesIcon,
-  LogOut,
-  SunMoon,
-} from "lucide-react";
+import { CircleUserRound, Languages as LanguagesIcon, LogOut, SunMoon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 import { NavLink } from "react-router";
 
@@ -57,8 +52,8 @@ export function NavBar() {
     <TooltipProvider delayDuration={200}>
       <nav
         className={cn(
-          "fixed inset-x-0 bottom-0 z-40 flex h-14 flex-row items-center justify-around border-t bg-card",
-          "md:inset-y-0 md:left-0 md:right-auto md:h-full md:w-14 md:flex-col md:justify-start md:gap-2 md:border-r md:border-t-0 md:py-4",
+          "bg-card fixed inset-x-0 bottom-0 z-40 flex h-14 flex-row items-center justify-around border-t",
+          "md:inset-y-0 md:right-auto md:left-0 md:h-full md:w-14 md:flex-col md:justify-start md:gap-2 md:border-t-0 md:border-r md:py-4",
         )}
       >
         {items.map((item) => (
@@ -100,7 +95,9 @@ export function NavBar() {
                           void setThemePreference(value as ThemePreference)
                         }
                       >
-                        <DropdownMenuRadioItem value="light">{t("Light")}</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="light">
+                          {t("Light")}
+                        </DropdownMenuRadioItem>
                         <DropdownMenuRadioItem value="dark">{t("Dark")}</DropdownMenuRadioItem>
                         <DropdownMenuRadioItem value="system">
                           {t("System")}
@@ -115,7 +112,9 @@ export function NavBar() {
                     </DropdownMenuSubTrigger>
                     <DropdownMenuSubContent>
                       <DropdownMenuRadioGroup value="en">
-                        <DropdownMenuRadioItem value="en">{t("English")}</DropdownMenuRadioItem>
+                        <DropdownMenuRadioItem value="en">
+                          {t("English")}
+                        </DropdownMenuRadioItem>
                       </DropdownMenuRadioGroup>
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>

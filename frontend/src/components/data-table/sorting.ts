@@ -9,9 +9,10 @@ import type { SortingState } from "@tanstack/react-table";
  * server-paginated: sorting only whatever page happens to already be in memory
  * doesn't produce a correct order across the whole (unloaded) dataset.
  */
-export function toSortParams(
-  sorting: SortingState,
-): { sort_by?: string; sort_dir?: "asc" | "desc" } {
+export function toSortParams(sorting: SortingState): {
+  sort_by?: string;
+  sort_dir?: "asc" | "desc";
+} {
   const [first] = sorting;
   if (!first) return {};
   return { sort_by: first.id, sort_dir: first.desc ? "desc" : "asc" };

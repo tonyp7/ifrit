@@ -252,9 +252,13 @@ export function UsersTable() {
         </Button>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="text-destructive text-sm">{error}</p>}
 
-      <DataTable table={table} columnCount={columns.length} emptyMessage={t("No users found.")} />
+      <DataTable
+        table={table}
+        columnCount={columns.length}
+        emptyMessage={t("No users found.")}
+      />
 
       <DataTablePagination
         page={page}
@@ -283,7 +287,10 @@ export function UsersTable() {
             <AlertDialogCancel disabled={isDeleting}>
               {t("Cancel", { ns: "common" })}
             </AlertDialogCancel>
-            <AlertDialogAction disabled={isDeleting} onClick={() => void handleConfirmDelete()}>
+            <AlertDialogAction
+              disabled={isDeleting}
+              onClick={() => void handleConfirmDelete()}
+            >
               {isDeleting && <Spinner />}
               {isDeleting ? t("Deleting…", { ns: "common" }) : t("Delete", { ns: "common" })}
             </AlertDialogAction>

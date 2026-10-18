@@ -293,7 +293,7 @@ export function ProjectsTable() {
         </div>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="text-destructive text-sm">{error}</p>}
 
       <DataTable
         table={table}
@@ -328,7 +328,10 @@ export function ProjectsTable() {
             <AlertDialogCancel disabled={isDeleting}>
               {t("Cancel", { ns: "common" })}
             </AlertDialogCancel>
-            <AlertDialogAction disabled={isDeleting} onClick={() => void handleConfirmDelete()}>
+            <AlertDialogAction
+              disabled={isDeleting}
+              onClick={() => void handleConfirmDelete()}
+            >
               {isDeleting && <Spinner />}
               {isDeleting ? t("Deleting…", { ns: "common" }) : t("Delete", { ns: "common" })}
             </AlertDialogAction>

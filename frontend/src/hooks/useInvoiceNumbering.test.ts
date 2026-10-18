@@ -17,12 +17,17 @@ const saved: NumberingState = {
 
 describe("numberingLoadReducer", () => {
   it("loads, retries and locks while a request runs", () => {
-    const ready = numberingLoadReducer(initialNumberingLoadState, { type: "loaded", state: saved });
+    const ready = numberingLoadReducer(initialNumberingLoadState, {
+      type: "loaded",
+      state: saved,
+    });
     expect(ready).toEqual({ load: "ready", saved, busy: null });
     const busy = numberingLoadReducer(ready, { type: "start", request: "next" });
     expect(busy.busy).toBe("next");
     expect(numberingLoadReducer(busy, { type: "done", state: null })).toEqual(ready);
-    expect(numberingLoadReducer({ ...ready, load: "failed" }, { type: "load" })).toEqual(initialNumberingLoadState);
+    expect(numberingLoadReducer({ ...ready, load: "failed" }, { type: "load" })).toEqual(
+      initialNumberingLoadState,
+    );
   });
 });
 
@@ -30,7 +35,9 @@ describe("runNumberingRequest", () => {
   it("adopts the server's state on success", async () => {
     const dispatch = vi.fn();
     const next = { ...saved, next_value: 512 };
-    expect(await runNumberingRequest("next", () => Promise.resolve(next), dispatch)).toEqual({ ok: true });
+    expect(await runNumberingRequest("next", () => Promise.resolve(next), dispatch)).toEqual({
+      ok: true,
+    });
     expect(dispatch.mock.calls.at(-1)?.[0]).toEqual({ type: "done", state: next });
   });
 
@@ -49,7 +56,9 @@ describe("runNumberingRequest", () => {
   });
 
   it("reports a network failure separately", async () => {
-    expect(await runNumberingRequest("format", () => Promise.reject(new TypeError("x")), vi.fn())).toEqual({
+    expect(
+      await runNumberingRequest("format", () => Promise.reject(new TypeError("x")), vi.fn()),
+    ).toEqual({
       ok: false,
       rejected: false,
     });

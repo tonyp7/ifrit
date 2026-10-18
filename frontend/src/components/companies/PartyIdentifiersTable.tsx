@@ -92,13 +92,18 @@ export function PartyIdentifiersTable({
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium">{t("Party Identifiers")}</h3>
-        <Button type="button" size="sm" variant="outline" onClick={() => void handleAddClick()}>
+        <Button
+          type="button"
+          size="sm"
+          variant="outline"
+          onClick={() => void handleAddClick()}
+        >
           <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
           {t("Add", { ns: "common" })}
         </Button>
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="text-destructive text-sm">{error}</p>}
 
       <div className="rounded-md border">
         <Table>
@@ -114,7 +119,7 @@ export function PartyIdentifiersTable({
           <TableBody>
             {identifiers.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="h-16 text-center text-muted-foreground">
+                <TableCell colSpan={5} className="text-muted-foreground h-16 text-center">
                   {t("No identifiers yet.")}
                 </TableCell>
               </TableRow>
@@ -154,7 +159,10 @@ export function PartyIdentifiersTable({
                           <DropdownMenuItem
                             onClick={() =>
                               companyId &&
-                              setDialogState({ companyId, initialValues: toFormValues(identifier) })
+                              setDialogState({
+                                companyId,
+                                initialValues: toFormValues(identifier),
+                              })
                             }
                           >
                             {t("Duplicate", { ns: "common" })}

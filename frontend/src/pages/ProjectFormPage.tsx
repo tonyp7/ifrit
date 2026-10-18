@@ -51,7 +51,10 @@ import {
   type ProjectType,
 } from "@/types/project";
 
-const PROJECT_TYPE_VALUES = Object.keys(PROJECT_TYPE_LABELS) as [ProjectType, ...ProjectType[]];
+const PROJECT_TYPE_VALUES = Object.keys(PROJECT_TYPE_LABELS) as [
+  ProjectType,
+  ...ProjectType[],
+];
 const STATUS_VALUES = Object.keys(STATUS_LABELS) as [ProjectStatus, ...ProjectStatus[]];
 
 const BLANK_VALUES = {
@@ -294,7 +297,9 @@ export function ProjectFormPage() {
    * change event: which would otherwise clear the form value we just loaded. These
    * selects have no "clear" option, so an empty value is never a real user choice.
    */
-  function handleSelectChange(field: "vendor_company_id" | "client_company_id" | "invoicing_currency") {
+  function handleSelectChange(
+    field: "vendor_company_id" | "client_company_id" | "invoicing_currency",
+  ) {
     return (value: string) => {
       if (value) setValue(field, value);
     };
@@ -309,7 +314,7 @@ export function ProjectFormPage() {
   }
 
   if (routeProjectId && loadError) {
-    return <p className="p-4 text-sm text-destructive">{loadError}</p>;
+    return <p className="text-destructive p-4 text-sm">{loadError}</p>;
   }
 
   const vendorInactive = !isReadOnly && isInactiveLink("vendor", vendorId);
@@ -346,7 +351,10 @@ export function ProjectFormPage() {
                     value={vendorId}
                     onValueChange={handleSelectChange("vendor_company_id")}
                   >
-                    <SelectTrigger id="vendor_company_id" aria-invalid={!!errors.vendor_company_id}>
+                    <SelectTrigger
+                      id="vendor_company_id"
+                      aria-invalid={!!errors.vendor_company_id}
+                    >
                       <SelectValue placeholder={t("Select a vendor…")} />
                     </SelectTrigger>
                     <SelectContent>
@@ -368,7 +376,13 @@ export function ProjectFormPage() {
                       errors.vendor_company_id
                         ? [errors.vendor_company_id]
                         : vendorInactive
-                          ? [{ message: t("This vendor is no longer active. Select another one.") }]
+                          ? [
+                              {
+                                message: t(
+                                  "This vendor is no longer active. Select another one.",
+                                ),
+                              },
+                            ]
                           : undefined
                     }
                   />
@@ -380,7 +394,10 @@ export function ProjectFormPage() {
                     value={clientId}
                     onValueChange={handleSelectChange("client_company_id")}
                   >
-                    <SelectTrigger id="client_company_id" aria-invalid={!!errors.client_company_id}>
+                    <SelectTrigger
+                      id="client_company_id"
+                      aria-invalid={!!errors.client_company_id}
+                    >
                       <SelectValue placeholder={t("Select a client…")} />
                     </SelectTrigger>
                     <SelectContent>
@@ -402,7 +419,13 @@ export function ProjectFormPage() {
                       errors.client_company_id
                         ? [errors.client_company_id]
                         : clientInactive
-                          ? [{ message: t("This client is no longer active. Select another one.") }]
+                          ? [
+                              {
+                                message: t(
+                                  "This client is no longer active. Select another one.",
+                                ),
+                              },
+                            ]
                           : undefined
                     }
                   />
@@ -411,7 +434,9 @@ export function ProjectFormPage() {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field data-invalid={!!errors.invoicing_currency}>
-                  <FieldLabel htmlFor="invoicing_currency">{t("Invoicing currency")}</FieldLabel>
+                  <FieldLabel htmlFor="invoicing_currency">
+                    {t("Invoicing currency")}
+                  </FieldLabel>
                   <Select
                     disabled={isReadOnly}
                     value={currencyCode}
@@ -544,7 +569,7 @@ export function ProjectFormPage() {
                 </>
               )}
 
-              {formError && <p className="text-sm text-destructive">{formError}</p>}
+              {formError && <p className="text-destructive text-sm">{formError}</p>}
 
               <Separator />
 

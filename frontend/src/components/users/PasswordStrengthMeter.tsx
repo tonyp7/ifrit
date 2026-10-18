@@ -3,7 +3,11 @@ import { useTranslation } from "react-i18next";
 
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { getPasswordScore, PASSWORD_SCORE_LABELS, preloadZxcvbn } from "@/lib/passwordStrength";
+import {
+  getPasswordScore,
+  PASSWORD_SCORE_LABELS,
+  preloadZxcvbn,
+} from "@/lib/passwordStrength";
 
 const BADGE_VARIANT_BY_SCORE = {
   0: "destructive",

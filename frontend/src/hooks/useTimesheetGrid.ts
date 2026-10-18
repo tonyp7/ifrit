@@ -102,14 +102,17 @@ export function useTimesheetGrid({
   // threaded through, since this hook already has its own closed-over id.
   const hasEntriesInPeriod = useCallback(
     (_userId: string, serviceLineId: string) =>
-      days.some((day) => entries[cellKey(rowOwnerId, serviceLineId, toDayKey(day))] !== undefined),
+      days.some(
+        (day) => entries[cellKey(rowOwnerId, serviceLineId, toDayKey(day))] !== undefined,
+      ),
     [days, entries, rowOwnerId],
   );
 
   const hasLockedEntriesInPeriod = useCallback(
     (_userId: string, serviceLineId: string) =>
       days.some(
-        (day) => entries[cellKey(rowOwnerId, serviceLineId, toDayKey(day))]?.is_locked === true,
+        (day) =>
+          entries[cellKey(rowOwnerId, serviceLineId, toDayKey(day))]?.is_locked === true,
       ),
     [days, entries, rowOwnerId],
   );

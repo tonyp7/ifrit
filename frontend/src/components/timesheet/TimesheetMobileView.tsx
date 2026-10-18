@@ -38,7 +38,12 @@ interface TimesheetMobileViewProps {
   onClearAndRemoveServiceLine?: (userId: string, serviceLineId: string) => Promise<void>;
   onCellChange: (userId: string, serviceLineId: string, dayKey: string, value: string) => void;
   onCellFocus: (userId: string, serviceLineId: string, dayKey: string) => void;
-  onCellBlur: (userId: string, serviceLineId: string, dayKey: string, badInput: boolean) => void;
+  onCellBlur: (
+    userId: string,
+    serviceLineId: string,
+    dayKey: string,
+    badInput: boolean,
+  ) => void;
   /** My Timesheet never sets these: no lock control there. */
   isFullyLockedInPeriod?: (userId: string, serviceLineId: string) => boolean;
   onToggleLock?: (userId: string, serviceLineId: string) => Promise<void>;
@@ -95,7 +100,7 @@ export function TimesheetMobileView({
                 {isToday(day) && (
                   <span
                     className={cn(
-                      "absolute -right-1.5 -top-1 h-1.5 w-1.5 rounded-full",
+                      "absolute -top-1 -right-1.5 h-1.5 w-1.5 rounded-full",
                       selected ? "bg-primary-foreground" : "bg-primary",
                     )}
                   />
@@ -117,8 +122,10 @@ export function TimesheetMobileView({
         </div>
 
         {shouldShowAddLineHint(serviceLines.length, addOptions?.length) && (
-          <p className="text-sm text-muted-foreground">
-            {t("No service lines added yet. Use “Add service line” below to start logging time.")}
+          <p className="text-muted-foreground text-sm">
+            {t(
+              "No service lines added yet. Use “Add service line” below to start logging time.",
+            )}
           </p>
         )}
 
@@ -127,12 +134,13 @@ export function TimesheetMobileView({
             const key = cellKey(line.user_id, line.service_line_id, selectedKey);
             const cell = entries[key];
             const locked = cell?.is_locked ?? false;
-            const unassigned = !locked && isUnassignedInPeriod(line.user_id, line.service_line_id);
+            const unassigned =
+              !locked && isUnassignedInPeriod(line.user_id, line.service_line_id);
             return (
               <div
                 key={`${line.user_id}__${line.service_line_id}`}
                 className={cn(
-                  "flex items-center gap-3 rounded-md border-l-4 bg-card p-3",
+                  "bg-card flex items-center gap-3 rounded-md border-l-4 p-3",
                   serviceLineBorderColor(index),
                   // Locked wins over unassigned if both apply.
                   locked && lockedCellClass(false),
@@ -141,12 +149,12 @@ export function TimesheetMobileView({
               >
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium">{line.project_name}</p>
-                  <p className="truncate text-xs text-muted-foreground">
+                  <p className="text-muted-foreground truncate text-xs">
                     {line.service_line_name ?? t("(unnamed service line)")}
                   </p>
                   {/* Reporting only: see TimesheetDesktopGrid's identical addition. */}
                   {line.consultant_name && (
-                    <p className="truncate text-xs text-muted-foreground">
+                    <p className="text-muted-foreground truncate text-xs">
                       {line.consultant_name}
                     </p>
                   )}
@@ -168,7 +176,12 @@ export function TimesheetMobileView({
                   }
                   value={cell?.hours ?? ""}
                   onChange={(e) =>
-                    onCellChange(line.user_id, line.service_line_id, selectedKey, e.target.value)
+                    onCellChange(
+                      line.user_id,
+                      line.service_line_id,
+                      selectedKey,
+                      e.target.value,
+                    )
                   }
                   onFocus={() => onCellFocus(line.user_id, line.service_line_id, selectedKey)}
                   onBlur={(e) =>
@@ -217,7 +230,7 @@ export function TimesheetMobileView({
       </div>
 
       {showSummaryFooter && (
-        <div className="fixed inset-x-0 bottom-14 flex items-center justify-between border-t bg-background/95 p-3 text-sm backdrop-blur">
+        <div className="bg-background/95 fixed inset-x-0 bottom-14 flex items-center justify-between border-t p-3 text-sm backdrop-blur">
           <span>
             {t("Today")}: <strong>{formatHours(dayTotal(selectedKey)) || "0"}h</strong>
           </span>

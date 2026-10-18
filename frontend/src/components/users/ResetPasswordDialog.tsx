@@ -96,12 +96,12 @@ export function ResetPasswordDialog({
             <Label htmlFor="new_password">{t("New password")}</Label>
             <Input id="new_password" type="password" {...register("new_password")} />
             {errors.new_password && (
-              <p className="text-sm text-destructive">{errors.new_password.message}</p>
+              <p className="text-destructive text-sm">{errors.new_password.message}</p>
             )}
             <PasswordStrengthMeter password={password} />
           </div>
 
-          {formError && <p className="text-sm text-destructive">{formError}</p>}
+          {formError && <p className="text-destructive text-sm">{formError}</p>}
 
           <DialogFooter>
             <Button type="submit" disabled={isSubmitting}>

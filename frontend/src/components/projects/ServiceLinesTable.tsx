@@ -104,14 +104,19 @@ export function ServiceLinesTable({
       <div className="flex items-center justify-between">
         <h3 className="text-sm font-medium">{t("Service Lines")}</h3>
         {!readOnly && (
-          <Button type="button" size="sm" variant="outline" onClick={() => void handleAddClick()}>
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            onClick={() => void handleAddClick()}
+          >
             <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
             {t("Add", { ns: "common" })}
           </Button>
         )}
       </div>
 
-      {error && <p className="text-sm text-destructive">{error}</p>}
+      {error && <p className="text-destructive text-sm">{error}</p>}
 
       <div className="rounded-md border">
         <Table>
@@ -129,7 +134,7 @@ export function ServiceLinesTable({
           <TableBody>
             {serviceLines.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="h-16 text-center text-muted-foreground">
+                <TableCell colSpan={7} className="text-muted-foreground h-16 text-center">
                   {t("No service lines yet.")}
                 </TableCell>
               </TableRow>
