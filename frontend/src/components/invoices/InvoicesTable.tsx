@@ -45,6 +45,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import {
   Tooltip,
@@ -267,6 +268,9 @@ export function InvoicesTableView({
   );
 }
 
+// Same pause as the Projects and Users searches: a request per keystroke is wasted work.
+const SEARCH_DEBOUNCE_MS = 300;
+
 export function InvoicesTable() {
   const navigate = useNavigate();
   const { t } = useTranslation(["invoices", "common"]);
@@ -276,6 +280,8 @@ export function InvoicesTable() {
   const [pageSize, setPageSize] = useState(50);
   const [page, setPage] = useState(1);
   const [sorting, setSorting] = useState<SortingState>([]);
+  const [searchInput, setSearchInput] = useState("");
+  const [search, setSearch] = useState("");
   const [projectFilter, setProjectFilter] = useState<string[]>([]);
   // Void invoices are kept as evidence but hidden unless asked for.
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus[]>(DEFAULT_STATUS_FILTER);
@@ -304,6 +310,15 @@ export function InvoicesTable() {
     setPage(1);
   }
 
+  // A search changes what page 1 is, so the page resets with it.
+  useEffect(() => {
+    const handle = setTimeout(() => {
+      setSearch(searchInput);
+      setPage(1);
+    }, SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(handle);
+  }, [searchInput]);
+
   useEffect(() => {
     let cancelled = false;
     listInvoiceProjects({ invoiced: true })
@@ -323,6 +338,7 @@ export function InvoicesTable() {
     listInvoices({
       page,
       projectId: projectFilter[0],
+      search: search || undefined,
       // Nothing ticked reads as the default rather than as "show nothing".
       statuses: statusFilter.length ? statusFilter : DEFAULT_STATUS_FILTER,
       ...toSortParams(sorting),
@@ -341,7 +357,7 @@ export function InvoicesTable() {
     return () => {
       cancelled = true;
     };
-  }, [page, sorting, projectFilter, statusFilter, refreshToken, t]);
+  }, [page, sorting, projectFilter, statusFilter, search, refreshToken, t]);
 
   async function handleDuplicate(invoice: InvoiceListItem) {
     try {
@@ -371,6 +387,15 @@ export function InvoicesTable() {
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
+        {/* First, like the other lists. On a phone the box takes the whole row and the filters
+            wrap under it. */}
+        <Input
+          placeholder={t("Search invoices…")}
+          aria-label={t("Search invoices…")}
+          value={searchInput}
+          onChange={(e) => setSearchInput(e.target.value)}
+          className="w-full sm:w-96"
+        />
         <ReportFilterDropdown
           label={t("Status")}
           icon={ListFilter}

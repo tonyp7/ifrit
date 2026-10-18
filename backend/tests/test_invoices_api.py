@@ -902,3 +902,153 @@ async def test_duplicate_an_issued_invoice_through_the_api(client, db_session) -
     assert copy["number"] is None and copy["invoice_date"] is None
     assert copy["payment_terms"] == "net_30" and copy["due_date"] is None
     assert copy["payee"]["account_identifier"] == "BE71096123456769"
+
+
+# --- list search -----------------------------------------------------------------
+
+
+def _ids(body: dict[str, Any]) -> list[str]:
+    return [item["id"] for item in body["items"]]
+
+
+async def test_search_matches_the_number_the_project_the_client_and_any_line(
+    client, db_session
+) -> None:
+    await login(client, db_session)
+    numbered = await make_issued_invoice(db_session, "2026-0042")
+    other_number = await make_issued_invoice(db_session, "2026-0099")
+    project = await make_project(db_session, name="Zephyr migration")
+    by_project = await _create(client, project)
+    by_client = await _create(
+        client, await make_project(db_session, name="P2"), bill_to={"name": "Globex SA"}
+    )
+    line = {"quantity": "1", "uom": "ea", "unit_price": "10"}
+    by_line = await _create(
+        client,
+        await make_project(db_session, name="P3"),
+        lines=[
+            {"description": "Setup", **line},
+            {"description": "Downpayment", **line},
+        ],
+    )
+
+    async def found(text: str) -> list[str]:
+        return _ids((await client.get(URL, params={"search": text})).json())
+
+    assert await found("0042") == [str(numbered.id)]
+    assert await found("2026-00") == [str(other_number.id), str(numbered.id)]
+    assert await found("zephyr") == [by_project["id"]]
+    assert await found("GLOBEX") == [by_client["id"]]
+    # The matching line is not the invoice's first.
+    assert await found("downpay") == [by_line["id"]]
+    assert await found("no such thing") == []
+
+
+async def test_search_is_not_a_wildcard(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    literal_percent = await _create(client, project, bill_to={"name": "50% Corp"})
+    await _create(client, project, bill_to={"name": "500 Corp"})
+    underscore = await _create(client, project, bill_to={"name": "Foo_Bar"})
+    await _create(client, project, bill_to={"name": "FooXBar"})
+
+    percent = (await client.get(URL, params={"search": "50%"})).json()
+    under = (await client.get(URL, params={"search": "o_B"})).json()
+
+    assert _ids(percent) == [literal_percent["id"]]
+    assert _ids(under) == [underscore["id"]]
+
+
+async def test_blank_search_filters_nothing(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    await _create(client, project)
+    await _create(client, project)
+
+    blank = (await client.get(URL, params={"search": "   "})).json()
+    empty = (await client.get(URL, params={"search": ""})).json()
+
+    assert blank["total"] == empty["total"] == 2
+
+
+async def test_search_trims_the_text(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    kept = await _create(client, project, bill_to={"name": "Globex"})
+    await _create(client, project, bill_to={"name": "Initech"})
+
+    body = (await client.get(URL, params={"search": "  globex "})).json()
+
+    assert _ids(body) == [kept["id"]]
+
+
+async def test_search_combines_with_the_filters(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session, name="Alpha")
+    other = await make_project(db_session, name="Beta")
+    kept = await _create(client, project, bill_to={"name": "Globex"})
+    await _create(client, other, bill_to={"name": "Globex"})
+    await _create(client, project, bill_to={"name": "Initech"})
+    void = await make_issued_invoice(
+        db_session, "2026-0001", status="void", project=project
+    )
+    void.bill_to_name = "Globex"
+    await db_session.commit()
+
+    scoped = (
+        await client.get(
+            URL, params={"search": "globex", "project_id": str(project.id)}
+        )
+    ).json()
+    with_void = (
+        await client.get(
+            URL,
+            params={
+                "search": "globex",
+                "project_id": str(project.id),
+                "status": ["draft", "void"],
+            },
+        )
+    ).json()
+
+    # Void is hidden by default, and the other project's match is filtered out.
+    assert _ids(scoped) == [kept["id"]]
+    assert scoped["total"] == 1
+    assert with_void["total"] == 2
+
+
+async def test_search_counts_each_invoice_once_and_paginates_the_matches(
+    client, db_session
+) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    db_session.add_all(
+        Invoice(
+            project_id=project.id,
+            currency_code="EUR",
+            bill_from_name="F",
+            bill_to_name=f"Match {n}" if n < 51 else f"Other {n}",
+            subtotal=Decimal(0),
+            total=Decimal(0),
+        )
+        for n in range(54)
+    )
+    await db_session.commit()
+    line = {"quantity": "1", "uom": "ea", "unit_price": "10"}
+    twice = await _create(
+        client,
+        project,
+        bill_to={"name": "Twice"},
+        lines=[
+            {"description": "Zeta one", **line},
+            {"description": "Zeta two", **line},
+        ],
+    )
+
+    matches = (await client.get(URL, params={"search": "match", "page": 2})).json()
+    both_lines = (await client.get(URL, params={"search": "zeta"})).json()
+
+    assert matches["total"] == 51
+    assert len(matches["items"]) == 1
+    assert _ids(both_lines) == [twice["id"]]
+    assert both_lines["total"] == 1

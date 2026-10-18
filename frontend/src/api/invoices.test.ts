@@ -105,6 +105,16 @@ describe("invoice API", () => {
     expect(apiClient.get).toHaveBeenCalledWith("/invoices?page=1&status=draft&status=void");
   });
 
+  it("sends the search text encoded, and leaves it out when empty", () => {
+    void listInvoices({ search: "50% & co", statuses: ["draft"] });
+    void listInvoices({ search: "" });
+    expect(apiClient.get).toHaveBeenNthCalledWith(
+      1,
+      "/invoices?page=1&status=draft&search=50%25+%26+co",
+    );
+    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/invoices?page=1");
+  });
+
   it("previews, issues and voids", () => {
     void getIssuePreview("i1");
     void issueInvoice("i1");

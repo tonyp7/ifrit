@@ -4,7 +4,7 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from sqlalchemy import ColumnElement, delete, func, literal, select
+from sqlalchemy import ColumnElement, delete, func, literal, or_, select
 from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -932,10 +932,12 @@ async def list_invoices(
     sort_dir: str | None = None,
     project_id: uuid.UUID | None = None,
     statuses: list[InvoiceStatus] | None = None,
+    search: str | None = None,
 ) -> tuple[list[tuple[Invoice, str, int | None, str | None]], int]:
     """(invoice, project name, currency minor unit, lines summary) rows, newest first by
     default. Void invoices are left out unless asked for: they are kept as
-    evidence, not worked on."""
+    evidence, not worked on. `search` keeps the invoices whose number, project, Bill To name
+    or any line description contains it, in any letter case."""
     sortable_columns = {
         "created_at": Invoice.created_at,
         "project": Project.name,
@@ -952,8 +954,36 @@ async def list_invoices(
     ]
     if project_id is not None:
         filters.append(Invoice.project_id == project_id)
+    if search and search.strip():
+        # `autoescape` makes a typed % or _ match itself instead of acting as a wildcard.
+        text = search.strip()
+        # EXISTS rather than a join to the lines, so an invoice with two matching lines is
+        # still one row and one in the count.
+        line_matches = (
+            select(literal(1))
+            .where(
+                InvoiceLine.invoice_id == Invoice.id,
+                InvoiceLine.description.icontains(text, autoescape=True),
+            )
+            .exists()
+        )
+        filters.append(
+            or_(
+                Invoice.number.icontains(text, autoescape=True),
+                Project.name.icontains(text, autoescape=True),
+                Invoice.bill_to_name.icontains(text, autoescape=True),
+                line_matches,
+            )
+        )
+    # The project name is part of the search, so the count joins the project exactly as the
+    # rows do: both use the same filters and cannot disagree about the pages.
     total = (
-        await db.execute(select(func.count()).select_from(Invoice).where(*filters))
+        await db.execute(
+            select(func.count())
+            .select_from(Invoice)
+            .join(Project, Invoice.project_id == Project.id)
+            .where(*filters)
+        )
     ).scalar_one()
     order = resolve_sort(
         sortable_columns, sort_by, sort_dir, default=Invoice.created_at.desc()
