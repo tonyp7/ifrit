@@ -6,7 +6,7 @@ hand-built containers). Detected types depend on the libmagic version, so these 
 what pins the context's allowed-type table.
 """
 
-import os
+import random
 import zipfile
 from io import BytesIO
 from pathlib import Path
@@ -101,9 +101,18 @@ async def test_a_rejected_upload_leaves_nothing_staged(
     [
         (b"MZ\x90\x00\x03\x00\x00\x00 windows executable", "setup.exe"),
         (b"#!/bin/sh\necho owned\n", "report.pdf"),
-        (b"MZ\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xff\xff" + b"\x00" * 64, "invoice.pdf"),
+        (
+            b"MZ\x90\x00\x03\x00\x00\x00\x04\x00\x00\x00\xff\xff" + b"\x00" * 64,
+            "invoice.pdf",
+        ),
         (b"<script>alert(1)</script>", "notes.pdf"),
-        (os.urandom(2048), "notes.txt"),
+        # Binary noise, seeded so that every pytest-xdist worker collects the same test:
+        # workers that drew different bytes would disagree on the test's id and refuse to run.
+        pytest.param(
+            random.Random(2048).randbytes(2048),
+            "notes.txt",
+            id="binary-noise-notes.txt",
+        ),
         (b"#!/bin/sh\necho owned\n", "notes.txt"),
         (b"just text", "archive.zip"),
         (b"just text", "no-extension"),
@@ -138,7 +147,9 @@ async def test_a_plain_zip_named_key_is_rejected() -> None:
         await _prepare((SAMPLES / "sample.zip").read_bytes(), "talk.key")
 
 
-async def test_an_office_zip_libmagic_cannot_see_into_is_judged_by_its_members() -> None:
+async def test_an_office_zip_libmagic_cannot_see_into_is_judged_by_its_members() -> (
+    None
+):
     # With only the zip's first bytes shown, libmagic can say no more than "a zip", as
     # it would for a large document whose telling members lie further in.
     short_sight = storage.UploadContext(
@@ -165,7 +176,9 @@ async def test_a_corrupt_zip_named_docx_is_rejected() -> None:
         await storage.prepare_upload(make_upload(broken, "x.docx"), short_sight)
 
 
-async def test_a_zip_member_named_like_a_marker_inside_a_bomb_is_not_decompressed() -> None:
+async def test_a_zip_member_named_like_a_marker_inside_a_bomb_is_not_decompressed() -> (
+    None
+):
     buffer = BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as archive:
         archive.writestr("word/document.xml", b"\x00" * 5_000_000)
