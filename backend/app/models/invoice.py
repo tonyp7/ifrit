@@ -26,6 +26,9 @@ if TYPE_CHECKING:
     from app.models.project import Project
 
 InvoiceStatus = Literal["draft", "issued", "void"]
+# What a tax row is calculated on: the subtotal alone, or the subtotal plus every tax row above
+# it (a compounding tax, such as a provincial tax charged on top of a federal one).
+TaxBaseMode = Literal["subtotal", "cumulative"]
 # A due date is either picked by hand or worked out from one of these at issue, from the
 # invoice date: `net_<n>` adds n calendar days, `eom` is the last day of the invoice date's
 # month and `eom_<n>` adds n days to that.
@@ -264,6 +267,12 @@ class Invoice(Base):
         order_by="InvoiceReference.position",
         passive_deletes=True,
     )
+    taxes: Mapped[list[InvoiceTax]] = relationship(
+        back_populates="invoice",
+        cascade="all, delete-orphan",
+        order_by="InvoiceTax.position",
+        passive_deletes=True,
+    )
 
     __table_args__ = (
         CheckConstraint(
@@ -387,4 +396,51 @@ class InvoiceReference(Base):
             name="ck_invoice_references_label",
         ),
         Index("ix_invoice_references_invoice_id_position", "invoice_id", "position"),
+    )
+
+
+class InvoiceTax(Base):
+    """A tax charged on the whole invoice after the subtotal (VAT, GST, a provincial tax...).
+    Its amount is either worked out from the rate or typed by hand, in which case the rate is
+    worked back from it."""
+
+    __tablename__ = "invoice_taxes"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    invoice_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("invoices.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    # Display and calculation order: a compounding row is charged on the rows above it.
+    # Rewritten 0..n-1 on every save, so not unique per invoice.
+    position: Mapped[int] = mapped_column(Integer, nullable=False)
+    # Free text: the presets offered by the form are a convenience, and tax names differ
+    # from one country to the next.
+    label: Mapped[str] = mapped_column(String(100), nullable=False)
+    base_mode: Mapped[TaxBaseMode] = mapped_column(String(10), nullable=False)
+    # A percentage. Typed rates are 0 to 100; a rate worked back from a typed amount can
+    # fall outside that (a positive amount on a negative subtotal), and is NULL when it
+    # cannot be worked out at all (a zero base).
+    rate: Mapped[Decimal | None] = mapped_column(Numeric(12, 3), nullable=True)
+    amount: Mapped[Decimal] = mapped_column(Numeric(22, 4), nullable=False)
+    amount_set_by_hand: Mapped[bool] = mapped_column(default=False)
+    # What the row was calculated on, always rewritten by the server. Kept so that an issued
+    # invoice can still show "5 % of 19,037.50" exactly as it was issued.
+    base_amount: Mapped[Decimal] = mapped_column(Numeric(22, 4), nullable=False)
+
+    invoice: Mapped[Invoice] = relationship(back_populates="taxes")
+
+    __table_args__ = (
+        CheckConstraint(
+            _in_list("base_mode", get_args(TaxBaseMode)),
+            name="ck_invoice_taxes_base_mode",
+        ),
+        CheckConstraint(
+            "amount_set_by_hand OR (rate IS NOT NULL AND rate BETWEEN 0 AND 100)",
+            name="ck_invoice_taxes_rate",
+        ),
+        Index("ix_invoice_taxes_invoice_id_position", "invoice_id", "position"),
     )

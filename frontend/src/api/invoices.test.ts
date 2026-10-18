@@ -34,6 +34,15 @@ const input: InvoiceInput = {
   payee: null,
   references: [],
   lines: [],
+  taxes: [
+    {
+      label: "VAT",
+      base_mode: "subtotal",
+      rate: "21",
+      amount: null,
+      amount_set_by_hand: false,
+    },
+  ],
 };
 
 describe("invoice API", () => {
@@ -60,6 +69,7 @@ describe("invoice API", () => {
   it("reads a project's billing context and generates lines", () => {
     void getBillingContext("p1");
     const generate = {
+      kind: "time" as const,
       project_id: "p1",
       service_line_ids: ["s1"],
       period_start: "2026-09-01",
@@ -68,6 +78,13 @@ describe("invoice API", () => {
     void generateLines(generate);
     expect(apiClient.get).toHaveBeenCalledWith("/invoices/projects/p1");
     expect(apiClient.post).toHaveBeenCalledWith("/invoices/generate", generate);
+    const milestone = {
+      kind: "milestone" as const,
+      project_id: "p1",
+      milestone_ids: ["m1", "m2"],
+    };
+    void generateLines(milestone);
+    expect(apiClient.post).toHaveBeenCalledWith("/invoices/generate", milestone);
   });
 
   it("creates, reads, updates, duplicates and deletes", () => {

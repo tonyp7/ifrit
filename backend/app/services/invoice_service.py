@@ -1,9 +1,11 @@
 import uuid
+from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
-from sqlalchemy import ColumnElement, delete, func, select
+from sqlalchemy import ColumnElement, delete, func, literal, select
+from sqlalchemy.dialects.postgresql import aggregate_order_by
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -11,8 +13,15 @@ from sqlalchemy.orm import selectinload
 from app.core.clock import server_today
 from app.models.company import Company, PartyIdentifier, PayeeAccount
 from app.models.currency import Currency
-from app.models.invoice import Invoice, InvoiceLine, InvoiceReference, InvoiceStatus
-from app.models.project import Project, ProjectType, ServiceLine
+from app.models.invoice import (
+    Invoice,
+    InvoiceLine,
+    InvoiceReference,
+    InvoiceStatus,
+    InvoiceTax,
+    TaxBaseMode,
+)
+from app.models.project import BillingMilestone, Project, ProjectType, ServiceLine
 from app.models.time_entry import TimeEntry
 from app.models.user import User
 from app.schemas.company import BankAddress
@@ -21,11 +30,14 @@ from app.schemas.invoice import (
     BlockingReason,
     ContextAddress,
     ContextCompany,
+    ContextMilestone,
     ContextPayeeAccount,
     ContextServiceLine,
     GeneratedLine,
+    GenerateMilestoneRequest,
     GenerateRequest,
     GenerateResponse,
+    GenerateTimeRequest,
     InvoiceableProject,
     InvoiceDetail,
     InvoiceLineOut,
@@ -33,6 +45,8 @@ from app.schemas.invoice import (
     InvoicePayeeOut,
     InvoicePayeeWrite,
     InvoiceReferenceOut,
+    InvoiceTaxOut,
+    InvoiceTaxWrite,
     InvoiceWarning,
     InvoiceWrite,
     IssuePreview,
@@ -48,8 +62,13 @@ from app.services.payment_terms import apply_payment_terms
 from app.services.sorting import resolve_sort
 
 PAGE_SIZE = 50
-# Fixed Price projects are billed from milestones, which this version cannot invoice yet.
-INVOICEABLE_TYPES: tuple[ProjectType, ...] = ("time_and_material", "capped_tm")
+INVOICEABLE_TYPES: tuple[ProjectType, ...] = (
+    "time_and_material",
+    "capped_tm",
+    "fixed_price",
+)
+# Billed from the hours logged; Fixed Price is billed from its milestones instead.
+TIME_BASED_TYPES: tuple[ProjectType, ...] = ("time_and_material", "capped_tm")
 _ADDRESS_FIELDS = (
     "line1",
     "line2",
@@ -60,10 +79,15 @@ _ADDRESS_FIELDS = (
     "country_code",
 )
 _QUANTITY_QUANTUM = Decimal("0.00001")
+_RATE_QUANTUM = Decimal("0.001")
+# NUMERIC(12, 3): a rate worked back from an amount on a tiny base can be too large to store,
+# and then counts as one that cannot be worked out.
+_RATE_LIMIT = Decimal(10) ** 9
 
 
 class ProjectNotInvoiceableError(Exception):
-    """The project cannot have a new invoice: deleted, not Active, or not Time & Material."""
+    """The project cannot have a new invoice: deleted, not Active, or of a type that is not
+    invoiced."""
 
 
 class InvoiceNotDraftError(Exception):
@@ -91,8 +115,8 @@ class NumberAlreadyUsedError(Exception):
 
 
 class InvalidInvoiceDataError(Exception):
-    """A value refers to something that does not fit: a service line of another project,
-    an unknown currency."""
+    """A value refers to something that does not fit: a service line or milestone of another
+    project, an unknown currency."""
 
 
 def money_round(value: Decimal, minor_unit: int | None) -> Decimal:
@@ -101,6 +125,94 @@ def money_round(value: Decimal, minor_unit: int | None) -> Decimal:
     negative amounts too, so a discount rounds like the charge it offsets."""
     places = 2 if minor_unit is None else minor_unit
     return value.quantize(Decimal(1).scaleb(-places), rounding=ROUND_HALF_UP)
+
+
+@dataclass(frozen=True)
+class TaxInput:
+    """What decides a tax row's numbers: its Applies to choice and the value typed last."""
+
+    base_mode: TaxBaseMode
+    rate: Decimal | None
+    amount: Decimal | None
+    amount_set_by_hand: bool
+
+
+@dataclass(frozen=True)
+class ComputedTax:
+    base_mode: TaxBaseMode
+    rate: Decimal | None
+    amount: Decimal
+    base_amount: Decimal
+
+
+def compute_taxes(
+    subtotal: Decimal, rows: list[TaxInput], minor_unit: int | None
+) -> list[ComputedTax]:
+    """Works out each tax row in order. A row's base is the subtotal, or for a compounding
+    row the subtotal plus every amount above it. A rate-driven row's amount is base x rate,
+    rounded to the currency; a hand-set row keeps its amount and its rate is worked back to
+    3 decimals, or left unknown on a zero base. The form runs the very same rules, so what it
+    shows is what gets stored."""
+    computed: list[ComputedTax] = []
+    above = Decimal(0)
+    for position, row in enumerate(rows):
+        # On the first row there is nothing above, so both choices give the same base.
+        mode: TaxBaseMode = "subtotal" if position == 0 else row.base_mode
+        base = subtotal + above if mode == "cumulative" else subtotal
+        if row.amount_set_by_hand:
+            amount = row.amount if row.amount is not None else Decimal(0)
+            rate: Decimal | None = None
+            if base != 0:
+                rate = (amount / base * 100).quantize(
+                    _RATE_QUANTUM, rounding=ROUND_HALF_UP
+                )
+                if abs(rate) >= _RATE_LIMIT:
+                    rate = None
+        else:
+            rate = row.rate if row.rate is not None else Decimal(0)
+            amount = money_round(base * rate / 100, minor_unit)
+        computed.append(
+            ComputedTax(base_mode=mode, rate=rate, amount=amount, base_amount=base)
+        )
+        above += amount
+    return computed
+
+
+def _tax_input(tax: InvoiceTaxWrite | InvoiceTax) -> TaxInput:
+    return TaxInput(
+        base_mode=tax.base_mode,
+        rate=tax.rate,
+        amount=tax.amount,
+        amount_set_by_hand=tax.amount_set_by_hand,
+    )
+
+
+def _apply_taxes(
+    invoice: Invoice,
+    labels: list[str],
+    inputs: list[TaxInput],
+    minor_unit: int | None,
+) -> None:
+    """Replaces the invoice's tax rows from `inputs` and sets its total. Expects the
+    subtotal to be up to date."""
+    computed = compute_taxes(invoice.subtotal, inputs, minor_unit)
+    invoice.taxes = [
+        InvoiceTax(
+            position=position,
+            label=label,
+            base_mode=result.base_mode,
+            rate=result.rate,
+            amount=result.amount,
+            amount_set_by_hand=row.amount_set_by_hand,
+            base_amount=result.base_amount,
+        )
+        for position, (label, row, result) in enumerate(
+            zip(labels, inputs, computed, strict=True)
+        )
+    ]
+    invoice.total = invoice.subtotal + sum(
+        (result.amount for result in computed), Decimal(0)
+    )
 
 
 def _hours(duration: timedelta) -> Decimal:
@@ -173,6 +285,7 @@ async def _load_project(db: AsyncSession, project_id: uuid.UUID) -> Project | No
             select(Project)
             .options(
                 selectinload(Project.service_lines),
+                selectinload(Project.billing_milestones),
                 selectinload(Project.project_references),
                 selectinload(Project.vendor_company).selectinload(Company.addresses),
                 selectinload(Project.vendor_company).selectinload(
@@ -253,6 +366,19 @@ async def billing_context(
             for line in project.service_lines
             if line.is_active
         ],
+        # A project that changed type away from Fixed Price has none left anyway; the
+        # check keeps the context to what the form will actually offer.
+        milestones=[
+            ContextMilestone(
+                id=milestone.id,
+                description=milestone.description,
+                due_date=milestone.due_date,
+                value=milestone.value,
+            )
+            for milestone in project.billing_milestones
+        ]
+        if project.project_type == "fixed_price"
+        else [],
         references=[
             InvoiceReferenceOut(kind=ref.kind, label=ref.label, value=ref.value)
             for ref in sorted(project.project_references, key=lambda r: r.position)
@@ -300,15 +426,68 @@ def _unlocked_warning(
     )
 
 
+async def generate_lines(db: AsyncSession, data: GenerateRequest) -> GenerateResponse:
+    if isinstance(data, GenerateMilestoneRequest):
+        return await generate_milestone_lines(db, data)
+    return await generate_tm_lines(db, data)
+
+
+async def _generating_project(db: AsyncSession, project_id: uuid.UUID) -> Project:
+    project = await db.get(Project, project_id)
+    if project is None or not project.is_active:
+        raise InvalidInvoiceDataError("Project not found")
+    return project
+
+
+async def generate_milestone_lines(
+    db: AsyncSession, data: GenerateMilestoneRequest
+) -> GenerateResponse:
+    """One line copied from each milestone. Nothing links back to them, so a milestone can
+    later be edited or deleted without the invoice changing. Saves nothing."""
+    project = await _generating_project(db, data.project_id)
+    if project.project_type != "fixed_price":
+        raise InvalidInvoiceDataError("Only Fixed Price projects bill milestones")
+    wanted = set(data.milestone_ids)
+    milestones = (
+        (
+            await db.execute(
+                select(BillingMilestone)
+                .where(
+                    BillingMilestone.id.in_(wanted),
+                    BillingMilestone.project_id == project.id,
+                )
+                # The contract's order, as the project lists them, not the order they
+                # were ticked in.
+                .order_by(BillingMilestone.position, BillingMilestone.created_at)
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if len(milestones) != len(wanted):
+        raise InvalidInvoiceDataError("Every milestone must belong to the project")
+    return GenerateResponse(
+        lines=[
+            GeneratedLine(
+                name=milestone.description,
+                quantity=Decimal(1),
+                uom="ea",
+                unit_price=milestone.value,
+            )
+            for milestone in milestones
+        ],
+        omitted=[],
+        warnings=[],
+    )
+
+
 async def generate_tm_lines(
-    db: AsyncSession, data: GenerateRequest
+    db: AsyncSession, data: GenerateTimeRequest
 ) -> GenerateResponse:
     """Previews the lines for the selected service lines and period. Saves nothing and
     never locks or unlocks an entry: locking belongs to the timesheet."""
-    project = await db.get(Project, data.project_id)
-    if project is None or not project.is_active:
-        raise InvalidInvoiceDataError("Project not found")
-    if project.project_type not in INVOICEABLE_TYPES:
+    project = await _generating_project(db, data.project_id)
+    if project.project_type not in TIME_BASED_TYPES:
         raise InvalidInvoiceDataError("Only Time & Material projects bill hours")
 
     selected = (
@@ -436,20 +615,33 @@ async def _check_payee_currency(
 async def _apply(
     db: AsyncSession, invoice: Invoice, data: InvoiceWrite, project: Project
 ) -> None:
-    """Writes every draft field from `data`, replaces the lines and references, and
-    recomputes the stored amounts. The currency always follows the project."""
+    """Writes every draft field from `data`, replaces the lines, references and tax rows,
+    and recomputes the stored amounts. The currency always follows the project."""
     await _check_payee_currency(db, data.payee)
+    minor = await _minor_unit(db, project.invoicing_currency)
+    places = 2 if minor is None else minor
+    for tax in data.taxes:
+        # A typed amount cannot have more decimals than the money it is paid in.
+        if tax.amount_set_by_hand and tax.amount is not None:
+            exponent = tax.amount.normalize().as_tuple().exponent
+            if isinstance(exponent, int) and -exponent > places:
+                raise InvalidInvoiceDataError(
+                    f"A tax amount can have at most {places} decimals in this currency"
+                )
     invoice.project_id = project.id
     invoice.currency_code = project.invoicing_currency
     _set_party(invoice, "bill_from", data.bill_from)
     _set_party(invoice, "bill_to", data.bill_to)
-    invoice.period_start = data.period_start
-    invoice.period_end = data.period_end
+    # A Fixed Price invoice bills a milestone, not a stretch of time: whatever period the
+    # client sends (say, one left over from before the project changed type) would only
+    # mislead whoever reads the invoice.
+    fixed_price = project.project_type == "fixed_price"
+    invoice.period_start = None if fixed_price else data.period_start
+    invoice.period_end = None if fixed_price else data.period_end
     invoice.payment_terms = data.payment_terms
     invoice.due_date = data.due_date
     _set_payee(invoice, data.payee)
 
-    minor = await _minor_unit(db, project.invoicing_currency)
     invoice.lines = [
         InvoiceLine(
             position=position,
@@ -468,7 +660,12 @@ async def _apply(
         for position, ref in enumerate(data.references)
     ]
     invoice.subtotal = sum((line.amount for line in invoice.lines), Decimal(0))
-    invoice.total = invoice.subtotal
+    _apply_taxes(
+        invoice,
+        [tax.label for tax in data.taxes],
+        [_tax_input(tax) for tax in data.taxes],
+        minor,
+    )
 
 
 async def create_invoice(
@@ -477,7 +674,9 @@ async def create_invoice(
     project = await db.get(Project, data.project_id)
     if project is None or not is_invoiceable(project):
         raise ProjectNotInvoiceableError()
-    invoice = Invoice(status="draft", created_by=user_id, lines=[], references=[])
+    invoice = Invoice(
+        status="draft", created_by=user_id, lines=[], references=[], taxes=[]
+    )
     await _apply(db, invoice, data, project)
     db.add(invoice)
     await db.commit()
@@ -491,6 +690,7 @@ async def get_invoice(db: AsyncSession, invoice_id: uuid.UUID) -> Invoice | None
             .options(
                 selectinload(Invoice.lines),
                 selectinload(Invoice.references),
+                selectinload(Invoice.taxes),
                 selectinload(Invoice.project),
             )
             .where(Invoice.id == invoice_id)
@@ -552,6 +752,16 @@ def to_write(invoice: Invoice) -> InvoiceWrite:
             )
             for line in invoice.lines
         ],
+        taxes=[
+            InvoiceTaxWrite(
+                label=tax.label,
+                base_mode=tax.base_mode,
+                rate=tax.rate,
+                amount=tax.amount,
+                amount_set_by_hand=tax.amount_set_by_hand,
+            )
+            for tax in invoice.taxes
+        ],
     )
 
 
@@ -563,7 +773,9 @@ async def duplicate_invoice(
     project = await db.get(Project, invoice.project_id)
     if project is None:
         raise ProjectNotInvoiceableError()
-    copy = Invoice(status="draft", created_by=user_id, lines=[], references=[])
+    copy = Invoice(
+        status="draft", created_by=user_id, lines=[], references=[], taxes=[]
+    )
     await _apply(db, copy, to_write(invoice), project)
     db.add(copy)
     await db.commit()
@@ -615,6 +827,10 @@ async def invoice_warnings(db: AsyncSession, invoice: Invoice) -> list[InvoiceWa
         warnings += _unlocked_warning(lines, days)
     if any(line.quantity == 0 for line in invoice.lines):
         warnings.append(InvoiceWarning(code="zero_quantity"))
+    if any(tax.amount_set_by_hand and tax.rate is None for tax in invoice.taxes):
+        warnings.append(InvoiceWarning(code="tax_rate_not_derivable"))
+    if invoice.subtotal < 0:
+        warnings.append(InvoiceWarning(code="negative_subtotal"))
     if invoice.payee_payment_means_code is None:
         warnings.append(InvoiceWarning(code="no_payee_account"))
     elif invoice.payee_currency_code != invoice.currency_code:
@@ -669,6 +885,17 @@ async def to_detail(db: AsyncSession, invoice: Invoice) -> InvoiceDetail:
             for line in invoice.lines
         ],
         subtotal=invoice.subtotal,
+        taxes=[
+            InvoiceTaxOut(
+                label=tax.label,
+                base_mode=tax.base_mode,
+                rate=tax.rate,
+                amount=tax.amount,
+                amount_set_by_hand=tax.amount_set_by_hand,
+                base_amount=tax.base_amount,
+            )
+            for tax in invoice.taxes
+        ],
         total=invoice.total,
         created_at=invoice.created_at,
         updated_at=invoice.updated_at,
@@ -705,9 +932,10 @@ async def list_invoices(
     sort_dir: str | None = None,
     project_id: uuid.UUID | None = None,
     statuses: list[InvoiceStatus] | None = None,
-) -> tuple[list[tuple[Invoice, str, int | None]], int]:
-    """(invoice, project name, currency minor unit) rows, newest first by default. Void
-    invoices are left out unless asked for: they are kept as evidence, not worked on."""
+) -> tuple[list[tuple[Invoice, str, int | None, str | None]], int]:
+    """(invoice, project name, currency minor unit, lines summary) rows, newest first by
+    default. Void invoices are left out unless asked for: they are kept as
+    evidence, not worked on."""
     sortable_columns = {
         "created_at": Invoice.created_at,
         "project": Project.name,
@@ -730,12 +958,31 @@ async def list_invoices(
     order = resolve_sort(
         sortable_columns, sort_by, sort_dir, default=Invoice.created_at.desc()
     )
+    if sort_by == "billed_for":
+        # Invoices without a period (Fixed Price) go last whichever way the period sorts.
+        order = order.nulls_last()
+    # Every line, so that no milestone billed on a Fixed Price invoice is hidden from the
+    # list; the client clips it to the column width.
+    lines_summary = (
+        select(
+            # string_agg(description, ', ' ORDER BY position): Postgres takes the ORDER BY
+            # after the last argument, the separator.
+            func.string_agg(
+                InvoiceLine.description,
+                aggregate_order_by(literal(", "), InvoiceLine.position),
+            )
+        )
+        .where(InvoiceLine.invoice_id == Invoice.id)
+        .correlate(Invoice)
+        .scalar_subquery()
+    )
     rows = (
         await db.execute(
             select(
                 Invoice,
                 Project.name,
                 func.coalesce(Invoice.currency_minor_unit, Currency.minor_unit),
+                lines_summary,
             )
             .join(Project, Invoice.project_id == Project.id)
             .outerjoin(Currency, Invoice.currency_code == Currency.alpha_code)
@@ -746,7 +993,7 @@ async def list_invoices(
             .limit(PAGE_SIZE)
         )
     ).all()
-    return [(row[0], row[1], row[2]) for row in rows], total
+    return [(row[0], row[1], row[2], row[3]) for row in rows], total
 
 
 # --- issuing and voiding ---------------------------------------------------------
@@ -838,7 +1085,11 @@ async def _locked(db: AsyncSession, invoice_id: uuid.UUID) -> Invoice | None:
     return (
         await db.execute(
             select(Invoice)
-            .options(selectinload(Invoice.lines), selectinload(Invoice.references))
+            .options(
+                selectinload(Invoice.lines),
+                selectinload(Invoice.references),
+                selectinload(Invoice.taxes),
+            )
             .where(Invoice.id == invoice_id)
             .with_for_update(of=Invoice)
         )
@@ -873,11 +1124,22 @@ async def issue(
         "document_name"
     ]
 
-    # The amounts one last time, at the decimals now frozen with them.
+    # The amounts one last time, at the decimals now frozen with them. The tax rows are
+    # updated in place: replacing them here would mean a delete and an insert mid-issue.
     for line in invoice.lines:
         line.amount = money_round(line.quantity * line.unit_price, minor)
     invoice.subtotal = sum((line.amount for line in invoice.lines), Decimal(0))
-    invoice.total = invoice.subtotal
+    computed = compute_taxes(
+        invoice.subtotal, [_tax_input(tax) for tax in invoice.taxes], minor
+    )
+    for tax, result in zip(invoice.taxes, computed, strict=True):
+        tax.base_mode = result.base_mode
+        tax.rate = result.rate
+        tax.amount = result.amount
+        tax.base_amount = result.base_amount
+    invoice.total = invoice.subtotal + sum(
+        (result.amount for result in computed), Decimal(0)
+    )
     invoice.due_date = due_date
     invoice.number = number
     invoice.invoice_date = today

@@ -27,6 +27,43 @@ describe("formWarnings", () => {
   });
 });
 
+describe("tax warnings", () => {
+  const base = { quantities: [], payeeCurrency: "EUR", invoiceCurrency: "EUR" };
+
+  it("flags a hand-set amount whose rate cannot be worked out", () => {
+    expect(
+      codes(
+        formWarnings({
+          ...base,
+          subtotal: "0.00",
+          taxes: [{ amount_set_by_hand: true, rate: null, amount: "10.00" }],
+        }),
+      ),
+    ).toEqual(["tax_rate_not_derivable"]);
+    expect(
+      formWarnings({
+        ...base,
+        subtotal: "100.00",
+        taxes: [{ amount_set_by_hand: true, rate: "10.000", amount: "10.00" }],
+      }),
+    ).toEqual([]);
+  });
+
+  it("flags a negative subtotal, not a zero one", () => {
+    expect(codes(formWarnings({ ...base, subtotal: "-500.00" }))).toEqual([
+      "negative_subtotal",
+    ]);
+    expect(formWarnings({ ...base, subtotal: "0.00" })).toEqual([]);
+  });
+
+  it("lets the live values replace the server's tax warnings", () => {
+    const server: InvoiceWarning[] = [
+      { code: "negative_subtotal", service_lines: [], companies: [] },
+    ];
+    expect(combineWarnings([], server)).toEqual([]);
+  });
+});
+
 describe("combineWarnings", () => {
   it("keeps the server's own warnings and replaces the form ones with live values", () => {
     const server: InvoiceWarning[] = [

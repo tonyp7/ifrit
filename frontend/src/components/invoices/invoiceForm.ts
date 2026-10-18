@@ -8,6 +8,7 @@ import {
   type InvoiceReferenceRow,
 } from "@/lib/invoiceReferences";
 import { PERIOD_PRESETS, type PeriodPreset } from "@/lib/invoicePeriods";
+import { milestoneDecimals, roundDecimal } from "@/lib/milestoneMath";
 import {
   BLANK_ADDRESS_FIELDS,
   compactIban,
@@ -22,6 +23,7 @@ import {
   type InvoiceDetail,
   type InvoiceInput,
   type PaymentTerms,
+  type TaxBaseMode,
 } from "@/types/invoice";
 import { REFERENCE_KIND_LABELS, type ReferenceKind, type Uom } from "@/types/project";
 
@@ -32,6 +34,18 @@ export interface InvoiceLineFormValues {
   quantity: string;
   uom: Uom;
   unit_price: string;
+}
+
+export interface InvoiceTaxFormValues {
+  /** Stable row identity for drag and drop and React keys; never sent. */
+  key: string;
+  label: string;
+  base_mode: TaxBaseMode;
+  /** The rate as typed; what counts while the amount is not set by hand. */
+  rate: string;
+  /** The amount as typed; what counts once it is set by hand. */
+  amount: string;
+  amount_set_by_hand: boolean;
 }
 
 export interface InvoiceFormValues {
@@ -48,6 +62,7 @@ export interface InvoiceFormValues {
   payee: PayeeAccountFormValues | null;
   references: InvoiceReferenceRow[];
   lines: InvoiceLineFormValues[];
+  taxes: InvoiceTaxFormValues[];
 }
 
 let nextKey = 0;
@@ -71,15 +86,29 @@ export const BLANK_INVOICE_FORM: InvoiceFormValues = {
   payee: null,
   references: [],
   lines: [],
+  taxes: [],
 };
 
 export function blankLine(): InvoiceLineFormValues {
   return { key: newLineKey(), description: "", quantity: "", uom: "hours", unit_price: "" };
 }
 
+export function blankTax(): InvoiceTaxFormValues {
+  return {
+    key: newLineKey(),
+    label: "",
+    base_mode: "subtotal",
+    rate: "",
+    amount: "",
+    amount_set_by_hand: false,
+  };
+}
+
 // Free text while typing, checked on save: the same limits as the API's.
 const QUANTITY = /^\d{1,7}(\.\d{1,5})?$/;
 const UNIT_PRICE = /^-?\d{1,10}(\.\d{1,4})?$/;
+const TAX_RATE = /^\d{1,3}(\.\d{1,3})?$/;
+const TAX_AMOUNT = /^-?\d{1,18}(\.\d{1,4})?$/;
 
 type Translate = (key: string) => string;
 
@@ -165,6 +194,22 @@ export function invoiceSchema(t: Translate) {
           }),
         )
         .max(200, t("An invoice has at most 200 lines")),
+      taxes: z
+        .array(
+          z.object({
+            key: z.string(),
+            label: z
+              .string()
+              .trim()
+              .min(1, t("A tax name is required"))
+              .max(100, t("At most 100 characters")),
+            base_mode: z.enum(["subtotal", "cumulative"]),
+            rate: z.string(),
+            amount: z.string(),
+            amount_set_by_hand: z.boolean(),
+          }),
+        )
+        .max(20, t("An invoice has at most 20 taxes")),
     })
     .superRefine((data, ctx) => {
       for (const side of ["bill_from", "bill_to"] as const) {
@@ -195,6 +240,24 @@ export function invoiceSchema(t: Translate) {
           });
         }
       }
+      // Only the value typed counts, so only that one is checked.
+      data.taxes.forEach((row, index) => {
+        if (row.amount_set_by_hand) {
+          if (!TAX_AMOUNT.test(row.amount.trim())) {
+            ctx.addIssue({
+              code: "custom",
+              path: ["taxes", index, "amount"],
+              message: t("A number with up to 4 decimals"),
+            });
+          }
+        } else if (!TAX_RATE.test(row.rate.trim()) || Number(row.rate) > 100) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["taxes", index, "rate"],
+            message: t("0 to 100, with up to 3 decimals"),
+          });
+        }
+      });
       data.references.forEach((row, index) => {
         if (!row.value.trim()) {
           ctx.addIssue({
@@ -238,6 +301,13 @@ export function toInvoiceInput(values: InvoiceFormValues): InvoiceInput {
       uom: line.uom,
       unit_price: line.unit_price.trim(),
     })),
+    taxes: values.taxes.map((tax) => ({
+      label: tax.label.trim(),
+      base_mode: tax.base_mode,
+      rate: tax.amount_set_by_hand ? null : tax.rate.trim(),
+      amount: tax.amount_set_by_hand ? tax.amount.trim() : null,
+      amount_set_by_hand: tax.amount_set_by_hand,
+    })),
   };
 }
 
@@ -265,6 +335,18 @@ export function fromInvoiceDetail(detail: InvoiceDetail): InvoiceFormValues {
       quantity: trimZeros(line.quantity),
       uom: line.uom,
       unit_price: trimZeros(line.unit_price),
+    })),
+    // Each row keeps only the value that was typed; the other is worked out again live.
+    taxes: detail.taxes.map((tax) => ({
+      key: newLineKey(),
+      label: tax.label,
+      base_mode: tax.base_mode,
+      rate: !tax.amount_set_by_hand && tax.rate !== null ? trimZeros(tax.rate) : "",
+      amount: tax.amount_set_by_hand
+        ? (roundDecimal(tax.amount, milestoneDecimals(detail.currency_minor_unit)) ??
+          tax.amount)
+        : "",
+      amount_set_by_hand: tax.amount_set_by_hand,
     })),
   };
 }

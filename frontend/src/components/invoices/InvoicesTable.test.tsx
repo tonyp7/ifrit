@@ -35,6 +35,7 @@ const draft: InvoiceListItem = {
   number: null,
   invoice_date: null,
   issued_at: null,
+  lines_summary: "Senior developer — September 2026",
 };
 
 const issued: InvoiceListItem = {
@@ -93,6 +94,21 @@ describe("InvoicesTableView", () => {
     expect(html).toContain("Draft");
     expect(html).toContain((19037.5).toLocaleString(undefined, { minimumFractionDigits: 2 }));
     expect(html).toMatch(/text-muted-foreground"[^>]*>Net 30</);
+  });
+
+  it("shows every line, clipped, when there is no period", () => {
+    const fixedPrice = {
+      ...draft,
+      period_start: null,
+      period_end: null,
+      lines_summary: "Downpayment, End of SIT",
+    };
+    const empty = { ...fixedPrice, id: "i3", lines_summary: null };
+    const html = render([fixedPrice, empty]);
+    expect(html).toMatch(/<span class="[^"]*truncate[^"]*">Downpayment, End of SIT<\/span>/);
+    expect(html).not.toContain('title="Downpayment');
+    expect(html).not.toContain("Senior developer — September 2026");
+    expect(html).toContain("—");
   });
 
   it("shows a fixed due date as a date", () => {

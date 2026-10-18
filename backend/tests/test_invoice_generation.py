@@ -1,10 +1,12 @@
 from datetime import date
 from decimal import Decimal
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 
+from app.models.invoice import Invoice
 from app.models.time_entry import TimeEntry
 from tests.invoice_helpers import (
+    add_milestone,
     add_service_line,
     log_hours,
     login,
@@ -18,6 +20,7 @@ SEPTEMBER = {"period_start": "2026-09-01", "period_end": "2026-09-30"}
 
 def _body(project, *lines, **overrides) -> dict[str, object]:
     return {
+        "kind": "time",
         "project_id": str(project.id),
         "service_line_ids": [str(line.id) for line in lines],
         **SEPTEMBER,
@@ -193,3 +196,117 @@ async def test_generation_requires_billing(client, db_session) -> None:
     line = await add_service_line(db_session, project)
 
     assert (await client.post(URL, json=_body(project, line))).status_code == 403
+
+
+# --- Fixed Price -----------------------------------------------------------------
+
+
+def _milestone_body(project, *milestones) -> dict[str, object]:
+    return {
+        "kind": "milestone",
+        "project_id": str(project.id),
+        "milestone_ids": [str(milestone.id) for milestone in milestones],
+    }
+
+
+async def _invoice_count(db_session) -> int:
+    return (await db_session.execute(select(func.count(Invoice.id)))).scalar_one()
+
+
+async def test_milestone_line(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session, project_type="fixed_price")
+    milestone = await add_milestone(
+        db_session, project, "Phase 2 – Delivery of beta", "12000"
+    )
+
+    response = await client.post(URL, json=_milestone_body(project, milestone))
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert len(body["lines"]) == 1
+    line = body["lines"][0]
+    assert line["name"] == "Phase 2 – Delivery of beta"
+    assert (Decimal(line["quantity"]), line["uom"]) == (1, "ea")
+    assert Decimal(line["unit_price"]) == Decimal(12000)
+    assert body["omitted"] == [] and body["warnings"] == []
+    assert await _invoice_count(db_session) == 0
+
+
+async def test_several_milestones_come_out_in_milestone_order(
+    client, db_session
+) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session, project_type="fixed_price")
+    down = await add_milestone(db_session, project, "Downpayment", "57600", position=0)
+    await add_milestone(db_session, project, "End of SIT", "38400", position=1)
+    end = await add_milestone(db_session, project, "Project end", "57600", position=2)
+
+    # Ticked last first, and the first one twice.
+    response = await client.post(URL, json=_milestone_body(project, end, down, down))
+
+    assert response.status_code == 200, response.text
+    lines = response.json()["lines"]
+    assert [(line["name"], Decimal(line["unit_price"])) for line in lines] == [
+        ("Downpayment", 57600),
+        ("Project end", 57600),
+    ]
+    assert all((Decimal(line["quantity"]), line["uom"]) == (1, "ea") for line in lines)
+    assert await _invoice_count(db_session) == 0
+
+
+async def test_milestone_and_project_type_must_match(client, db_session) -> None:
+    await login(client, db_session)
+    fixed = await make_project(db_session, project_type="fixed_price")
+    other = await make_project(db_session, name="Other", project_type="fixed_price")
+    tm = await make_project(db_session, name="T&M")
+    mine = await add_milestone(db_session, fixed, "Phase 1", "100")
+    foreign = await add_milestone(db_session, other, "Elsewhere", "100")
+    tm_line = await add_service_line(db_session, tm)
+    fixed_line = await add_service_line(db_session, fixed)
+
+    foreign_among_mine = _milestone_body(fixed, mine, foreign)
+    no_milestone = _milestone_body(fixed)
+    milestone_on_tm = {**_milestone_body(fixed, mine), "project_id": str(tm.id)}
+    time_on_fixed = _body(fixed, fixed_line)
+    for body in (foreign_among_mine, no_milestone, milestone_on_tm, time_on_fixed):
+        assert (await client.post(URL, json=body)).status_code == 422
+    # The time kind still works on a T&M project.
+    assert (await client.post(URL, json=_body(tm, tm_line))).status_code == 200
+    assert await _invoice_count(db_session) == 0
+
+
+async def test_a_milestone_line_outlives_its_milestone(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session, project_type="fixed_price")
+    milestone = await add_milestone(db_session, project, "Phase 2", "12000")
+    generated = (
+        await client.post(URL, json=_milestone_body(project, milestone))
+    ).json()["lines"][0]
+    line = {
+        "description": generated["name"],
+        "quantity": generated["quantity"],
+        "uom": generated["uom"],
+        "unit_price": generated["unit_price"],
+    }
+    draft_body = {
+        "project_id": str(project.id),
+        "bill_from": {"name": "Ifrit"},
+        "bill_to": {"name": "ACME"},
+        "lines": [line],
+    }
+    draft = (await client.post("/api/invoices", json=draft_body)).json()
+    issued = (await client.post("/api/invoices", json=draft_body)).json()
+    assert (await client.post(f"/api/invoices/{issued['id']}/issue")).status_code == 200
+
+    milestone.value = Decimal(13000)
+    await db_session.commit()
+    after_edit = (await client.get(f"/api/invoices/{draft['id']}")).json()
+    await db_session.delete(milestone)
+    await db_session.commit()
+    after_delete = (await client.get(f"/api/invoices/{issued['id']}")).json()
+
+    assert Decimal(after_edit["lines"][0]["unit_price"]) == Decimal(12000)
+    assert Decimal(after_edit["total"]) == Decimal(12000)
+    assert after_delete["lines"][0]["description"] == "Phase 2"
+    assert Decimal(after_delete["total"]) == Decimal(12000)

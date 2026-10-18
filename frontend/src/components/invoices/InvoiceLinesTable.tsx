@@ -56,7 +56,7 @@ interface InvoiceLinesTableProps {
 }
 
 /**
- * The editable line items with their totals. Rows are reordered by drag and drop, and the
+ * The editable line items and their subtotal (the taxes and the total follow, below). Rows are reordered by drag and drop, and the
  * new order is part of the draft's unsaved edits: it is saved with the draft, not on drop.
  */
 export function InvoiceLinesTable({
@@ -284,10 +284,6 @@ export function InvoiceLinesTable({
         <dl className="grid grid-cols-[auto_auto] gap-x-6 gap-y-1 text-sm">
           <dt>{t("Subtotal")}</dt>
           <dd className="text-right tabular-nums" data-testid="subtotal">
-            {money(total)}
-          </dd>
-          <dt className="font-medium">{t("Total")}</dt>
-          <dd className="text-right font-medium tabular-nums" data-testid="total">
             {money(total)}
           </dd>
         </dl>

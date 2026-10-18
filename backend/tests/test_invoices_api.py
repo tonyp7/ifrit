@@ -12,6 +12,7 @@ from app.models.project import Project, ProjectReference
 from app.services.invoice_service import money_round
 from tests.factories import create_company
 from tests.invoice_helpers import (
+    add_milestone,
     add_service_line,
     ensure_currency,
     log_hours,
@@ -129,7 +130,7 @@ async def test_picker_lists_only_invoiceable_projects(client, db_session) -> Non
     await db_session.commit()
 
     names = [p["name"] for p in (await client.get(f"{URL}/projects")).json()]
-    assert names == ["Active capped", "Active T&M"]
+    assert names == ["Active capped", "Active fixed", "Active T&M"]
     searched = (await client.get(f"{URL}/projects", params={"search": "capp"})).json()
     assert [p["name"] for p in searched] == ["Active capped"]
 
@@ -196,6 +197,25 @@ async def test_billing_context(client, db_session) -> None:
         {"kind": "purchase_order", "label": None, "value": "PO-1"}
     ]
     assert body["currency_minor_unit"] == 2
+    assert body["milestones"] == []
+
+
+async def test_billing_context_lists_fixed_price_milestones_in_order(
+    client, db_session
+) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session, project_type="fixed_price")
+    await add_milestone(db_session, project, "Phase 2", "12000", position=1)
+    await add_milestone(
+        db_session, project, "Phase 1", "10000", position=0, due_date=date(2026, 11, 1)
+    )
+
+    body = (await client.get(f"{URL}/projects/{project.id}")).json()
+
+    assert [
+        (m["description"], m["due_date"], Decimal(m["value"]))
+        for m in body["milestones"]
+    ] == [("Phase 1", "2026-11-01", 10000), ("Phase 2", None, 12000)]
 
 
 async def test_billing_context_of_a_deleted_project_is_404(client, db_session) -> None:
@@ -231,7 +251,7 @@ async def test_create_a_draft(client, db_session) -> None:
     [
         ("closed", "time_and_material"),
         ("draft", "time_and_material"),
-        ("active", "fixed_price"),
+        ("closed", "fixed_price"),
     ],
 )
 async def test_create_for_a_non_invoiceable_project_is_409(
@@ -560,6 +580,20 @@ async def test_duplicate_copies_everything_in_order(client, db_session) -> None:
     await _stored_totals_match(db_session, copy["id"])
 
 
+async def test_a_fixed_price_draft_stores_no_period(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session, project_type="fixed_price")
+
+    created = await _create(client, project)
+    patched = await client.patch(f"{URL}/{created['id']}", json=_body(project))
+
+    assert (created["period_start"], created["period_end"]) == (None, None)
+    assert patched.json()["period_start"] is None
+    # A T&M draft keeps the period it is given.
+    tm = await _create(client, await make_project(db_session, name="T&M"))
+    assert tm["period_start"] == "2026-09-01"
+
+
 # --- list ------------------------------------------------------------------------
 
 
@@ -610,6 +644,37 @@ async def test_list_filters_by_project(client, db_session) -> None:
 
     assert [item["id"] for item in body["items"]] == [kept["id"]]
     assert body["items"][0]["project_name"] == "Other"
+
+
+async def test_billed_for_falls_back_to_every_line(client, db_session) -> None:
+    await login(client, db_session)
+    tm = await _create(client, await make_project(db_session))
+    project = await make_project(db_session, name="Fixed", project_type="fixed_price")
+    line = {"quantity": "1", "uom": "ea", "unit_price": "12000"}
+    fixed = await _create(
+        client,
+        project,
+        lines=[
+            {"description": "Phase 2 – Delivery of beta", **line},
+            {"description": "Travel", **line},
+        ],
+    )
+    empty = await _create(client, project, lines=[])
+
+    items = {i["id"]: i for i in (await client.get(URL)).json()["items"]}
+
+    assert items[fixed["id"]]["period_start"] is None
+    assert items[fixed["id"]]["lines_summary"] == "Phase 2 – Delivery of beta, Travel"
+    assert items[empty["id"]]["lines_summary"] is None
+    assert items[tm["id"]]["period_start"] == "2026-09-01"
+    for direction in ("asc", "desc"):
+        ordered = (
+            await client.get(
+                URL, params={"sort_by": "billed_for", "sort_dir": direction}
+            )
+        ).json()["items"]
+        # Invoices without a period come last both ways.
+        assert ordered[0]["id"] == tm["id"]
 
 
 async def test_list_paginates(client, db_session) -> None:

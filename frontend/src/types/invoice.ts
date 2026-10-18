@@ -80,13 +80,37 @@ export interface InvoiceLine {
   amount: string;
 }
 
+export type TaxBaseMode = "subtotal" | "cumulative";
+
+export interface InvoiceTax {
+  label: string;
+  base_mode: TaxBaseMode;
+  /** Null when it cannot be worked back from a hand-set amount (a zero base). */
+  rate: string | null;
+  amount: string;
+  amount_set_by_hand: boolean;
+  /** What the row was charged on, as stored by the server. */
+  base_amount: string;
+}
+
+/** Only the value typed counts: `rate` for a rate-driven row, `amount` for a hand-set one. */
+export interface InvoiceTaxInput {
+  label: string;
+  base_mode: TaxBaseMode;
+  rate: string | null;
+  amount: string | null;
+  amount_set_by_hand: boolean;
+}
+
 export type InvoiceWarningCode =
   | "unlocked_hours"
   | "zero_quantity"
   | "no_payee_account"
   | "payee_currency"
   | "inactive_company"
-  | "due_before_invoice_date";
+  | "due_before_invoice_date"
+  | "tax_rate_not_derivable"
+  | "negative_subtotal";
 
 export interface UnlockedServiceLine {
   name: string | null;
@@ -118,6 +142,7 @@ export interface InvoiceDetail {
   references: InvoiceReference[];
   lines: InvoiceLine[];
   subtotal: string;
+  taxes: InvoiceTax[];
   total: string;
   created_at: string;
   updated_at: string;
@@ -161,6 +186,7 @@ export interface InvoiceInput {
   payee: InvoicePayee | null;
   references: InvoiceReference[];
   lines: InvoiceLineInput[];
+  taxes: InvoiceTaxInput[];
 }
 
 export interface InvoiceListItem {
@@ -180,6 +206,9 @@ export interface InvoiceListItem {
   number: string | null;
   invoice_date: string | null;
   issued_at: string | null;
+  /** What Billed for shows when there is no period (a Fixed Price invoice): every line's
+   * description in order, joined with ", ". Null when the invoice has no line. */
+  lines_summary: string | null;
 }
 
 export interface InvoiceListResponse {
@@ -223,6 +252,13 @@ export interface ContextServiceLine {
   unit_price: string;
 }
 
+export interface ContextMilestone {
+  id: string;
+  description: string;
+  due_date: string | null;
+  value: string;
+}
+
 /** What the invoice form knows about a project, read through the invoice API. */
 export interface BillingContext {
   id: string;
@@ -236,15 +272,22 @@ export interface BillingContext {
   client: ContextCompany | null;
   payee_accounts: ContextPayeeAccount[];
   service_lines: ContextServiceLine[];
+  /** In their order; empty unless the project is Fixed Price. */
+  milestones: ContextMilestone[];
   references: InvoiceReference[];
 }
 
-export interface GenerateInput {
-  project_id: string;
-  service_line_ids: string[];
-  period_start: string;
-  period_end: string;
-}
+/** Lines from the hours logged on service lines (T&M and Capped T&M) or one per milestone
+ * (Fixed Price). */
+export type GenerateInput =
+  | {
+      kind: "time";
+      project_id: string;
+      service_line_ids: string[];
+      period_start: string;
+      period_end: string;
+    }
+  | { kind: "milestone"; project_id: string; milestone_ids: string[] };
 
 export interface GeneratedLine {
   name: string | null;

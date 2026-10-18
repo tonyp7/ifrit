@@ -10,7 +10,7 @@ from app.models.file import (
     SettingFile,
     StoredFile,
 )
-from app.models.invoice import Invoice, InvoiceLine, InvoiceReference
+from app.models.invoice import Invoice, InvoiceLine, InvoiceReference, InvoiceTax
 from app.models.invoice_numbering import InvoiceNumberCounter, InvoiceNumberingFormat
 from app.models.project import BillingMilestone, Project, ServiceLine
 from app.models.time_entry import TimeEntry
@@ -31,6 +31,7 @@ __all__ = [
     "InvoiceNumberCounter",
     "InvoiceNumberingFormat",
     "InvoiceReference",
+    "InvoiceTax",
     "PartyIdentifier",
     "PayeeAccount",
     "Project",

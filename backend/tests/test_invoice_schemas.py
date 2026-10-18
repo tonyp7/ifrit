@@ -7,7 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.schemas.invoice import (
-    GenerateRequest,
+    GenerateTimeRequest,
     InvoiceLineWrite,
     InvoicePayeeWrite,
     InvoiceWrite,
@@ -161,21 +161,24 @@ def test_period_rules() -> None:
 def test_generate_period_is_at_most_366_days() -> None:
     ids = [uuid.uuid4()]
     project = uuid.uuid4()
-    GenerateRequest(
+    GenerateTimeRequest(
+        kind="time",
         project_id=project,
         service_line_ids=ids,
         period_start=date(2024, 1, 1),
         period_end=date(2024, 12, 31),  # a leap year: 366 days
     )
     with pytest.raises(ValidationError):
-        GenerateRequest(
+        GenerateTimeRequest(
+            kind="time",
             project_id=project,
             service_line_ids=ids,
             period_start=date(2025, 1, 1),
             period_end=date(2026, 1, 2),
         )
     with pytest.raises(ValidationError):
-        GenerateRequest(
+        GenerateTimeRequest(
+            kind="time",
             project_id=project,
             service_line_ids=ids,
             period_start=date(2026, 2, 1),

@@ -4,12 +4,15 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import { InvoiceLinesTable } from "@/components/invoices/InvoiceLinesTable";
+import { InvoiceTaxesTable } from "@/components/invoices/InvoiceTaxesTable";
 import { InvoiceReferencesFields } from "@/components/invoices/InvoiceReferencesFields";
 import { InvoiceWarnings } from "@/components/invoices/InvoiceWarnings";
+import { MilestoneBillingPanel } from "@/components/invoices/MilestoneBillingPanel";
 import {
   BLANK_INVOICE_FORM,
   type InvoiceFormValues,
   type InvoiceLineFormValues,
+  type InvoiceTaxFormValues,
 } from "@/components/invoices/invoiceForm";
 import { PartyFields } from "@/components/invoices/PartyFields";
 import { PayeeAccountFields } from "@/components/invoices/PayeeAccountFields";
@@ -17,7 +20,8 @@ import { PaymentTermsField } from "@/components/invoices/PaymentTermsField";
 import { TmBillingPanel } from "@/components/invoices/TmBillingPanel";
 import { formatDueDate } from "@/lib/billingMilestones";
 import { BLANK_PAYEE_ACCOUNT_VALUES } from "@/lib/payeeAccounts";
-import type { ContextAddress, ContextCompany } from "@/types/invoice";
+import { formatMoney } from "@/lib/format";
+import type { ContextAddress, ContextCompany, ContextMilestone } from "@/types/invoice";
 
 vi.mock("@/api/currencies", () => ({ listCurrencies: vi.fn(() => new Promise(() => {})) }));
 
@@ -239,5 +243,159 @@ describe("InvoiceWarnings", () => {
     expect(
       renderToStaticMarkup(<InvoiceWarnings minorUnit={2} omitted={[]} warnings={[]} />),
     ).toBe("");
+  });
+});
+
+describe("MilestoneBillingPanel", () => {
+  const milestones: ContextMilestone[] = [
+    { id: "m1", description: "Phase 1", due_date: "2026-11-01", value: "10000.0000" },
+    { id: "m2", description: "Phase 2", due_date: null, value: "12000.0000" },
+  ];
+
+  function render(list: ContextMilestone[], selected: string[]) {
+    return renderToStaticMarkup(
+      <MilestoneBillingPanel
+        milestones={list}
+        selected={selected}
+        onSelectedChange={vi.fn()}
+        currencyCode="EUR"
+        minorUnit={2}
+      />,
+    );
+  }
+
+  it("lists every milestone in order with its value, none ticked", () => {
+    const html = render(milestones, []);
+    const first = html.indexOf("Phase 1");
+    expect(first).toBeGreaterThan(-1);
+    expect(html.indexOf("Phase 2")).toBeGreaterThan(first);
+    expect(html).toContain(`${formatMoney("10000", 2)} EUR`);
+    expect(html).toContain(`${formatMoney("12000", 2)} EUR`);
+    expect(html).toContain(`Due ${formatDueDate("2026-11-01")}`);
+    expect(html).not.toContain('aria-checked="true"');
+    expect(html).not.toContain("Period");
+  });
+
+  it("ticks several milestones", () => {
+    const html = render(
+      [...milestones, { id: "m3", description: "Phase 3", due_date: null, value: "5000" }],
+      ["m3", "m1"],
+    );
+    const checked = (id: string) =>
+      new RegExp(`role="checkbox" aria-checked="(true|false)"[^>]*id="milestone_${id}"`).exec(
+        html,
+      )?.[1];
+    expect([checked("m1"), checked("m2"), checked("m3")]).toEqual(["true", "false", "true"]);
+  });
+
+  it("says milestones must be added first when there are none", () => {
+    const html = render([], []);
+    expect(html).toContain("A manager must add them on the project first.");
+    expect(html).not.toContain('role="checkbox"');
+  });
+});
+
+describe("InvoiceTaxesTable", () => {
+  // Lines adding up to 19,037.50, the worked example's subtotal.
+  const exampleLines: InvoiceLineFormValues[] = [
+    { key: "l1", description: "Dev", quantity: "152.5", uom: "hours", unit_price: "95" },
+    { key: "l2", description: "Arch", quantity: "40", uom: "hours", unit_price: "120" },
+    { key: "l3", description: "Discount", quantity: "1", uom: "ea", unit_price: "-250" },
+  ];
+  function tax(key: string, values: Partial<InvoiceTaxFormValues>): InvoiceTaxFormValues {
+    return {
+      key,
+      label: key,
+      base_mode: "subtotal",
+      rate: "",
+      amount: "",
+      amount_set_by_hand: false,
+      ...values,
+    };
+  }
+  const example = [
+    tax("GST", { rate: "5" }),
+    tax("QST", { base_mode: "cumulative", rate: "9.975" }),
+    tax("Eco levy", { amount: "100.00", amount_set_by_hand: true }),
+  ];
+  const render = (values: Partial<InvoiceFormValues>) =>
+    withForm(values, (form) => (
+      <InvoiceTaxesTable form={form} currencyCode="EUR" minorUnit={2} />
+    ));
+
+  it("computes the worked example, with Subtotal as text on the first row", () => {
+    const html = render({ lines: exampleLines, taxes: example });
+    expect(html).toContain(`on ${formatMoney("19037.50", 2)}`);
+    expect(html).toContain(`on ${formatMoney("19989.38", 2)}`);
+    expect(html).toContain('value="951.88"');
+    expect(html).toContain('value="1993.94"');
+    expect(html).toContain(`Total (EUR)`);
+    expect(html).toContain(formatMoney("22083.32", 2));
+    // One Applies to dropdown each for the second and third rows, plain text on the first.
+    expect(html.match(/aria-label="Applies to"/g)).toHaveLength(2);
+    expect(html).toMatch(/<p class="[^"]*">Subtotal<\/p>/);
+    expect(html.match(/aria-label="Drag to reorder /g)).toHaveLength(3);
+  });
+
+  it("marks a hand-set amount and shows the rate it works out to", () => {
+    const html = render({ lines: exampleLines, taxes: example });
+    expect(html).toContain("≈ 0.525 %");
+    expect(html).toContain("Set by hand");
+    expect(html).toContain('aria-label="Calculate from the rate again"');
+  });
+
+  it("shows — for a hand-set amount on a zero base", () => {
+    const html = render({
+      lines: [],
+      taxes: [tax("Levy", { amount: "10.00", amount_set_by_hand: true })],
+    });
+    expect(html).toMatch(/data-testid="derived-rate"[^>]*>—</);
+    expect(html).not.toContain("Drag to reorder");
+  });
+
+  it("shows the stored rows read-only on an issued invoice", () => {
+    const html = withForm({ lines: exampleLines, taxes: example }, (form) => (
+      <InvoiceTaxesTable
+        form={form}
+        currencyCode="EUR"
+        minorUnit={2}
+        disabled
+        stored={{
+          total: "22083.3200",
+          taxes: [
+            {
+              label: "GST",
+              base_mode: "subtotal",
+              rate: "5.000",
+              amount: "951.8800",
+              amount_set_by_hand: false,
+              base_amount: "19037.5000",
+            },
+            {
+              label: "Eco levy",
+              base_mode: "subtotal",
+              rate: "0.525",
+              amount: "100.0000",
+              amount_set_by_hand: true,
+              base_amount: "19037.5000",
+            },
+          ],
+        }}
+      />
+    ));
+    expect(html).toContain("5 %");
+    expect(html).toContain("≈ 0.525 %");
+    expect(html).toContain(formatMoney("22083.32", 2));
+    expect(html).not.toContain("<input");
+    expect(html).not.toContain("Add tax");
+    expect(html).not.toContain("Drag to reorder");
+    expect(html).not.toContain("Delete tax");
+  });
+
+  it("offers + Add tax and the total with no rows", () => {
+    const html = render({ lines: exampleLines, taxes: [] });
+    expect(html).toContain("Add tax");
+    expect(html).toContain(formatMoney("19037.50", 2));
+    expect(html).not.toContain("<table");
   });
 });

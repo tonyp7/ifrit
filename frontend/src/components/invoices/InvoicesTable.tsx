@@ -72,11 +72,16 @@ const STATUS_BADGE_VARIANT: Record<InvoiceListItem["status"], BadgeProps["varian
 };
 
 /** "1–30 Sep 2026" for an invoice with a period, a dash otherwise. */
+/** The period billed, or for an invoice without one (Fixed Price), its lines, which are the
+ * milestones' descriptions when they were generated. A long list is clipped to the column. */
 export function BilledForCell({ invoice }: { invoice: InvoiceListItem }) {
-  if (!invoice.period_start || !invoice.period_end) return <>—</>;
-  return (
-    <>{formatPeriod(parseDayKey(invoice.period_start), parseDayKey(invoice.period_end))}</>
-  );
+  if (invoice.period_start && invoice.period_end) {
+    return (
+      <>{formatPeriod(parseDayKey(invoice.period_start), parseDayKey(invoice.period_end))}</>
+    );
+  }
+  if (!invoice.lines_summary) return <>—</>;
+  return <span className="block max-w-64 truncate">{invoice.lines_summary}</span>;
 }
 
 /**

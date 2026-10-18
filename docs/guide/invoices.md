@@ -1,12 +1,15 @@
 # Invoices
 
-Users with the **billing** role turn a project's logged hours into invoices. Invoices are listed
+Users with the **billing** role turn a project's logged hours, or its billing milestones, into
+invoices. Invoices are listed
 under the **Invoices** icon in the navigation bar. An invoice starts as a **draft**, which can be
 prepared, saved, duplicated and deleted. **Issuing** gives it a number and freezes it; an issued
 invoice that turns out wrong is **voided**, never deleted.
 
-Invoices can be started for **Active** projects of type **Time & Material** or **Capped T&M**.
-Capped T&M is invoiced exactly like Time & Material: the cap is not checked.
+Invoices can be started for **Active** projects of type **Time & Material**, **Capped T&M** or
+**Fixed Price**. Capped T&M is invoiced exactly like Time & Material: the cap is not checked. Fixed
+Price projects bill their milestones instead of hours (see
+[Invoicing a Fixed Price project](#invoicing-a-fixed-price-project)).
 
 ## The list
 
@@ -18,7 +21,7 @@ The list shows the invoices, newest first, 50 per page. Void invoices are hidden
 | Number | The invoice number; empty for a draft |
 | Project | The project the invoice is for |
 | Client | The Bill To name on the invoice |
-| Billed for | The period whose hours were billed, for example `1–30 Sep 2026` |
+| Billed for | The period whose hours were billed, for example `1–30 Sep 2026`. A Fixed Price invoice has no period and lists its lines instead, usually the milestones billed, cut off when they do not fit |
 | Status | Draft, Issued or Void |
 | Total | In the invoice currency |
 | Created | When the draft was created |
@@ -32,7 +35,7 @@ open the invoice. The row menu offers **Open**, **Duplicate** and, for a draft, 
 
 Choose **+ New**. The form has five steps.
 
-1. **Project.** Pick an Active Time & Material or Capped T&M project. Its currency and type are
+1. **Project.** Pick an Active Time & Material, Capped T&M or Fixed Price project. Its currency and type are
    shown next to it; the invoice is always in the project's currency. Changing the project of an
    invoice that already has lines asks first, because the lines are cleared.
 2. **Parties.** **Bill From** is filled in from the project's vendor and **Bill To** from its
@@ -49,12 +52,14 @@ Choose **+ New**. The form has five steps.
      the one this invoice is for. You can edit, remove and add references without changing the
      project.
    - **Payment terms**: pick a preset, a fixed date, or neither (see below).
-3. **What to bill.** Tick the service lines to bill (all of them by default) and choose the period:
+3. **What to bill.** For a Fixed Price project, tick the milestones to bill (see below). Otherwise, tick the
+   service lines to bill (all of them by default) and choose the period:
    **This month**, **Last month** (the default), **This week**, **Last week**, or any range in the
    calendar. Weeks run Monday to Sunday, like the timesheet.
 4. **Generate.** **Generate line items** builds the lines from the hours logged in the period.
    Generating again replaces the lines, after asking.
-5. **Line items.** Edit the lines, add more, and save with **Save draft**.
+5. **Line items.** Edit the lines, add more, add taxes under the subtotal (see
+   [Taxes](#taxes)), and save with **Save draft**.
 
 ## How lines are generated
 
@@ -72,6 +77,27 @@ Lines with no hours in the period are left out, and a note says which. Generatin
 unlocks any hours. A generated line is a plain line: editing or removing the service line later
 does not change the invoice.
 
+## Invoicing a Fixed Price project
+
+A Fixed Price project is billed by its **billing milestones**, which a manager sets up on the
+project. In step 3, **What to bill** lists every milestone in order, with its due date and value;
+there is no period. Tick one or more (none are ticked to start with), then **Generate line
+items**. The invoice gets one line per ticked milestone, in the project's milestone order whatever
+order you ticked them in:
+
+- **Description**: the milestone's description, for example `Phase 2 – Delivery of beta`.
+- **Quantity**: 1, unit **Each**.
+- **Unit price**: the milestone's value.
+
+Billing several milestones together, a down payment with the first phase for example, is one
+invoice. Milestones have no "invoiced" status, so every milestone stays in the list after it has
+been invoiced, and nothing warns you about billing the same one twice: check the **Billed for**
+column of the project's invoices, which lists each invoice's lines. When the project has no
+milestones, the panel says so and a manager must add them first.
+
+The lines are copies: changing or deleting a milestone afterwards does not change the invoice. You
+can edit the lines, or add more, like any other.
+
 ## Editing lines
 
 - Change the description, quantity, unit or unit price directly in the table. A quantity can have
@@ -83,7 +109,42 @@ does not change the invoice.
   again). The new order is saved with the draft.
 
 Each line's amount is its quantity times its unit price, rounded to the currency's decimals. The
-**Subtotal** and **Total** follow every change.
+**Subtotal**, the taxes and the **Total** follow every change.
+
+## Taxes
+
+Taxes are charged on the whole invoice, after the subtotal; there is no tax per line. Add them
+with **+ Add tax** under the subtotal, up to 20. **Total = Subtotal + every tax amount.**
+
+Each tax row has:
+
+- **Tax**: its name. Pick **GST**, **VAT**, **Sales Tax**, **Standard-Rate**, **Zero-Rate** or
+  **Tax-Exempt**, or type any name, such as `Eco levy`. Zero-Rate and Tax-Exempt set the rate to
+  0 %; the other names leave the rate for you to fill in, since rates differ from one country to
+  the next.
+- **Applies to**: **Subtotal**, or **Subtotal + taxes above** for a tax charged on top of the
+  taxes before it (a compounding tax, as with some provincial taxes). The first row always applies
+  to the subtotal. The amount the row is charged on is shown under it, for example
+  `on 19,989.38`.
+- **Rate**: a percentage from 0 to 100, with up to 3 decimals (`9.975`).
+- **Amount**: worked out from the rate, rounded to the currency's decimals.
+
+You can type the **amount** instead of the rate. The rate is then worked back from it and shown as
+`≈ 0.525 %`, and the amount is marked **Set by hand**. When the lines change, a hand-set amount
+stays as typed and its rate follows, while every other row recalculates its amount. The ↺ button
+next to the marker goes back to calculating the amount from the rate.
+
+**Order matters** for compounding taxes: drag a row by its grip (mouse, long press, or keyboard,
+like the lines), and every row below recalculates at once.
+
+For example, on a subtotal of 19,037.50: GST at 5 % is 951.88; QST at 9.975 % applying to
+Subtotal + taxes above is charged on 19,989.38 and comes to 1,993.94; an Eco levy typed as 100.00
+works out to ≈ 0.525 %. The total is 22,083.32.
+
+!!! note
+    E-invoicing formats such as Peppol expect each tax to be its base times its rate, with no
+    compounding. An invoice with a compounding tax or a hand-set amount may not suit such exports
+    when they become available.
 
 ## Payment terms
 
@@ -109,6 +170,9 @@ Warnings never stop you from saving:
 - **No payee account**: the invoice does not say which account to pay into.
 - **Payee account currency**: the payee account is not in the invoice currency.
 - **Inactive company**: the project's vendor or client has been deactivated.
+- **Tax rate cannot be derived**: a tax amount is set by hand while the subtotal it applies to is
+  zero, so it has no rate (shown as `—`).
+- **Negative subtotal**: the lines add up to less than zero, so the tax amounts are negative too.
 
 ## Issuing
 
@@ -130,7 +194,7 @@ be edited, saved, duplicated and deleted, and becomes issuable again once the pr
 Once issued, the invoice is **read-only** and keeps showing exactly what was sent, whatever
 changes later: the parties' names and addresses, the vendor's and client's VAT, legal registration
 and Peppol identifiers as they stood that day, the payee account details, the references, the
-lines and amounts, the dates, and the document name (such as "Tax Invoice"). The due date reads
+lines and amounts, each tax with its rate and the amount it was charged on, the dates, and the document name (such as "Tax Invoice"). The due date reads
 for example `13 Nov 2026 (Net 30)`.
 
 If the number would already be in use, for example after the numbering format was changed,
@@ -147,7 +211,8 @@ again, create a new invoice, for example by duplicating the void one.
 ## Duplicate and delete
 
 **Duplicate**, on any invoice, creates a new draft with everything the source has: project,
-parties, period, lines, references, payment terms and payee account details. The copy has no
+parties, period, lines, references, taxes (in order, with their rates and hand-set amounts),
+payment terms and payee account details. The copy has no
 number and no invoice date, and takes the payment terms preset rather than the due date it gave.
 It works even if the project is no longer Active.
 

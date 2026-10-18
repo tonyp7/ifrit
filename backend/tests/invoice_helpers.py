@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.company import Company
 from app.models.currency import Currency
 from app.models.invoice import Invoice
-from app.models.project import Project, ServiceLine
+from app.models.project import BillingMilestone, Project, ServiceLine
 from app.models.time_entry import TimeEntry
 from app.models.user import User
 from tests.factories import create_company, create_currency, create_user
@@ -94,6 +94,27 @@ async def add_service_line(
     db_session.add(line)
     await db_session.commit()
     return line
+
+
+async def add_milestone(
+    db_session: AsyncSession,
+    project: Project,
+    description: str,
+    value: str,
+    *,
+    position: int = 0,
+    due_date: date | None = None,
+) -> BillingMilestone:
+    milestone = BillingMilestone(
+        project_id=project.id,
+        description=description,
+        value=Decimal(value),
+        position=position,
+        due_date=due_date,
+    )
+    db_session.add(milestone)
+    await db_session.commit()
+    return milestone
 
 
 async def make_consultant(

@@ -21,7 +21,8 @@ from sqlalchemy.engine import URL, make_url
 
 from alembic import command
 from app.core.config import settings
-from app.models.invoice import Invoice, InvoiceLine, InvoiceReference
+from app.models.invoice import Invoice, InvoiceLine, InvoiceReference, InvoiceTax
+from app.models.invoice_numbering import InvoiceNumberCounter, InvoiceNumberingFormat
 from tests.conftest import _test_database_url
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
@@ -118,7 +119,12 @@ def test_the_migration_seeds_its_reference_data(scratch_database) -> None:
     command.upgrade(scratch_database, "head")
 
     roles = asyncio.run(_fetch("SELECT name FROM roles"))
-    assert {row["name"] for row in roles} == {"administrator", "manager", "consultant", "billing"}
+    assert {row["name"] for row in roles} == {
+        "administrator",
+        "manager",
+        "consultant",
+        "billing",
+    }
     (currencies,) = asyncio.run(
         _fetch(
             "SELECT count(*) AS total, count(*) FILTER (WHERE is_enabled) AS enabled "
@@ -145,19 +151,18 @@ def test_the_migration_can_be_undone_and_applied_again(scratch_database) -> None
     command.upgrade(scratch_database, "head")
     assert {"app_settings", "billing_milestones", "project_references"} <= _tables()
 
-    command.downgrade(scratch_database, "0005")
-    assert "issued_at" not in _columns("invoices")
-
-    numbering = {"invoice_numbering_formats", "invoice_number_counters"}
-    assert numbering <= _tables()
-    command.downgrade(scratch_database, "0004")
-    assert not numbering & _tables()
-    assert "invoices" in _tables()
-
-    command.downgrade(scratch_database, "0003")
-    assert not {"invoices", "invoice_lines", "invoice_references"} & _tables()
+    invoicing = {
+        "invoices",
+        "invoice_lines",
+        "invoice_references",
+        "invoice_taxes",
+        "invoice_numbering_formats",
+        "invoice_number_counters",
+    }
+    assert invoicing <= _tables()
 
     command.downgrade(scratch_database, "0002")
+    assert not invoicing & _tables()
     roles = asyncio.run(_fetch("SELECT name FROM roles"))
     assert "billing" not in {row["name"] for row in roles}
 
@@ -243,7 +248,9 @@ def test_the_role_merge_folds_both_project_roles_into_manager(scratch_database) 
     }
     (count,) = asyncio.run(_fetch("SELECT count(*) AS n FROM user_roles"))
     assert count["n"] == 5  # one manager row each, nothing duplicated
-    managers = asyncio.run(_fetch("SELECT user_id::text AS user_id FROM project_managers"))
+    managers = asyncio.run(
+        _fetch("SELECT user_id::text AS user_id FROM project_managers")
+    )
     assert {row["user_id"] for row in managers} == {_PM_ONLY, _BOTH}
 
     # The downgrade can't tell who held which role, so every manager gets both back.
@@ -268,26 +275,19 @@ def _model_checks(model: type) -> dict[str, str]:
 
 def test_the_invoice_checks_match_the_models() -> None:
     # `alembic check` compares columns, indexes and foreign keys but not CHECK constraints,
-    # so the invoice tables' vocabularies and all-or-nothing rules are compared here.
-    path = BACKEND_DIR / "alembic" / "versions" / "0004_invoices.py"
-    spec = importlib.util.spec_from_file_location("migration_0004", path)
+    # so the invoicing tables' vocabularies and all-or-nothing rules are compared here.
+    path = BACKEND_DIR / "alembic" / "versions" / "0003_invoices.py"
+    spec = importlib.util.spec_from_file_location("migration_0003", path)
     assert spec is not None and spec.loader is not None
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 
-    issue_path = BACKEND_DIR / "alembic" / "versions" / "0006_invoice_issue_void.py"
-    issue_spec = importlib.util.spec_from_file_location("migration_0006", issue_path)
-    assert issue_spec is not None and issue_spec.loader is not None
-    issue = importlib.util.module_from_spec(issue_spec)
-    issue_spec.loader.exec_module(issue)
-
-    assert {
-        **module._INVOICE_CHECKS,
-        "ck_invoices_issued_fields": issue._ISSUED_FIELDS_CHECK,
-        "ck_invoices_void_fields": issue._VOID_FIELDS_CHECK,
-    } == _model_checks(Invoice)
+    assert module._INVOICE_CHECKS == _model_checks(Invoice)
     assert module._LINE_CHECKS == _model_checks(InvoiceLine)
     assert module._REFERENCE_CHECKS == _model_checks(InvoiceReference)
+    assert module._TAX_CHECKS == _model_checks(InvoiceTax)
+    assert module._FORMAT_CHECKS == _model_checks(InvoiceNumberingFormat)
+    assert module._COUNTER_CHECKS == _model_checks(InvoiceNumberCounter)
 
 
 def test_an_invoice_does_not_depend_on_payee_accounts(scratch_database) -> None:
@@ -312,7 +312,7 @@ def _columns(table: str) -> set[str]:
     return {row["column_name"] for row in rows}
 
 
-def test_downgrading_below_issuing_is_refused_once_an_invoice_is_issued(
+def test_downgrading_below_invoicing_is_refused_once_an_invoice_is_issued(
     scratch_database,
 ) -> None:
     command.upgrade(scratch_database, "head")
@@ -339,5 +339,6 @@ def test_downgrading_below_issuing_is_refused_once_an_invoice_is_issued(
     )
 
     with pytest.raises(RuntimeError, match="issued or void"):
-        command.downgrade(scratch_database, "0005")
+        command.downgrade(scratch_database, "0002")
     assert "issued_at" in _columns("invoices")
+    assert "invoice_taxes" in _tables()

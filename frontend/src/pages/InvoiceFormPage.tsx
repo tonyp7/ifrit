@@ -21,6 +21,7 @@ import {
   voidInvoice,
 } from "@/api/invoices";
 import { InvoiceLinesTable } from "@/components/invoices/InvoiceLinesTable";
+import { InvoiceTaxesTable } from "@/components/invoices/InvoiceTaxesTable";
 import { IssueInvoiceDialog } from "@/components/invoices/IssueInvoiceDialog";
 import {
   InvoiceHeading,
@@ -44,6 +45,7 @@ import {
 import { PartyFields } from "@/components/invoices/PartyFields";
 import { PayeeAccountFields } from "@/components/invoices/PayeeAccountFields";
 import { PaymentTermsField } from "@/components/invoices/PaymentTermsField";
+import { MilestoneBillingPanel } from "@/components/invoices/MilestoneBillingPanel";
 import { TmBillingPanel } from "@/components/invoices/TmBillingPanel";
 import { useServiceLineLabel } from "@/hooks/useServiceLineLabel";
 import {
@@ -71,10 +73,13 @@ import { partyFromCompany } from "@/lib/invoiceParties";
 import { payeeFormFromAccount, preselectPayee } from "@/lib/invoicePayee";
 import { formatPeriod, isValidPeriod, presetRange } from "@/lib/invoicePeriods";
 import { prefillReferences } from "@/lib/invoiceReferences";
+import { subtotal } from "@/lib/invoiceMath";
+import { computeTaxes } from "@/lib/invoiceTaxes";
 import { combineWarnings, formWarnings } from "@/lib/invoiceWarnings";
 import { parseDayKey, toDayKey } from "@/lib/timesheetDates";
 import {
   type BillingContext,
+  type GenerateInput,
   type InvoiceDetail,
   type InvoiceableProject,
   type InvoiceStatus,
@@ -145,6 +150,8 @@ export function InvoiceFormPage() {
   const [formError, setFormError] = useState<string | null>(null);
   const [pendingProject, setPendingProject] = useState<string | null>(null);
   const [confirmRegenerate, setConfirmRegenerate] = useState(false);
+  // Fixed Price only: the milestones to generate from. Never ticked for the user.
+  const [milestoneIds, setMilestoneIds] = useState<string[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState<
     "saving" | "generating" | "deleting" | "issuing" | "voiding" | "duplicating" | null
@@ -160,6 +167,7 @@ export function InvoiceFormPage() {
 
   const projectId = useWatch({ control, name: "project_id" });
   const lines = useWatch({ control, name: "lines" });
+  const taxes = useWatch({ control, name: "taxes" });
   const payee = useWatch({ control, name: "payee" });
   const serviceLineIds = useWatch({ control, name: "service_line_ids" });
   const periodPreset = useWatch({ control, name: "period_preset" });
@@ -195,6 +203,7 @@ export function InvoiceFormPage() {
         setSavedProjectName(detail.project_name);
         setServerWarnings(detail.warnings);
         setOmitted([]);
+        setMilestoneIds([]);
         setLoadError(null);
         if (detail.status === "draft") {
           const loaded = await getIssuePreview(detail.id).catch(() => null);
@@ -235,6 +244,7 @@ export function InvoiceFormPage() {
       setContext(projectContext);
       setServerWarnings([]);
       setOmitted([]);
+      setMilestoneIds([]);
     } catch (err) {
       setFormError(err instanceof ApiError ? err.message : t("Failed to load the project."));
     }
@@ -249,25 +259,41 @@ export function InvoiceFormPage() {
 
   async function runGenerate() {
     const values = getValues();
-    if (!values.period_start || !values.period_end) return;
-    setBusy("generating");
-    setFormError(null);
-    try {
-      const result = await generateLines({
+    const byMilestone = context?.project_type === "fixed_price";
+    let input: GenerateInput;
+    if (byMilestone && milestoneIds.length > 0) {
+      input = {
+        kind: "milestone",
+        project_id: values.project_id,
+        milestone_ids: milestoneIds,
+      };
+    } else if (!byMilestone && values.period_start && values.period_end) {
+      input = {
+        kind: "time",
         project_id: values.project_id,
         service_line_ids: values.service_line_ids,
         period_start: values.period_start,
         period_end: values.period_end,
-      });
-      const period = formatPeriod(
-        parseDayKey(values.period_start),
-        parseDayKey(values.period_end),
-      );
+      };
+    } else {
+      return;
+    }
+    setBusy("generating");
+    setFormError(null);
+    try {
+      const result = await generateLines(input);
+      const period =
+        values.period_start && values.period_end
+          ? formatPeriod(parseDayKey(values.period_start), parseDayKey(values.period_end))
+          : "";
       setValue(
         "lines",
         result.lines.map((line) => ({
           key: newLineKey(),
-          description: t("{{name}} — {{period}}", { name: lineLabel(line), period }),
+          // A milestone's description is the line as the contract names it, kept as is.
+          description: byMilestone
+            ? (line.name ?? "")
+            : t("{{name}} — {{period}}", { name: lineLabel(line), period }),
           quantity: trimZeros(line.quantity),
           uom: line.uom,
           unit_price: trimZeros(line.unit_price),
@@ -418,11 +444,16 @@ export function InvoiceFormPage() {
       ? [{ code: "inactive_company", service_lines: [], companies }]
       : [];
   })();
+  const liveSubtotal = subtotal(lines, context?.currency_minor_unit ?? null);
   const warnings = combineWarnings(
     formWarnings({
       quantities: lines.map((line) => line.quantity),
       payeeCurrency: payee ? payee.currency_code || null : null,
       invoiceCurrency: context?.currency_code ?? null,
+      subtotal: liveSubtotal,
+      taxes: computeTaxes(liveSubtotal, taxes, context?.currency_minor_unit ?? null).map(
+        (tax, index) => ({ ...tax, amount_set_by_hand: taxes[index].amount_set_by_hand }),
+      ),
     }),
     [
       ...serverWarnings.filter((warning) => warning.code !== "inactive_company"),
@@ -436,12 +467,15 @@ export function InvoiceFormPage() {
     projectId && !projects.some((project) => project.id === projectId)
       ? [{ id: projectId, name: context?.name ?? savedProjectName ?? "" }, ...projects]
       : projects;
-  const isTimeBased = context && context.project_type !== "fixed_price";
+  const isFixedPrice = context?.project_type === "fixed_price";
   const periodValid =
     !!periodStart &&
     !!periodEnd &&
     isValidPeriod({ start: parseDayKey(periodStart), end: parseDayKey(periodEnd) });
-  const canGenerate = !!context && serviceLineIds.length > 0 && periodValid && !readOnly;
+  const canGenerate =
+    !!context &&
+    !readOnly &&
+    (isFixedPrice ? milestoneIds.length > 0 : serviceLineIds.length > 0 && periodValid);
 
   if (loadError) {
     return (
@@ -577,7 +611,17 @@ export function InvoiceFormPage() {
           <Separator />
           <section className="flex flex-col gap-4">
             <SectionHeading step={3} title={t("What to bill")} />
-            {isTimeBased ? (
+            {context && isFixedPrice && (
+              <MilestoneBillingPanel
+                milestones={context.milestones}
+                selected={milestoneIds}
+                onSelectedChange={setMilestoneIds}
+                currencyCode={context.currency_code}
+                minorUnit={context.currency_minor_unit}
+                disabled={readOnly}
+              />
+            )}
+            {context && !isFixedPrice && (
               <TmBillingPanel
                 serviceLines={context.service_lines}
                 selected={serviceLineIds}
@@ -592,10 +636,6 @@ export function InvoiceFormPage() {
                 today={today}
                 disabled={readOnly}
               />
-            ) : (
-              <p className="text-muted-foreground text-sm">
-                {t("This project's type cannot be billed from hours.")}
-              </p>
             )}
           </section>
 
@@ -641,6 +681,19 @@ export function InvoiceFormPage() {
                   : (context?.currency_minor_unit ?? null)
               }
               disabled={readOnly}
+            />
+            <InvoiceTaxesTable
+              form={form}
+              currencyCode={
+                readOnly ? (detail?.currency_code ?? null) : (context?.currency_code ?? null)
+              }
+              minorUnit={
+                readOnly
+                  ? (detail?.currency_minor_unit ?? null)
+                  : (context?.currency_minor_unit ?? null)
+              }
+              disabled={readOnly}
+              stored={readOnly && detail ? { taxes: detail.taxes, total: detail.total } : null}
             />
           </section>
         </>

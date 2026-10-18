@@ -6,17 +6,32 @@ const FORM_CODES: InvoiceWarningCode[] = [
   "zero_quantity",
   "no_payee_account",
   "payee_currency",
+  "tax_rate_not_derivable",
+  "negative_subtotal",
 ];
 
 export function formWarnings(input: {
   quantities: string[];
   payeeCurrency: string | null;
   invoiceCurrency: string | null;
+  subtotal?: string;
+  /** Each tax row as computed: a hand-set row whose rate came out null has a zero base. */
+  taxes?: { amount_set_by_hand: boolean; rate: string | null; amount: string | null }[];
 }): InvoiceWarning[] {
   const warnings: InvoiceWarning[] = [];
   const blank = { service_lines: [], companies: [] };
   if (input.quantities.some((quantity) => quantity.trim() !== "" && Number(quantity) === 0)) {
     warnings.push({ code: "zero_quantity", ...blank });
+  }
+  if (
+    input.taxes?.some(
+      (tax) => tax.amount_set_by_hand && tax.amount !== null && tax.rate === null,
+    )
+  ) {
+    warnings.push({ code: "tax_rate_not_derivable", ...blank });
+  }
+  if (input.subtotal !== undefined && input.subtotal.trim().startsWith("-")) {
+    warnings.push({ code: "negative_subtotal", ...blank });
   }
   if (input.payeeCurrency === null) {
     warnings.push({ code: "no_payee_account", ...blank });

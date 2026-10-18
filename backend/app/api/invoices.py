@@ -82,7 +82,7 @@ async def generate_lines(
     payload: GenerateRequest, db: AsyncSession = Depends(get_db)
 ) -> GenerateResponse:
     try:
-        return await invoice_service.generate_tm_lines(db, payload)
+        return await invoice_service.generate_lines(db, payload)
     except InvalidInvoiceDataError as err:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(err)
@@ -127,8 +127,9 @@ async def list_invoices(
                 number=invoice.number,
                 invoice_date=invoice.invoice_date,
                 issued_at=invoice.issued_at,
+                lines_summary=lines_summary,
             )
-            for invoice, project_name, minor_unit in rows
+            for invoice, project_name, minor_unit, lines_summary in rows
         ],
         total=total,
         page=page,

@@ -2,7 +2,7 @@ import re
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -12,12 +12,14 @@ from app.models.company import (
     IdentifierType,
     PaymentMeansCode,
 )
-from app.models.invoice import InvoiceStatus, PaymentTerms
+from app.models.invoice import InvoiceStatus, PaymentTerms, TaxBaseMode
 from app.models.project import ProjectStatus, ProjectType, ReferenceKind, Uom
 from app.schemas.company import BankAddress, PayeeAccountWrite
 from app.schemas.project import MAX_PROJECT_REFERENCES, ProjectReferenceWrite
 
 MAX_INVOICE_LINES = 200
+MAX_INVOICE_TAXES = 20
+TAX_LABEL_MAX = 100
 MAX_INVOICE_REFERENCES = MAX_PROJECT_REFERENCES
 DESCRIPTION_MAX = 500
 PARTY_NAME_MAX = 255
@@ -28,6 +30,8 @@ MAX_PERIOD_DAYS = 366
 # the database rather than as a validation error.
 _QUANTITY_LIMIT = Decimal(10) ** 7
 _UNIT_PRICE_LIMIT = Decimal(10) ** 10
+# NUMERIC(22, 4): a typed tax amount must fit the column it is stored in.
+_TAX_AMOUNT_LIMIT = Decimal(10) ** 18
 _CURRENCY_SHAPE = re.compile(r"^[A-Z]{3}$")
 
 
@@ -124,6 +128,47 @@ class InvoiceLineWrite(BaseModel):
         return self
 
 
+class InvoiceTaxWrite(BaseModel):
+    """A tax row as typed. Only the value the user typed counts: the rate of a rate-driven
+    row, the amount of a hand-set row. The other one is worked out by the server, so
+    whatever the client sends for it is dropped."""
+
+    label: str
+    base_mode: TaxBaseMode
+    rate: Decimal | None = None
+    amount: Decimal | None = None
+    amount_set_by_hand: bool = False
+
+    @model_validator(mode="after")
+    def check_fields(self) -> InvoiceTaxWrite:
+        self.label = self.label.strip()
+        if not self.label:
+            raise ValueError("label must not be empty")
+        if len(self.label) > TAX_LABEL_MAX:
+            raise ValueError(f"label must be at most {TAX_LABEL_MAX} characters")
+        if self.amount_set_by_hand:
+            if self.amount is None:
+                raise ValueError("a hand-set tax row needs its amount")
+            # The currency's own decimals are checked by the service, which knows them.
+            if (
+                abs(self.amount) >= _TAX_AMOUNT_LIMIT
+                or _decimal_places(self.amount) > 4
+            ):
+                raise ValueError("amount is too large or has too many decimals")
+            self.rate = None
+        else:
+            if self.rate is None:
+                raise ValueError(
+                    "a tax row needs a rate unless its amount is set by hand"
+                )
+            if not Decimal(0) <= self.rate <= Decimal(100):
+                raise ValueError("rate must be between 0 and 100")
+            if _decimal_places(self.rate) > 3:
+                raise ValueError("rate must have at most 3 decimals")
+            self.amount = None
+        return self
+
+
 class InvoiceWrite(BaseModel):
     project_id: uuid.UUID
     bill_from: PartyWrite
@@ -139,6 +184,9 @@ class InvoiceWrite(BaseModel):
     lines: list[InvoiceLineWrite] = Field(
         default_factory=list, max_length=MAX_INVOICE_LINES
     )
+    taxes: list[InvoiceTaxWrite] = Field(
+        default_factory=list, max_length=MAX_INVOICE_TAXES
+    )
 
     @model_validator(mode="after")
     def check_fields(self) -> InvoiceWrite:
@@ -148,21 +196,38 @@ class InvoiceWrite(BaseModel):
         return self
 
 
-class GenerateRequest(BaseModel):
+class GenerateTimeRequest(BaseModel):
+    """Lines from the hours logged on service lines over a period (T&M and Capped T&M)."""
+
+    kind: Literal["time"]
     project_id: uuid.UUID
     service_line_ids: list[uuid.UUID] = Field(min_length=1)
     period_start: date
     period_end: date
 
     @model_validator(mode="after")
-    def check_period(self) -> GenerateRequest:
+    def check_period(self) -> GenerateTimeRequest:
         check_period(self.period_start, self.period_end)
         return self
 
 
+class GenerateMilestoneRequest(BaseModel):
+    """One line per billing milestone (Fixed Price)."""
+
+    kind: Literal["milestone"]
+    project_id: uuid.UUID
+    milestone_ids: list[uuid.UUID] = Field(min_length=1, max_length=MAX_INVOICE_LINES)
+
+
+GenerateRequest = Annotated[
+    GenerateTimeRequest | GenerateMilestoneRequest, Field(discriminator="kind")
+]
+
+
 class GeneratedLine(BaseModel):
     # The service line's name, null when it has none: the client writes the description
-    # itself, so it can be translated and its dates follow the user's locale.
+    # itself, so it can be translated and its dates follow the user's locale. For a
+    # milestone, its description, used as is.
     name: str | None
     quantity: Decimal
     uom: Uom
@@ -183,6 +248,8 @@ WarningCode = Literal[
     "payee_currency",
     "inactive_company",
     "due_before_invoice_date",
+    "tax_rate_not_derivable",
+    "negative_subtotal",
 ]
 
 
@@ -231,6 +298,16 @@ class InvoiceLineOut(BaseModel):
     amount: Decimal
 
 
+class InvoiceTaxOut(BaseModel):
+    label: str
+    base_mode: TaxBaseMode
+    # Null when it cannot be worked back from a hand-set amount (a zero base).
+    rate: Decimal | None
+    amount: Decimal
+    amount_set_by_hand: bool
+    base_amount: Decimal
+
+
 class InvoiceReferenceOut(BaseModel):
     kind: ReferenceKind
     label: str | None
@@ -263,6 +340,7 @@ class InvoiceDetail(BaseModel):
     references: list[InvoiceReferenceOut]
     lines: list[InvoiceLineOut]
     subtotal: Decimal
+    taxes: list[InvoiceTaxOut]
     total: Decimal
     created_at: datetime
     updated_at: datetime
@@ -297,6 +375,9 @@ class InvoiceListItem(BaseModel):
     number: str | None
     invoice_date: date | None
     issued_at: datetime | None
+    # What Billed for shows when there is no period (a Fixed Price invoice): every line's
+    # description in order, joined with ", ". Null when the invoice has no line.
+    lines_summary: str | None
 
 
 class InvoiceListResponse(BaseModel):
@@ -347,6 +428,13 @@ class ContextServiceLine(BaseModel):
     unit_price: Decimal
 
 
+class ContextMilestone(BaseModel):
+    id: uuid.UUID
+    description: str
+    due_date: date | None
+    value: Decimal
+
+
 class BillingContext(BaseModel):
     """What the invoice form needs to know about a project, read through the invoice API
     so that billing users need no access to the project and company endpoints."""
@@ -362,6 +450,8 @@ class BillingContext(BaseModel):
     client: ContextCompany | None
     payee_accounts: list[ContextPayeeAccount]
     service_lines: list[ContextServiceLine]
+    # In their order; empty unless the project is Fixed Price.
+    milestones: list[ContextMilestone]
     references: list[InvoiceReferenceOut]
 
 
