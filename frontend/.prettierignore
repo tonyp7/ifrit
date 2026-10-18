@@ -1,0 +1,7 @@
+# Generated files, not source: the production build and pnpm's lockfile.
+dist/
+pnpm-lock.yaml
+
+# The shadcn primitives are kept exactly as the CLI writes them, so that `shadcn add --overwrite`
+# and the re-audit in the architecture notes diff cleanly.
+src/components/ui/
