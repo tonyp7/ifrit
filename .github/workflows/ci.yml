@@ -2,8 +2,8 @@
 # included) and on pushes to main. Read-only and secret-free on purpose: it uses `pull_request`,
 # never `pull_request_target`, so code from a PR never runs with elevated rights.
 #
-# The backend job fails on code `ruff format` would change: run `uv run ruff format .` in
-# backend/ to fix it. Prettier is not gated for the frontend.
+# The backend job fails on code `ruff format` would change (fix: `uv run ruff format .` in
+# backend/), and the frontend job on code Prettier would change (fix: `pnpm format` in frontend/).
 name: CI
 
 on:
@@ -90,6 +90,7 @@ jobs:
           cache: pnpm
           cache-dependency-path: frontend/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - run: pnpm format:check
       - run: pnpm lint
       - run: pnpm test
       - run: pnpm build
