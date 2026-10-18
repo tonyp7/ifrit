@@ -49,12 +49,18 @@ const issued: InvoiceListItem = {
   due_date: "2026-11-13",
 };
 
-function render(items: InvoiceListItem[]) {
+// What the list starts with: Issued and Due are optional and hidden.
+const DEFAULT_VISIBILITY = { issued: false, due: false };
+const ALL_VISIBLE = { issued: true, due: true };
+
+function render(items: InvoiceListItem[], columnVisibility = DEFAULT_VISIBILITY) {
   const props: InvoicesTableViewProps = {
     items,
     sorting: [],
     onSortingChange: vi.fn(),
     pageCount: 1,
+    columnVisibility,
+    onColumnVisibilityChange: vi.fn(),
     onOpen: vi.fn(),
     onDuplicate: vi.fn(),
     onDelete: vi.fn(),
@@ -67,26 +73,47 @@ describe("InvoicesTableView", () => {
     expect(render([])).toContain("No invoices yet");
   });
 
-  it("shows the columns in order", () => {
+  it("shows the default columns in order, without Issued and Due", () => {
     const html = render([draft]);
     const headers = [
       "Number",
+      "Status",
       "Project",
       "Client",
       "Billed for",
-      "Status",
-      "Total",
       "Created",
-      "Issued",
-      "Due",
+      "Total",
     ];
+    const positions = headers.map((header) => html.indexOf(`>${header}<`));
+    expect(positions.every((position) => position > -1)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+    expect(html).not.toContain(">Issued<");
+    expect(html).not.toContain(">Due<");
+  });
+
+  it("shows Issued and Due after Total when they are switched on", () => {
+    const html = render([draft], ALL_VISIBLE);
+    const headers = ["Total", "Issued", "Due"];
     const positions = headers.map((header) => html.indexOf(`>${header}<`));
     expect(positions.every((position) => position > -1)).toBe(true);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
   });
 
+  it("hides one of them again without moving the others", () => {
+    const html = render([draft], { issued: true, due: false });
+    expect(html).toContain(">Issued<");
+    expect(html).not.toContain(">Due<");
+    expect(html.indexOf(">Total<")).toBeLessThan(html.indexOf(">Issued<"));
+  });
+
+  it("spans the empty state over the visible columns only", () => {
+    // Seven data columns and the row menu by default, two more when both are shown.
+    expect(render([])).toContain('colSpan="8"');
+    expect(render([], ALL_VISIBLE)).toContain('colSpan="10"');
+  });
+
   it("shows a draft's preset due muted, the period and the total", () => {
-    const html = render([draft]);
+    const html = render([draft], ALL_VISIBLE);
     expect(html).toContain("Website redesign");
     expect(html).toContain("ACME");
     // Dates follow the runner's locale, so the expected text comes from the same formatter.
@@ -112,7 +139,10 @@ describe("InvoicesTableView", () => {
   });
 
   it("shows a fixed due date as a date", () => {
-    const html = render([{ ...draft, payment_terms: null, due_date: "2026-12-01" }]);
+    const html = render(
+      [{ ...draft, payment_terms: null, due_date: "2026-12-01" }],
+      ALL_VISIBLE,
+    );
     expect(html).toContain(formatDueDate("2026-12-01"));
     expect(html).not.toContain("Net 30");
   });
@@ -120,7 +150,7 @@ describe("InvoicesTableView", () => {
 
 describe("issued rows", () => {
   it("shows the number, the invoice date and a real due date", () => {
-    const html = render([issued]);
+    const html = render([issued], ALL_VISIBLE);
     expect(html).toContain("INV-2026-0043");
     expect(html).toContain("Issued");
     expect(html).toContain(formatDueDate("2026-10-14"));
@@ -152,5 +182,22 @@ describe("InvoicesTable", () => {
     expect(search).toBeLessThan(html.indexOf("Status"));
     expect(search).toBeLessThan(html.indexOf("Project"));
     expect(html).toContain("w-full sm:w-96");
+  });
+
+  it("puts the Columns button right before + New, with the optional columns hidden", () => {
+    const html = renderToStaticMarkup(
+      <MemoryRouter>
+        <InvoicesTable />
+      </MemoryRouter>,
+    );
+    const columns = html.indexOf("Columns");
+    expect(columns).toBeGreaterThan(-1);
+    expect(columns).toBeLessThan(html.indexOf("New"));
+    // Between the two labels there is only the end of the Columns button and the start of New.
+    expect(html.slice(columns, html.indexOf("New")).match(/<button/g)).toHaveLength(1);
+    expect(html.indexOf("Project")).toBeLessThan(columns);
+    expect(html.indexOf("Status")).toBeLessThan(columns);
+    expect(html).not.toContain(">Issued<");
+    expect(html).not.toContain(">Due<");
   });
 });

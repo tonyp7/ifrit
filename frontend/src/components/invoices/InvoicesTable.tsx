@@ -1,10 +1,11 @@
 import {
   useTable,
   type ColumnDef,
+  type ColumnVisibilityState,
   type OnChangeFn,
   type SortingState,
 } from "@tanstack/react-table";
-import { FolderKanban, ListFilter, MoreHorizontal, Plus } from "lucide-react";
+import { Columns3, FolderKanban, ListFilter, MoreHorizontal, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useNavigate } from "react-router";
@@ -40,6 +41,7 @@ import { Badge, type BadgeProps } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
+  DropdownMenuCheckboxItem,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
@@ -125,11 +127,24 @@ export function IssuedCell({ invoice }: { invoice: InvoiceListItem }) {
   );
 }
 
+// Issued and Due are optional: a date that matters once an invoice is issued, so they start
+// hidden and the "Columns" button shows them. Every other column is fixed.
+const DEFAULT_COLUMN_VISIBILITY: ColumnVisibilityState = { issued: false, due: false };
+
+// Labels for the "Columns" menu, keyed by column id and kept apart from the columns' headers,
+// which are only rendered while the column is visible.
+const HIDEABLE_COLUMN_LABELS: Record<string, string> = {
+  issued: "Issued",
+  due: "Due",
+};
+
 export interface InvoicesTableViewProps {
   items: InvoiceListItem[];
   sorting: SortingState;
   onSortingChange: OnChangeFn<SortingState>;
   pageCount: number;
+  columnVisibility: ColumnVisibilityState;
+  onColumnVisibilityChange: OnChangeFn<ColumnVisibilityState>;
   onOpen: (invoice: InvoiceListItem) => void;
   onDuplicate: (invoice: InvoiceListItem) => void;
   onDelete: (invoice: InvoiceListItem) => void;
@@ -140,6 +155,8 @@ export function InvoicesTableView({
   sorting,
   onSortingChange,
   pageCount,
+  columnVisibility,
+  onColumnVisibilityChange,
   onOpen,
   onDuplicate,
   onDelete,
@@ -149,29 +166,14 @@ export function InvoicesTableView({
   const columns: ColumnDef<typeof features, InvoiceListItem>[] = [
     {
       id: "number",
+      enableHiding: false,
       accessorKey: "number",
       header: ({ column }) => <DataTableColumnHeader column={column} title={t("Number")} />,
       cell: ({ row }) => <span className="font-mono">{row.original.number ?? ""}</span>,
     },
     {
-      id: "project",
-      accessorKey: "project_name",
-      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Project")} />,
-    },
-    {
-      id: "client",
-      accessorKey: "client_name",
-      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Client")} />,
-    },
-    {
-      id: "billed_for",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t("Billed for")} />
-      ),
-      cell: ({ row }) => <BilledForCell invoice={row.original} />,
-    },
-    {
       id: "status",
+      enableHiding: false,
       accessorKey: "status",
       header: ({ column }) => <DataTableColumnHeader column={column} title={t("Status")} />,
       cell: ({ row }) => (
@@ -181,7 +183,35 @@ export function InvoicesTableView({
       ),
     },
     {
+      id: "project",
+      enableHiding: false,
+      accessorKey: "project_name",
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Project")} />,
+    },
+    {
+      id: "client",
+      enableHiding: false,
+      accessorKey: "client_name",
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Client")} />,
+    },
+    {
+      id: "billed_for",
+      enableHiding: false,
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t("Billed for")} />
+      ),
+      cell: ({ row }) => <BilledForCell invoice={row.original} />,
+    },
+    {
+      id: "created_at",
+      enableHiding: false,
+      accessorKey: "created_at",
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Created")} />,
+      cell: ({ row }) => new Date(row.original.created_at).toLocaleDateString(),
+    },
+    {
       id: "total",
+      enableHiding: false,
       accessorKey: "total",
       header: ({ column }) => <DataTableColumnHeader column={column} title={t("Total")} />,
       cell: ({ row }) => (
@@ -192,23 +222,20 @@ export function InvoicesTableView({
       ),
     },
     {
-      id: "created_at",
-      accessorKey: "created_at",
-      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Created")} />,
-      cell: ({ row }) => new Date(row.original.created_at).toLocaleDateString(),
-    },
-    {
       id: "issued",
+      enableHiding: true,
       header: ({ column }) => <DataTableColumnHeader column={column} title={t("Issued")} />,
       cell: ({ row }) => <IssuedCell invoice={row.original} />,
     },
     {
       id: "due",
+      enableHiding: true,
       header: ({ column }) => <DataTableColumnHeader column={column} title={t("Due")} />,
       cell: ({ row }) => <DueCell invoice={row.original} />,
     },
     {
       id: "actions",
+      enableHiding: false,
       header: "",
       enableSorting: false,
       cell: ({ row }) => (
@@ -254,14 +281,15 @@ export function InvoicesTableView({
     manualPagination: true,
     manualSorting: true,
     pageCount,
-    state: { sorting },
+    state: { columnVisibility, sorting },
     onSortingChange,
+    onColumnVisibilityChange,
   });
 
   return (
     <DataTable
       table={table}
-      columnCount={columns.length}
+      columnCount={table.getVisibleLeafColumns().length}
       emptyMessage={t("No invoices yet")}
       onRowClick={onOpen}
     />
@@ -283,6 +311,10 @@ export function InvoicesTable() {
   const [searchInput, setSearchInput] = useState("");
   const [search, setSearch] = useState("");
   const [projectFilter, setProjectFilter] = useState<string[]>([]);
+  // Not remembered: the choice lasts until the page is left, like the Projects list.
+  const [columnVisibility, setColumnVisibility] = useState<ColumnVisibilityState>(
+    DEFAULT_COLUMN_VISIBILITY,
+  );
   // Void invoices are kept as evidence but hidden unless asked for.
   const [statusFilter, setStatusFilter] = useState<InvoiceStatus[]>(DEFAULT_STATUS_FILTER);
   const [projectOptions, setProjectOptions] = useState<ReportFilterOption[]>([]);
@@ -414,7 +446,29 @@ export function InvoicesTable() {
           selected={projectFilter}
           onChange={handleProjectFilter}
         />
-        <div className="ml-auto">
+        <div className="ml-auto flex gap-2">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline">
+                <Columns3 className="mr-2 h-4 w-4" aria-hidden="true" />
+                {t("Columns", { ns: "common" })}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              {Object.entries(HIDEABLE_COLUMN_LABELS).map(([id, label]) => (
+                <DropdownMenuCheckboxItem
+                  key={id}
+                  checked={columnVisibility[id] !== false}
+                  onCheckedChange={(checked) =>
+                    setColumnVisibility((current) => ({ ...current, [id]: !!checked }))
+                  }
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {t(label)}
+                </DropdownMenuCheckboxItem>
+              ))}
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Button onClick={() => navigate("/invoices/new")}>
             <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
             {t("New", { ns: "common" })}
@@ -429,6 +483,8 @@ export function InvoicesTable() {
         sorting={sorting}
         onSortingChange={handleSortingChange}
         pageCount={Math.max(1, Math.ceil(total / pageSize))}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
         onOpen={(invoice) => navigate(`/invoices/${invoice.id}`)}
         onDuplicate={(invoice) => void handleDuplicate(invoice)}
         onDelete={setDeleteTarget}

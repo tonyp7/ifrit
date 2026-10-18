@@ -19,14 +19,18 @@ The list shows the invoices, newest first, 50 per page. Void invoices are hidden
 | Column | Shows |
 |---|---|
 | Number | The invoice number; empty for a draft |
+| Status | Draft, Issued or Void |
 | Project | The project the invoice is for |
 | Client | The Bill To name on the invoice |
 | Billed for | The period whose hours were billed, for example `1–30 Sep 2026`. A Fixed Price invoice has no period and lists its lines instead, usually the milestones billed, cut off when they do not fit |
-| Status | Draft, Issued or Void |
-| Total | In the invoice currency |
 | Created | When the draft was created |
-| Issued | The invoice date; hover it for the exact time it was issued |
-| Due | The due date. On a draft with a payment terms preset, the preset's name, greyed out, until it is issued |
+| Total | In the invoice currency |
+| Issued | The invoice date; hover it for the exact time it was issued. Hidden until you show it |
+| Due | The due date. On a draft with a payment terms preset, the preset's name, greyed out, until it is issued. Hidden until you show it |
+
+**Issued** and **Due** are optional. Use the **Columns** button next to **+ New** to show or hide
+them; they then appear after **Total**. The choice is not remembered: the list starts without them
+again the next time you open it.
 
 Type in the search box above the list to find an invoice. It matches the invoice number, the
 project name, the client (Bill To) name and the description of any line, ignoring upper and lower
