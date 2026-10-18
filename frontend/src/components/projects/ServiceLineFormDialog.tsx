@@ -95,7 +95,11 @@ export function ServiceLineFormDialog({
 }: ServiceLineFormDialogProps) {
   const { t } = useTranslation(["projects", "common"]);
   const [formError, setFormError] = useState<string | null>(null);
-  const [selectedConsultants, setSelectedConsultants] = useState<ServiceLineConsultant[]>([]);
+  // Edit and Duplicate create this dialog already open, so the line's consultants have to be
+  // here from the first render: the reset below only runs when `open` changes.
+  const [selectedConsultants, setSelectedConsultants] = useState<ServiceLineConsultant[]>(
+    initialConsultants ?? [],
+  );
   const [consultantPopoverOpen, setConsultantPopoverOpen] = useState(false);
   const [consultantSearch, setConsultantSearch] = useState("");
   const [consultantResults, setConsultantResults] = useState<User[]>([]);
