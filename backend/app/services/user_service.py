@@ -69,7 +69,9 @@ async def list_users(
     """
     # Deactivated users are never listed: no way to see or reactivate one through the
     # API.
-    stmt = select(User).options(selectinload(User.roles)).where(User.is_active.is_(True))
+    stmt = (
+        select(User).options(selectinload(User.roles)).where(User.is_active.is_(True))
+    )
     count_stmt = select(func.count()).select_from(User).where(User.is_active.is_(True))
 
     if role:
@@ -82,7 +84,9 @@ async def list_users(
         count_stmt = count_stmt.where(condition)
     total = (await db.execute(count_stmt)).scalar_one()
 
-    order = resolve_sort(_SORTABLE_COLUMNS, sort_by, sort_dir, default=User.full_name.asc())
+    order = resolve_sort(
+        _SORTABLE_COLUMNS, sort_by, sort_dir, default=User.full_name.asc()
+    )
     # `User.id` is a stable tie-breaker: see app/services/sorting.py.
     stmt = stmt.order_by(order, User.id).offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE)
 
@@ -163,7 +167,9 @@ async def update_user(
     return persisted
 
 
-async def _clear_project_manager_assignments(db: AsyncSession, user_id: uuid.UUID) -> None:
+async def _clear_project_manager_assignments(
+    db: AsyncSession, user_id: uuid.UUID
+) -> None:
     await db.execute(
         delete(project_manager_assignments).where(
             project_manager_assignments.c.user_id == user_id
@@ -198,11 +204,19 @@ async def authenticate_local_user(
     # (otherwise response time would reveal which emails are registered).
     candidate_hash = (
         user.hashed_password
-        if user is not None and user.is_active and not user.is_sso and user.hashed_password
+        if user is not None
+        and user.is_active
+        and not user.is_sso
+        and user.hashed_password
         else _DUMMY_HASH
     )
     matched = verify_password(password, candidate_hash)
-    if user is None or not user.is_active or user.is_sso or user.hashed_password is None:
+    if (
+        user is None
+        or not user.is_active
+        or user.is_sso
+        or user.hashed_password is None
+    ):
         return None
     return user if matched else None
 

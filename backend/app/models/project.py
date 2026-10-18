@@ -191,9 +191,7 @@ class ServiceLine(Base):
     is_active: Mapped[bool] = mapped_column(default=True)
 
     project: Mapped[Project] = relationship(back_populates="service_lines")
-    users: Mapped[list[User]] = relationship(
-        "User", secondary=service_line_consultants
-    )
+    users: Mapped[list[User]] = relationship("User", secondary=service_line_consultants)
 
     __table_args__ = (
         CheckConstraint("uom IN ('hours', 'days', 'ea')", name="ck_service_lines_uom"),

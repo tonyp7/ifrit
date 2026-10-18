@@ -85,7 +85,9 @@ class User(Base):
     # password reset), which stateless JWTs can't otherwise do before they expire.
     token_version: Mapped[int] = mapped_column(default=0, server_default="0")
 
-    roles: Mapped[list[Role]] = relationship(secondary=user_roles, back_populates="users")
+    roles: Mapped[list[Role]] = relationship(
+        secondary=user_roles, back_populates="users"
+    )
 
     __table_args__ = (
         Index(

@@ -22,7 +22,10 @@ async def _project_with_pm(client, db_session, *, status: str = "draft"):
     """A project managed by `pm@example.com`, created by a project_admin. Returns
     (project_id, pm_user, admin_user)."""
     admin = await create_user(
-        db_session, name_id="admin@example.com", password="pw", role_name="administrator"
+        db_session,
+        name_id="admin@example.com",
+        password="pw",
+        role_name="administrator",
     )
     await create_user(
         db_session, name_id="padmin@example.com", password="pw", role_name="manager"
@@ -84,7 +87,9 @@ async def test_deactivating_a_user_removes_them_from_a_closed_project(
     assert await _managers_of(client, project_id) == []
 
 
-async def test_removing_project_manager_role_clears_assignments(client, db_session) -> None:
+async def test_removing_project_manager_role_clears_assignments(
+    client, db_session
+) -> None:
     project_id, pm, admin = await _project_with_pm(client, db_session)
     await ensure_role(db_session, "consultant")
 
@@ -92,7 +97,10 @@ async def test_removing_project_manager_role_clears_assignments(client, db_sessi
         db_session,
         pm,
         UserUpdate(
-            full_name=pm.full_name, name_id=pm.name_id, is_sso=False, roles=["consultant"]
+            full_name=pm.full_name,
+            name_id=pm.name_id,
+            is_sso=False,
+            roles=["consultant"],
         ),
         admin,
     )
@@ -180,19 +188,31 @@ async def _delete_user(db_session, user) -> None:
     await db_session.commit()
 
 
-async def test_deleted_consultant_stays_on_line_flagged_inactive(client, db_session) -> None:
-    project_id, _line_id, consultant = await _service_line_with_consultant(client, db_session)
+async def test_deleted_consultant_stays_on_line_flagged_inactive(
+    client, db_session
+) -> None:
+    project_id, _line_id, consultant = await _service_line_with_consultant(
+        client, db_session
+    )
     await _delete_user(db_session, consultant)
 
     detail = (await client.get(f"/api/projects/{project_id}")).json()
     users = detail["service_lines"][0]["users"]
     assert users == [
-        {"id": str(consultant.id), "full_name": consultant.full_name, "is_active": False}
+        {
+            "id": str(consultant.id),
+            "full_name": consultant.full_name,
+            "is_active": False,
+        }
     ]
 
 
-async def test_saving_a_line_with_a_deleted_consultant_is_rejected(client, db_session) -> None:
-    project_id, line_id, consultant = await _service_line_with_consultant(client, db_session)
+async def test_saving_a_line_with_a_deleted_consultant_is_rejected(
+    client, db_session
+) -> None:
+    project_id, line_id, consultant = await _service_line_with_consultant(
+        client, db_session
+    )
     await _delete_user(db_session, consultant)
 
     body = {
@@ -210,14 +230,17 @@ async def test_saving_a_line_with_a_deleted_consultant_is_rejected(client, db_se
 
     # Removing them is the one thing that works.
     fixed = await client.patch(
-        f"/api/projects/{project_id}/service-lines/{line_id}", json={**body, "user_ids": []}
+        f"/api/projects/{project_id}/service-lines/{line_id}",
+        json={**body, "user_ids": []},
     )
     assert fixed.status_code == 200
     assert fixed.json()["users"] == []
 
 
 async def test_project_duplicate_drops_deleted_consultants(client, db_session) -> None:
-    project_id, _line_id, consultant = await _service_line_with_consultant(client, db_session)
+    project_id, _line_id, consultant = await _service_line_with_consultant(
+        client, db_session
+    )
     other = await create_user(
         db_session, name_id="other@example.com", password="pw", role_name="consultant"
     )
@@ -243,7 +266,9 @@ async def test_project_duplicate_drops_deleted_consultants(client, db_session) -
 async def test_deleted_consultant_cannot_get_new_hours_but_can_still_be_locked(
     client, db_session
 ) -> None:
-    _project_id, line_id, consultant = await _service_line_with_consultant(client, db_session)
+    _project_id, line_id, consultant = await _service_line_with_consultant(
+        client, db_session
+    )
     await _login(client, "c@example.com")
     ok = await client.put(
         "/api/time-entries",

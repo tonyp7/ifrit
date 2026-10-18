@@ -124,9 +124,7 @@ async def _make_project_file(
 
 
 async def _tag(db: AsyncSession, name: str) -> FileTag:
-    return (
-        await db.execute(select(FileTag).where(FileTag.name == name))
-    ).scalar_one()
+    return (await db.execute(select(FileTag).where(FileTag.name == name))).scalar_one()
 
 
 @pytest.mark.asyncio
@@ -140,11 +138,15 @@ async def test_project_file_links_only_from_the_project_table(
     # The composite key (file_id, kind) means a project-kind file cannot also be a
     # setting file: the setting link table only accepts kind = 'setting'.
     with pytest.raises(IntegrityError):
-        db_session.add(SettingFile(file_id=file_id, kind="project", setting_key="org_logo"))
+        db_session.add(
+            SettingFile(file_id=file_id, kind="project", setting_key="org_logo")
+        )
         await db_session.commit()
     await db_session.rollback()
     with pytest.raises(IntegrityError):
-        db_session.add(SettingFile(file_id=file_id, kind="setting", setting_key="org_logo"))
+        db_session.add(
+            SettingFile(file_id=file_id, kind="setting", setting_key="org_logo")
+        )
         await db_session.commit()
     await db_session.rollback()
     assert await _count(db_session, SettingFile) == 0
@@ -215,7 +217,9 @@ async def test_unknown_file_kind_is_rejected(db_session: AsyncSession):
     )
     db_session.add(stored)
     await db_session.flush()
-    db_session.add(File(stored_file_id=stored.id, kind="time_entry", original_filename="x"))
+    db_session.add(
+        File(stored_file_id=stored.id, kind="time_entry", original_filename="x")
+    )
     with pytest.raises(IntegrityError):
         await db_session.commit()
 

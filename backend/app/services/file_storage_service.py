@@ -120,9 +120,7 @@ PROJECT_DOCUMENT_CONTEXT = UploadContext(
         ".rtf": AllowedType(_types("text/rtf", "application/rtf"), ".rtf"),
         ".odt": AllowedType(_types(_ODF + "text"), ".odt"),
         ".txt": AllowedType(_types(*_TEXT), ".txt"),
-        ".md": AllowedType(
-            _types(*_TEXT, "text/markdown", "text/x-markdown"), ".md"
-        ),
+        ".md": AllowedType(_types(*_TEXT, "text/markdown", "text/x-markdown"), ".md"),
         ".xls": AllowedType(_types("application/vnd.ms-excel", *_OLE), ".xls"),
         ".xlsx": AllowedType(
             _types(_OOXML + "spreadsheetml.sheet"),
@@ -161,9 +159,7 @@ PROJECT_DOCUMENT_CONTEXT = UploadContext(
         ".xml": AllowedType(_types("text/xml", "application/xml"), ".xml"),
         ".html": AllowedType(_types("text/html"), ".html"),
         ".eml": AllowedType(_types("message/rfc822", *_TEXT), ".eml"),
-        ".msg": AllowedType(
-            _types("application/vnd.ms-outlook", *_OLE), ".msg"
-        ),
+        ".msg": AllowedType(_types("application/vnd.ms-outlook", *_OLE), ".msg"),
         # Both are DER binaries libmagic has no signature for (the .cer may also be PEM
         # text), so for these the extension allowlist is the only real check.
         ".p12": AllowedType(
@@ -281,7 +277,7 @@ def _has_zip_member(file: IO[bytes], prefix: str) -> bool:
     try:
         with zipfile.ZipFile(file) as archive:
             return any(name.startswith(prefix) for name in archive.namelist())
-    except (zipfile.BadZipFile, OSError, ValueError):
+    except zipfile.BadZipFile, OSError, ValueError:
         return False
     finally:
         file.seek(0)

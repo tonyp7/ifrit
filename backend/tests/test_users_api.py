@@ -12,15 +12,22 @@ async def _login(client, name_id: str, password: str) -> None:
 
 async def test_admin_can_reset_local_user_password(client, db_session) -> None:
     await create_user(
-        db_session, name_id="admin@example.com", password="admin-pass", role_name="administrator"
+        db_session,
+        name_id="admin@example.com",
+        password="admin-pass",
+        role_name="administrator",
     )
     target = await create_user(
-        db_session, name_id="jane@example.com", password="old-pass", role_name="consultant"
+        db_session,
+        name_id="jane@example.com",
+        password="old-pass",
+        role_name="consultant",
     )
 
     await _login(client, "admin@example.com", "admin-pass")
     response = await client.post(
-        f"/api/users/{target.id}/reset-password", json={"new_password": "new-secret-pass"}
+        f"/api/users/{target.id}/reset-password",
+        json={"new_password": "new-secret-pass"},
     )
     assert response.status_code == 204
 
@@ -31,40 +38,55 @@ async def test_admin_can_reset_local_user_password(client, db_session) -> None:
     assert old.status_code == 401
 
     new = await client.post(
-        "/api/auth/login", json={"email": "jane@example.com", "password": "new-secret-pass"}
+        "/api/auth/login",
+        json={"email": "jane@example.com", "password": "new-secret-pass"},
     )
     assert new.status_code == 200
 
 
 async def test_non_admin_cannot_reset_password(client, db_session) -> None:
     await create_user(
-        db_session, name_id="project_admin@example.com", password="project_admin-pass", role_name="manager"
+        db_session,
+        name_id="project_admin@example.com",
+        password="project_admin-pass",
+        role_name="manager",
     )
     target = await create_user(
-        db_session, name_id="jane@example.com", password="old-pass", role_name="consultant"
+        db_session,
+        name_id="jane@example.com",
+        password="old-pass",
+        role_name="consultant",
     )
 
     await _login(client, "project_admin@example.com", "project_admin-pass")
     response = await client.post(
-        f"/api/users/{target.id}/reset-password", json={"new_password": "new-secret-pass"}
+        f"/api/users/{target.id}/reset-password",
+        json={"new_password": "new-secret-pass"},
     )
     assert response.status_code == 403
 
 
 async def test_reset_password_requires_auth(client, db_session) -> None:
     target = await create_user(
-        db_session, name_id="jane@example.com", password="old-pass", role_name="consultant"
+        db_session,
+        name_id="jane@example.com",
+        password="old-pass",
+        role_name="consultant",
     )
 
     response = await client.post(
-        f"/api/users/{target.id}/reset-password", json={"new_password": "new-secret-pass"}
+        f"/api/users/{target.id}/reset-password",
+        json={"new_password": "new-secret-pass"},
     )
     assert response.status_code == 401
 
 
 async def test_cannot_reset_password_for_sso_user(client, db_session) -> None:
     await create_user(
-        db_session, name_id="admin@example.com", password="admin-pass", role_name="administrator"
+        db_session,
+        name_id="admin@example.com",
+        password="admin-pass",
+        role_name="administrator",
     )
     target = await create_user(
         db_session,
@@ -76,14 +98,18 @@ async def test_cannot_reset_password_for_sso_user(client, db_session) -> None:
 
     await _login(client, "admin@example.com", "admin-pass")
     response = await client.post(
-        f"/api/users/{target.id}/reset-password", json={"new_password": "new-secret-pass"}
+        f"/api/users/{target.id}/reset-password",
+        json={"new_password": "new-secret-pass"},
     )
     assert response.status_code == 400
 
 
 async def test_new_user_defaults_to_system_theme(client, db_session) -> None:
     await create_user(
-        db_session, name_id="jane@example.com", password="s3cret-pass", role_name="consultant"
+        db_session,
+        name_id="jane@example.com",
+        password="s3cret-pass",
+        role_name="consultant",
     )
 
     await _login(client, "jane@example.com", "s3cret-pass")
@@ -95,7 +121,10 @@ async def test_new_user_defaults_to_system_theme(client, db_session) -> None:
 
 async def test_user_can_update_own_theme_preference(client, db_session) -> None:
     await create_user(
-        db_session, name_id="jane@example.com", password="s3cret-pass", role_name="consultant"
+        db_session,
+        name_id="jane@example.com",
+        password="s3cret-pass",
+        role_name="consultant",
     )
 
     await _login(client, "jane@example.com", "s3cret-pass")
@@ -149,7 +178,9 @@ async def test_list_users_filters_by_search(client, db_session) -> None:
     assert names == ["Jane Doe"]
 
 
-async def test_list_users_search_is_case_insensitive_substring(client, db_session) -> None:
+async def test_list_users_search_is_case_insensitive_substring(
+    client, db_session
+) -> None:
     await create_user(
         db_session,
         name_id="admin@example.com",
@@ -172,9 +203,14 @@ async def test_list_users_search_is_case_insensitive_substring(client, db_sessio
     assert [u["full_name"] for u in response.json()["items"]] == ["Jane Doe"]
 
 
-async def test_update_theme_preference_rejects_invalid_value(client, db_session) -> None:
+async def test_update_theme_preference_rejects_invalid_value(
+    client, db_session
+) -> None:
     await create_user(
-        db_session, name_id="jane@example.com", password="s3cret-pass", role_name="consultant"
+        db_session,
+        name_id="jane@example.com",
+        password="s3cret-pass",
+        role_name="consultant",
     )
 
     await _login(client, "jane@example.com", "s3cret-pass")
@@ -219,7 +255,10 @@ async def test_create_local_user(client, db_session) -> None:
     # The password actually works.
     new_login = await client.post(
         "/api/auth/login",
-        json={"email": "new-consultant@example.com", "password": "a-strong-password-123"},
+        json={
+            "email": "new-consultant@example.com",
+            "password": "a-strong-password-123",
+        },
     )
     assert new_login.status_code == 200
 
@@ -255,7 +294,9 @@ async def test_create_local_user_rejects_short_password(client, db_session) -> N
     assert response.status_code == 422
 
 
-async def test_create_local_user_rejects_non_printable_password(client, db_session) -> None:
+async def test_create_local_user_rejects_non_printable_password(
+    client, db_session
+) -> None:
     await _login_admin(client, db_session)
 
     response = await client.post(
@@ -271,7 +312,9 @@ async def test_create_local_user_rejects_non_printable_password(client, db_sessi
     assert response.status_code == 422
 
 
-async def test_create_local_user_allows_spaces_and_unicode_password(client, db_session) -> None:
+async def test_create_local_user_allows_spaces_and_unicode_password(
+    client, db_session
+) -> None:
     await _login_admin(client, db_session)
     await ensure_role(db_session, "consultant")
 
@@ -399,7 +442,10 @@ async def test_create_user_rejects_duplicate_name_id(client, db_session) -> None
 
 async def test_create_user_requires_administrator(client, db_session) -> None:
     await create_user(
-        db_session, name_id="project_admin@example.com", password="project_admin-pass", role_name="manager"
+        db_session,
+        name_id="project_admin@example.com",
+        password="project_admin-pass",
+        role_name="manager",
     )
     await _login(client, "project_admin@example.com", "project_admin-pass")
 
@@ -516,7 +562,9 @@ async def test_deactivated_user_is_not_found_on_every_route(client, db_session) 
         await client.get(base),
         await client.patch(base, json=payload),
         await client.post(f"{base}/deactivate"),
-        await client.post(f"{base}/reset-password", json={"new_password": "a-new-password-1"}),
+        await client.post(
+            f"{base}/reset-password", json={"new_password": "a-new-password-1"}
+        ),
     ]
     assert [r.status_code for r in responses] == [404] * len(responses)
 
@@ -537,7 +585,10 @@ async def test_deactivated_user_cannot_log_in(client, db_session) -> None:
 async def test_name_id_can_be_reused_after_deactivation(client, db_session) -> None:
     await _login_admin(client, db_session)
     old = await create_user(
-        db_session, name_id="jane@example.com", password="old-password", role_name="consultant"
+        db_session,
+        name_id="jane@example.com",
+        password="old-password",
+        role_name="consultant",
     )
     await client.post(f"/api/users/{old.id}/deactivate")
 
@@ -558,7 +609,8 @@ async def test_name_id_can_be_reused_after_deactivation(client, db_session) -> N
     await client.post("/api/auth/logout")
     assert (
         await client.post(
-            "/api/auth/login", json={"email": "jane@example.com", "password": "old-password"}
+            "/api/auth/login",
+            json={"email": "jane@example.com", "password": "old-password"},
         )
     ).status_code == 401
     assert (
@@ -590,7 +642,10 @@ async def test_name_id_still_unique_among_active_users(client, db_session) -> No
 async def test_switching_local_user_to_sso_clears_password(client, db_session) -> None:
     await _login_admin(client, db_session)
     target = await create_user(
-        db_session, name_id="jane@example.com", password="old-password-123", role_name="consultant"
+        db_session,
+        name_id="jane@example.com",
+        password="old-password-123",
+        role_name="consultant",
     )
 
     response = await client.patch(
@@ -614,12 +669,15 @@ async def test_switching_local_user_to_sso_clears_password(client, db_session) -
 
     # Reset-password now correctly rejects it as an SSO account.
     reset = await client.post(
-        f"/api/users/{target.id}/reset-password", json={"new_password": "another-password-1"}
+        f"/api/users/{target.id}/reset-password",
+        json={"new_password": "another-password-1"},
     )
     assert reset.status_code == 400
 
 
-async def test_switching_sso_user_to_local_requires_password(client, db_session) -> None:
+async def test_switching_sso_user_to_local_requires_password(
+    client, db_session
+) -> None:
     await _login_admin(client, db_session)
     target = await create_user(
         db_session,
@@ -713,14 +771,22 @@ async def test_list_users_sort_composes_with_pagination(client, db_session) -> N
     assert page2_names == sorted(page2_names, reverse=True)
 
 
-async def test_list_users_unknown_sort_by_falls_back_to_default(client, db_session) -> None:
+async def test_list_users_unknown_sort_by_falls_back_to_default(
+    client, db_session
+) -> None:
     await _login_admin(client, db_session)
     await create_user(
-        db_session, name_id="zoe@example.com", password="pw", role_name="consultant",
+        db_session,
+        name_id="zoe@example.com",
+        password="pw",
+        role_name="consultant",
         full_name="Zoe",
     )
     await create_user(
-        db_session, name_id="amy@example.com", password="pw", role_name="consultant",
+        db_session,
+        name_id="amy@example.com",
+        password="pw",
+        role_name="consultant",
         full_name="Amy",
     )
 

@@ -88,7 +88,9 @@ async def get_file(
     db: AsyncSession, project_id: uuid.UUID, file_id: uuid.UUID
 ) -> ProjectFile | None:
     """A file of this project, or None, including for a file of another project."""
-    result = await db.execute(_link_query(project_id).where(ProjectFile.file_id == file_id))
+    result = await db.execute(
+        _link_query(project_id).where(ProjectFile.file_id == file_id)
+    )
     return result.scalar_one_or_none()
 
 

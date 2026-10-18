@@ -149,7 +149,9 @@ async def test_unknown_file_returns_404(client, db_session) -> None:
 # --- rejections leave the current logo unchanged ---------------------------------
 
 
-async def _assert_rejected(client, db_session, files: dict[str, Any], status: int) -> None:
+async def _assert_rejected(
+    client, db_session, files: dict[str, Any], status: int
+) -> None:
     current = (await client.get(LOGO_URL)).json()
     response = await client.put(LOGO_URL, files=files)
     assert response.status_code == status, response.text

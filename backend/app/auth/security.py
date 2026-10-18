@@ -30,7 +30,9 @@ def verify_password(password: str, hashed_password: str) -> bool:
 
 
 def _create_token(
-    subject: uuid.UUID, token_type: Literal["access", "refresh"], expires_delta: timedelta,
+    subject: uuid.UUID,
+    token_type: Literal["access", "refresh"],
+    expires_delta: timedelta,
     extra_claims: dict[str, Any] | None = None,
 ) -> str:
     now = datetime.now(UTC)
@@ -43,10 +45,14 @@ def _create_token(
     }
     if extra_claims:
         payload.update(extra_claims)
-    return jwt.encode(payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm)
+    return jwt.encode(
+        payload, settings.jwt_secret_key, algorithm=settings.jwt_algorithm
+    )
 
 
-def create_access_token(subject: uuid.UUID, roles: list[str], token_version: int) -> str:
+def create_access_token(
+    subject: uuid.UUID, roles: list[str], token_version: int
+) -> str:
     return _create_token(
         subject,
         "access",
@@ -68,7 +74,9 @@ class InvalidTokenError(Exception):
     pass
 
 
-def decode_token(token: str, expected_type: Literal["access", "refresh"]) -> dict[str, Any]:
+def decode_token(
+    token: str, expected_type: Literal["access", "refresh"]
+) -> dict[str, Any]:
     try:
         payload: dict[str, Any] = jwt.decode(
             token,

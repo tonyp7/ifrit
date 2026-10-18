@@ -205,9 +205,7 @@ def test_the_kind_list_matches_the_migration() -> None:
     assert tuple(module._REFERENCE_KINDS) == get_args(ReferenceKind)
     table = ProjectReference.__table__
     assert isinstance(table, Table)
-    check = next(
-        c for c in table.constraints if c.name == "ck_project_references_kind"
-    )
+    check = next(c for c in table.constraints if c.name == "ck_project_references_kind")
     assert isinstance(check, CheckConstraint)
     for kind in get_args(ReferenceKind):
         assert f"'{kind}'" in str(check.sqltext)

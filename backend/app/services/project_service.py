@@ -141,12 +141,12 @@ async def list_projects(
         .outerjoin(client, Project.client_company_id == client.id)
         .where(*filters)
     )
-    order = resolve_sort(sortable_columns, sort_by, sort_dir, default=Project.created_at.desc())
+    order = resolve_sort(
+        sortable_columns, sort_by, sort_dir, default=Project.created_at.desc()
+    )
     stmt = (
         # `Project.id` is a stable tie-breaker: see app/services/sorting.py.
-        stmt.order_by(order, Project.id)
-        .offset((page - 1) * PAGE_SIZE)
-        .limit(PAGE_SIZE)
+        stmt.order_by(order, Project.id).offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE)
     )
     rows = (await db.execute(stmt)).all()
     return [(row[0], row[1], row[2]) for row in rows], total
@@ -419,7 +419,9 @@ async def update_service_line(
 
 async def _has_logged_time(db: AsyncSession, service_line_id: uuid.UUID) -> bool:
     result = await db.execute(
-        select(TimeEntry.id).where(TimeEntry.service_line_id == service_line_id).limit(1)
+        select(TimeEntry.id)
+        .where(TimeEntry.service_line_id == service_line_id)
+        .limit(1)
     )
     return result.scalar_one_or_none() is not None
 
@@ -601,7 +603,9 @@ def _check_references_writable(project: Project) -> None:
         raise ProjectReadOnlyError("Cannot change references on a closed project")
 
 
-def _reference_identity(kind: str, label: str | None, value: str) -> tuple[str, str, str]:
+def _reference_identity(
+    kind: str, label: str | None, value: str
+) -> tuple[str, str, str]:
     # Case is ignored: PO-17 and po-17 are one number typed twice. `lower` is also what the
     # unique index uses, so nothing accepted here is refused there.
     return (kind, (label or "").lower(), value.lower())

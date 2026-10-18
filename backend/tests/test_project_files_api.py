@@ -145,9 +145,7 @@ async def test_stored_under_a_generated_path_with_the_allowlisted_extension(
 async def test_unknown_project_and_deleted_project_are_404(client, db_session) -> None:
     project = await create_project(db_session)
     await _login(client, db_session, "manager")
-    assert (
-        await client.get(f"/api/projects/{uuid.uuid4()}/files")
-    ).status_code == 404
+    assert (await client.get(f"/api/projects/{uuid.uuid4()}/files")).status_code == 404
 
     project.is_active = False
     await db_session.commit()
@@ -197,7 +195,9 @@ async def test_oversized_upload_is_413_and_persists_nothing(client, db_session) 
 # --- delete -------------------------------------------------------------------------
 
 
-async def test_delete_removes_the_file_its_link_and_its_tags(client, db_session) -> None:
+async def test_delete_removes_the_file_its_link_and_its_tags(
+    client, db_session
+) -> None:
     project = await create_project(db_session)
     await _login(client, db_session, "manager")
     file_id = (await _post_file(client, project)).json()["file_id"]
@@ -305,7 +305,9 @@ async def test_adding_a_tag_twice_leaves_it_once(client, db_session) -> None:
     assert await _count(db_session, ProjectFileTag) == 1
 
 
-async def test_removing_a_tag_the_file_lacks_is_not_an_error(client, db_session) -> None:
+async def test_removing_a_tag_the_file_lacks_is_not_an_error(
+    client, db_session
+) -> None:
     project = await create_project(db_session)
     await _login(client, db_session, "manager")
     file_id = (await _post_file(client, project)).json()["file_id"]
@@ -387,7 +389,12 @@ async def test_a_closed_project_refuses_every_document_change(
     )
     remove = await client.delete(f"{_files_url(project)}/{file_id}/tags/{tag}")
 
-    assert (upload.status_code, delete.status_code, add.status_code, remove.status_code) == (
+    assert (
+        upload.status_code,
+        delete.status_code,
+        add.status_code,
+        remove.status_code,
+    ) == (
         409,
         409,
         409,
@@ -474,7 +481,10 @@ async def test_other_roles_cannot_download_a_project_file(client, db_session) ->
     file_id = (await _post_file(client, project)).json()["file_id"]
     client.cookies.clear()
     await create_user(
-        db_session, name_id="admin@example.com", password="pw", role_name="administrator"
+        db_session,
+        name_id="admin@example.com",
+        password="pw",
+        role_name="administrator",
     )
     await client.post(
         "/api/auth/login", json={"email": "admin@example.com", "password": "pw"}

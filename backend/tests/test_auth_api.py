@@ -5,7 +5,10 @@ from tests.factories import create_user
 
 async def test_login_success(client, db_session) -> None:
     await create_user(
-        db_session, name_id="jane@example.com", password="s3cret-pass", role_name="consultant"
+        db_session,
+        name_id="jane@example.com",
+        password="s3cret-pass",
+        role_name="consultant",
     )
 
     response = await client.post(
@@ -20,7 +23,10 @@ async def test_login_success(client, db_session) -> None:
 
 async def test_login_wrong_password(client, db_session) -> None:
     await create_user(
-        db_session, name_id="jane@example.com", password="s3cret-pass", role_name="consultant"
+        db_session,
+        name_id="jane@example.com",
+        password="s3cret-pass",
+        role_name="consultant",
     )
 
     response = await client.post(
@@ -62,7 +68,10 @@ async def test_me_requires_auth(client) -> None:
 
 async def test_me_with_valid_session(client, db_session) -> None:
     await create_user(
-        db_session, name_id="jane@example.com", password="s3cret-pass", role_name="manager"
+        db_session,
+        name_id="jane@example.com",
+        password="s3cret-pass",
+        role_name="manager",
     )
 
     await client.post(
@@ -75,13 +84,18 @@ async def test_me_with_valid_session(client, db_session) -> None:
 
 
 async def _login(client, email="jane@example.com", password="s3cret-pass") -> None:
-    response = await client.post("/api/auth/login", json={"email": email, "password": password})
+    response = await client.post(
+        "/api/auth/login", json={"email": email, "password": password}
+    )
     assert response.status_code == 200
 
 
 async def test_logout_revokes_previously_issued_tokens(client, db_session) -> None:
     await create_user(
-        db_session, name_id="jane@example.com", password="s3cret-pass", role_name="consultant"
+        db_session,
+        name_id="jane@example.com",
+        password="s3cret-pass",
+        role_name="consultant",
     )
     await _login(client)
     stolen = dict(client.cookies)
@@ -104,10 +118,16 @@ async def test_logout_without_session_still_succeeds(client) -> None:
 
 async def test_password_reset_revokes_existing_sessions(client, db_session) -> None:
     await create_user(
-        db_session, name_id="admin@example.com", password="admin-pass-123", role_name="administrator"
+        db_session,
+        name_id="admin@example.com",
+        password="admin-pass-123",
+        role_name="administrator",
     )
     target = await create_user(
-        db_session, name_id="jane@example.com", password="s3cret-pass", role_name="consultant"
+        db_session,
+        name_id="jane@example.com",
+        password="s3cret-pass",
+        role_name="consultant",
     )
     await _login(client)
     victim_cookies = dict(client.cookies)
@@ -115,7 +135,8 @@ async def test_password_reset_revokes_existing_sessions(client, db_session) -> N
     client.cookies.clear()
     await _login(client, "admin@example.com", "admin-pass-123")
     reset = await client.post(
-        f"/api/users/{target.id}/reset-password", json={"new_password": "brand-new-pass-1"}
+        f"/api/users/{target.id}/reset-password",
+        json={"new_password": "brand-new-pass-1"},
     )
     assert reset.status_code == 204
 
@@ -132,7 +153,10 @@ async def test_password_reset_revokes_existing_sessions(client, db_session) -> N
 
 async def test_refresh_keeps_session_valid(client, db_session) -> None:
     await create_user(
-        db_session, name_id="jane@example.com", password="s3cret-pass", role_name="consultant"
+        db_session,
+        name_id="jane@example.com",
+        password="s3cret-pass",
+        role_name="consultant",
     )
     await _login(client)
 
@@ -142,7 +166,10 @@ async def test_refresh_keeps_session_valid(client, db_session) -> None:
 
 async def test_login_is_rate_limited(client, db_session) -> None:
     await create_user(
-        db_session, name_id="jane@example.com", password="s3cret-pass", role_name="consultant"
+        db_session,
+        name_id="jane@example.com",
+        password="s3cret-pass",
+        role_name="consultant",
     )
     bad_login = {"email": "jane@example.com", "password": "wrong"}
 
@@ -163,15 +190,20 @@ async def test_login_is_rate_limited(client, db_session) -> None:
 
 async def test_failed_login_is_logged(client, db_session, caplog) -> None:
     await create_user(
-        db_session, name_id="jane@example.com", password="s3cret-pass", role_name="consultant"
+        db_session,
+        name_id="jane@example.com",
+        password="s3cret-pass",
+        role_name="consultant",
     )
 
     with caplog.at_level(logging.WARNING, logger="app.api.auth"):
         await client.post(
-            "/api/auth/login", json={"email": "jane@example.com", "password": "wrong-pass"}
+            "/api/auth/login",
+            json={"email": "jane@example.com", "password": "wrong-pass"},
         )
         await client.post(
-            "/api/auth/login", json={"email": "nobody@example.com\nforged line", "password": "x"}
+            "/api/auth/login",
+            json={"email": "nobody@example.com\nforged line", "password": "x"},
         )
 
     assert "Failed login attempt for 'jane@example.com'" in caplog.messages[0]
@@ -180,25 +212,37 @@ async def test_failed_login_is_logged(client, db_session, caplog) -> None:
     assert "\n" not in caplog.messages[1]
 
 
-async def test_successful_login_is_not_logged_as_failure(client, db_session, caplog) -> None:
+async def test_successful_login_is_not_logged_as_failure(
+    client, db_session, caplog
+) -> None:
     await create_user(
-        db_session, name_id="jane@example.com", password="s3cret-pass", role_name="consultant"
+        db_session,
+        name_id="jane@example.com",
+        password="s3cret-pass",
+        role_name="consultant",
     )
 
     with caplog.at_level(logging.WARNING, logger="app.api.auth"):
         await client.post(
-            "/api/auth/login", json={"email": "jane@example.com", "password": "s3cret-pass"}
+            "/api/auth/login",
+            json={"email": "jane@example.com", "password": "s3cret-pass"},
         )
 
     assert caplog.messages == []
 
 
-async def test_billing_alone_grants_no_project_or_company_endpoint(client, db_session) -> None:
+async def test_billing_alone_grants_no_project_or_company_endpoint(
+    client, db_session
+) -> None:
     await create_user(
-        db_session, name_id="biller@example.com", password="s3cret-pass", role_name="billing"
+        db_session,
+        name_id="biller@example.com",
+        password="s3cret-pass",
+        role_name="billing",
     )
     login = await client.post(
-        "/api/auth/login", json={"email": "biller@example.com", "password": "s3cret-pass"}
+        "/api/auth/login",
+        json={"email": "biller@example.com", "password": "s3cret-pass"},
     )
     assert login.status_code == 200
 

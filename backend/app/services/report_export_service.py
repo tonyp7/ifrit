@@ -45,7 +45,9 @@ def slugify(text: str) -> str:
     return text
 
 
-def _period_label_and_slug_source(period_type: str, start_date: date) -> tuple[str, str]:
+def _period_label_and_slug_source(
+    period_type: str, start_date: date
+) -> tuple[str, str]:
     """Returns (display label, the raw string to slugify for the filename): the
     same value for a month ("August 2026"), but a week's filename/title need the
     ISO year leading ("2026 Week 36") since "Week 36" alone is meaningless once
@@ -107,10 +109,18 @@ def _liberation_font_path(filename: str) -> str:
 
 # PDF palette: slate for text and surfaces, one indigo accent (title bar and the hours heatmap).
 _COLOR_TEXT = (0x0F, 0x17, 0x2A)  # primary text, title, and the strong table rules
-_COLOR_TEXT_LABEL = (0x33, 0x41, 0x55)  # label column: project in bold, detail lines regular
+_COLOR_TEXT_LABEL = (
+    0x33,
+    0x41,
+    0x55,
+)  # label column: project in bold, detail lines regular
 _COLOR_TEXT_SECONDARY = (0x47, 0x55, 0x69)  # subtitle
 _COLOR_TEXT_MUTED = (0x94, 0xA3, 0xB8)  # header weekday letters, footer
-_COLOR_HAIRLINE = (0xE2, 0xE8, 0xF0)  # separators between data rows, left edge of Total column
+_COLOR_HAIRLINE = (
+    0xE2,
+    0xE8,
+    0xF0,
+)  # separators between data rows, left edge of Total column
 _COLOR_SURFACE = (0xF8, 0xFA, 0xFC)  # header and Total rows
 _COLOR_WEEKEND = (0xF1, 0xF5, 0xF9)  # Saturday/Sunday cells of data rows without hours
 _COLOR_ACCENT = (0x4F, 0x46, 0xE5)  # indigo
@@ -152,7 +162,9 @@ _LOGO_DPI = 300
 _MM_PER_INCH = 25.4
 
 
-def _logo_size_mm(width_px: int, height_px: int, height_mm: float) -> tuple[float, float]:
+def _logo_size_mm(
+    width_px: int, height_px: int, height_mm: float
+) -> tuple[float, float]:
     """The logo's size on the page: exactly `height_mm` high and as wide as its own aspect
     ratio makes it, never stretched or cropped. A logo that would be wider than the page
     allows is scaled down proportionally to the widest allowed, so its height is then below
@@ -235,7 +247,9 @@ class _TimesheetBordersLayout(TableBordersLayout):
         num_col_pos: int,
     ) -> TableCellStyle:
         rule = TableBorderStyle(thickness=_RULE_THICKNESS_MM, color=_COLOR_TEXT)
-        hairline = TableBorderStyle(thickness=_HAIRLINE_THICKNESS_MM, color=_COLOR_HAIRLINE)
+        hairline = TableBorderStyle(
+            thickness=_HAIRLINE_THICKNESS_MM, color=_COLOR_HAIRLINE
+        )
         is_total_row = row_idx == num_rows - 1
         is_first_body_row = row_idx == num_heading_rows
 
@@ -261,8 +275,19 @@ class _ReportPdf(FPDF):
         self.cell(0, 4, f"Page {self.page_no()} / {{nb}}", align="C")
 
 
-_WEEKDAY_LETTERS = ["M", "T", "W", "T", "F", "S", "S"]  # Monday-first, per this app's ISO-8601 rule
-_WEEKEND_INDICES = {5, 6}  # Saturday, Sunday, per _WEEKDAY_LETTERS' Monday-first ordering
+_WEEKDAY_LETTERS = [
+    "M",
+    "T",
+    "W",
+    "T",
+    "F",
+    "S",
+    "S",
+]  # Monday-first, per this app's ISO-8601 rule
+_WEEKEND_INDICES = {
+    5,
+    6,
+}  # Saturday, Sunday, per _WEEKDAY_LETTERS' Monday-first ordering
 
 _CELL_PADDING_MM = 1.8  # top and bottom of every cell, for breathing room between rows
 
@@ -278,8 +303,12 @@ def _build_pdf(
     # The bottom margin leaves room for the page footer, which sits inside it.
     pdf.set_auto_page_break(auto=True, margin=10)
     pdf.alias_nb_pages()
-    pdf.add_font("LiberationSans", "", _liberation_font_path("LiberationSans-Regular.ttf"))
-    pdf.add_font("LiberationSans", "B", _liberation_font_path("LiberationSans-Bold.ttf"))
+    pdf.add_font(
+        "LiberationSans", "", _liberation_font_path("LiberationSans-Regular.ttf")
+    )
+    pdf.add_font(
+        "LiberationSans", "B", _liberation_font_path("LiberationSans-Bold.ttf")
+    )
     pdf.add_page()
 
     page_top = pdf.get_y()
@@ -371,7 +400,9 @@ def _build_pdf(
         line_height=line_height,
         padding=cell_padding,
     ) as table:
-        header_style = font(7, bold=True, color=_COLOR_TEXT_SECONDARY, fill=_COLOR_SURFACE)
+        header_style = font(
+            7, bold=True, color=_COLOR_TEXT_SECONDARY, fill=_COLOR_SURFACE
+        )
         header_row = table.row()
         header_row.cell("Timesheet", style=header_style, align="LEFT")
         for day in days:
@@ -393,7 +424,9 @@ def _build_pdf(
             label_text = f"**{project_name}**\n{service_line_name}\n{consultant_name}"
             # One text colour per cell is all fpdf2 allows, so only the project name stands
             # out (bold), against the regular detail lines.
-            data_row.cell(label_text, style=font(8, color=_COLOR_TEXT_LABEL), align="LEFT")
+            data_row.cell(
+                label_text, style=font(8, color=_COLOR_TEXT_LABEL), align="LEFT"
+            )
 
             entries = entries_by_row.get((row.user_id, row.service_line_id), {})
             period_total = Decimal(0)
@@ -408,7 +441,8 @@ def _build_pdf(
                 else:
                     fill = _COLOR_PAGE
                 data_row.cell(
-                    _format_hours(hours) if hours is not None else "", style=font(7, fill=fill)
+                    _format_hours(hours) if hours is not None else "",
+                    style=font(7, fill=fill),
                 )
                 if hours is not None:
                     period_total += hours
@@ -418,7 +452,9 @@ def _build_pdf(
             # the live grid), the Total column always shows a value, "0h"
             # included: same `formatHours(x) || "0"` convention the live grid's
             # own total cells already use.
-            data_row.cell(f"{_format_hours(period_total) or '0'}h", style=font(7, bold=True))
+            data_row.cell(
+                f"{_format_hours(period_total) or '0'}h", style=font(7, bold=True)
+            )
 
         # Bottom Total row: per-day sums across every row shown, plus a grand
         # total: same as the live grid's own bottom row. Same light fill as the
@@ -453,7 +489,9 @@ def _entries_by_row(
     rows: list[TimesheetReportRowOut],
 ) -> dict[tuple[uuid.UUID, uuid.UUID], dict[date, Decimal]]:
     return {
-        (row.user_id, row.service_line_id): {entry.date: entry.hours for entry in row.entries}
+        (row.user_id, row.service_line_id): {
+            entry.date: entry.hours for entry in row.entries
+        }
         for row in rows
     }
 
@@ -551,7 +589,11 @@ def _build_report_dataframe(
         record["Total"] = float(period_total)
         records.append(record)
 
-    total_record: dict[str, object] = {"Project": "Total", "Service Line": "", "Consultant": ""}
+    total_record: dict[str, object] = {
+        "Project": "Total",
+        "Service Line": "",
+        "Consultant": "",
+    }
     for day, header in zip(days, day_headers, strict=True):
         total_record[header] = float(day_totals[day])
     total_record["Total"] = float(grand_total)
@@ -593,7 +635,8 @@ def _style_report_sheet(
 def _autofit_columns(ws: Worksheet) -> None:
     for col_index, column_cells in enumerate(ws.columns, start=1):
         length = max(
-            (len(str(cell.value)) for cell in column_cells if cell.value is not None), default=0
+            (len(str(cell.value)) for cell in column_cells if cell.value is not None),
+            default=0,
         )
         ws.column_dimensions[get_column_letter(col_index)].width = length + 2
 
@@ -613,9 +656,9 @@ def _build_xlsx(rows: list[TimesheetReportRowOut], days: list[date]) -> bytes:
 
         hours_column = _DETAILS_COLUMNS.index("Hours") + 1
         for excel_row in range(2, len(details_df) + 2):
-            writer.sheets["Details"].cell(row=excel_row, column=hours_column).number_format = (
-                "0.0"
-            )
+            writer.sheets["Details"].cell(
+                row=excel_row, column=hours_column
+            ).number_format = "0.0"
         _autofit_columns(writer.sheets["Details"])
 
     return buffer.getvalue()
@@ -644,7 +687,9 @@ async def _load_logo(db: AsyncSession, height_mm: float) -> _PreparedLogo | None
     ) as err:
         # The error type only: no file name or content, and the message of an OSError can
         # carry the storage path.
-        logger.warning("Organization logo left out of the PDF export: %s", type(err).__name__)
+        logger.warning(
+            "Organization logo left out of the PDF export: %s", type(err).__name__
+        )
         return None
 
 

@@ -149,15 +149,19 @@ async def test_list_projects_unknown_sort_by_falls_back_to_default(
     await _login_manager(client, db_session)
     vendor, client_company, currency = await _setup_refs(db_session)
     older = await client.post(
-        "/api/projects", json=_project_payload(vendor, client_company, currency, name="Older")
+        "/api/projects",
+        json=_project_payload(vendor, client_company, currency, name="Older"),
     )
     assert older.status_code == 201
     newer = await client.post(
-        "/api/projects", json=_project_payload(vendor, client_company, currency, name="Newer")
+        "/api/projects",
+        json=_project_payload(vendor, client_company, currency, name="Newer"),
     )
     assert newer.status_code == 201
 
-    response = await client.get("/api/projects", params={"sort_by": "not_a_real_column"})
+    response = await client.get(
+        "/api/projects", params={"sort_by": "not_a_real_column"}
+    )
     assert response.status_code == 200
     # Falls back to the existing default (created_at desc): the more recently
     # created project comes first.
@@ -406,7 +410,10 @@ async def test_project_rejects_non_project_manager_user(client, db_session) -> N
     await _login_manager(client, db_session)
     vendor, client_company, currency = await _setup_refs(db_session)
     consultant = await create_user(
-        db_session, name_id="not-a-pm@example.com", password="pw", role_name="consultant"
+        db_session,
+        name_id="not-a-pm@example.com",
+        password="pw",
+        role_name="consultant",
     )
 
     response = await client.post(
@@ -785,12 +792,16 @@ async def test_create_and_update_project_reject_inactive_companies(
     await _deactivate_company(db_session, client_company)
     payload = _project_payload(vendor, client_company, currency)
     assert (await client.post("/api/projects", json=payload)).status_code == 422
-    assert (await client.patch(f"/api/projects/{project_id}", json=payload)).status_code == 422
+    assert (
+        await client.patch(f"/api/projects/{project_id}", json=payload)
+    ).status_code == 422
 
     await _deactivate_company(db_session, vendor)
     other_client = await create_company(db_session, legal_name="Other Client")
     payload = _project_payload(vendor, other_client, currency)
-    assert (await client.patch(f"/api/projects/{project_id}", json=payload)).status_code == 422
+    assert (
+        await client.patch(f"/api/projects/{project_id}", json=payload)
+    ).status_code == 422
 
 
 async def test_project_with_inactive_company_stays_readable(client, db_session) -> None:
@@ -881,7 +892,9 @@ async def test_list_projects_mine_only_lists_projects_listing_the_caller(
     async def create(name: str, **overrides) -> str:
         response = await client.post(
             "/api/projects",
-            json=_project_payload(vendor, client_company, currency, name=name, **overrides),
+            json=_project_payload(
+                vendor, client_company, currency, name=name, **overrides
+            ),
         )
         assert response.status_code == 201
         return response.json()["id"]
@@ -890,7 +903,9 @@ async def test_list_projects_mine_only_lists_projects_listing_the_caller(
     mine_closed = await create("Beta mine", project_manager_ids=[me], status="closed")
     others = await create("Gamma others")
     mine_deleted = await create("Delta mine", project_manager_ids=[me])
-    assert (await client.post(f"/api/projects/{mine_deleted}/deactivate")).status_code == 204
+    assert (
+        await client.post(f"/api/projects/{mine_deleted}/deactivate")
+    ).status_code == 204
 
     mine = (await client.get("/api/projects", params={"mine_only": True})).json()
     # Draft and Closed count like Active; a deleted project never shows.
