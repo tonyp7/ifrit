@@ -5,6 +5,8 @@ from app.api.companies import router as companies_router
 from app.api.currencies import router as currencies_router
 from app.api.file_tags import router as file_tags_router
 from app.api.files import router as files_router
+from app.api.invoice_numbering import router as invoice_numbering_router
+from app.api.invoices import router as invoices_router
 from app.api.projects import router as projects_router
 from app.api.settings import router as settings_router
 from app.api.time_entries import router as time_entries_router
@@ -20,3 +22,5 @@ api_router.include_router(file_tags_router)
 api_router.include_router(settings_router)
 api_router.include_router(projects_router)
 api_router.include_router(time_entries_router)
+api_router.include_router(invoices_router)
+api_router.include_router(invoice_numbering_router)

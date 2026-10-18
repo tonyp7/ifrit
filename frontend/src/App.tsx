@@ -23,9 +23,20 @@ const ProjectsPage = lazy(() =>
 const ProjectFormPage = lazy(() =>
   import("@/pages/ProjectFormPage").then((m) => ({ default: m.ProjectFormPage })),
 );
+const InvoicesPage = lazy(() =>
+  import("@/pages/InvoicesPage").then((m) => ({ default: m.InvoicesPage })),
+);
+const InvoiceFormPage = lazy(() =>
+  import("@/pages/InvoiceFormPage").then((m) => ({ default: m.InvoiceFormPage })),
+);
 const ConfigurationGeneralPage = lazy(() =>
   import("@/pages/ConfigurationGeneralPage").then((m) => ({
     default: m.ConfigurationGeneralPage,
+  })),
+);
+const ConfigurationInvoicesPage = lazy(() =>
+  import("@/pages/ConfigurationInvoicesPage").then((m) => ({
+    default: m.ConfigurationInvoicesPage,
   })),
 );
 const CompaniesListPage = lazy(() =>
@@ -58,6 +69,11 @@ export default function App() {
             <Route path="/projects/new" element={<ProjectFormPage />} />
             <Route path="/projects/:projectId" element={<ProjectFormPage />} />
           </Route>
+          <Route element={<RequireRoles roles={["billing"]} />}>
+            <Route path="/invoices" element={<InvoicesPage />} />
+            <Route path="/invoices/new" element={<InvoiceFormPage />} />
+            <Route path="/invoices/:invoiceId" element={<InvoiceFormPage />} />
+          </Route>
           <Route element={<RequireRoles roles={["administrator"]} />}>
             {/* Bare /configuration redirects to the default tab; unknown sub-paths still
                 fall through to the catch-all below like any other unrecognized URL. */}
@@ -70,6 +86,7 @@ export default function App() {
               <Route path="users" element={<UsersPage />} />
               <Route path="users/new" element={<UserFormPage />} />
               <Route path="users/:userId" element={<UserFormPage />} />
+              <Route path="invoices" element={<ConfigurationInvoicesPage />} />
             </Route>
           </Route>
         </Route>

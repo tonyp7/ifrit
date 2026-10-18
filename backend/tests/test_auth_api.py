@@ -191,3 +191,22 @@ async def test_successful_login_is_not_logged_as_failure(client, db_session, cap
         )
 
     assert caplog.messages == []
+
+
+async def test_billing_alone_grants_no_project_or_company_endpoint(client, db_session) -> None:
+    await create_user(
+        db_session, name_id="biller@example.com", password="s3cret-pass", role_name="billing"
+    )
+    login = await client.post(
+        "/api/auth/login", json={"email": "biller@example.com", "password": "s3cret-pass"}
+    )
+    assert login.status_code == 200
+
+    me = await client.get("/api/auth/me")
+    assert me.status_code == 200
+    assert me.json()["roles"] == ["billing"]
+
+    for path in ("/api/projects", "/api/companies"):
+        response = await client.get(path)
+        assert response.status_code == 403, path
+        assert response.json()["detail"] == "Insufficient permissions"

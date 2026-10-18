@@ -2,6 +2,7 @@ import {
   CalendarClock,
   FileChartColumn,
   NotebookTabs,
+  Receipt,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -19,13 +20,12 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  // The landing screen: every role has at least its own timesheet, so this is
-  // always shown and is a plain link, never a dropdown.
+  // The landing screen: every signed-in user has their own timesheet whatever roles
+  // they hold, so this has no role list and is a plain link, never a dropdown.
   {
     to: "/",
     label: "Timesheet",
     icon: CalendarClock,
-    requiredRoles: ["consultant", "manager", "administrator"],
   },
   {
     to: "/reporting",
@@ -38,6 +38,12 @@ export const NAV_ITEMS: NavItem[] = [
     label: "Projects",
     icon: NotebookTabs,
     requiredRoles: ["manager"],
+  },
+  {
+    to: "/invoices",
+    label: "Invoices",
+    icon: Receipt,
+    requiredRoles: ["billing"],
   },
   {
     to: "/configuration",

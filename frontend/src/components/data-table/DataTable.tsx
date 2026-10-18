@@ -19,6 +19,9 @@ interface DataTableProps<TData extends RowData> {
   /** Total column count, for the empty-state row's colSpan. */
   columnCount: number;
   emptyMessage: string;
+  /** Opens a row on click. A mouse shortcut only: the row's menu must offer the same
+   * action, since a row is not focusable. */
+  onRowClick?: (row: TData) => void;
 }
 
 // Shared table-shell markup (header groups, body rows, empty state) for every
@@ -31,6 +34,7 @@ export function DataTable<TData extends RowData>({
   table,
   columnCount,
   emptyMessage,
+  onRowClick,
 }: DataTableProps<TData>) {
   return (
     <div className="rounded-md border">
@@ -51,7 +55,11 @@ export function DataTable<TData extends RowData>({
         <TableBody>
           {table.getRowModel().rows.length ? (
             table.getRowModel().rows.map((row) => (
-              <TableRow key={row.id}>
+              <TableRow
+                key={row.id}
+                className={onRowClick ? "cursor-pointer" : undefined}
+                onClick={onRowClick ? () => onRowClick(row.original) : undefined}
+              >
                 {row.getVisibleCells().map((cell) => (
                   <TableCell key={cell.id}>
                     {flexRender(cell.column.columnDef.cell, cell.getContext())}

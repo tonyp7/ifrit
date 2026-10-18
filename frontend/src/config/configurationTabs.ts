@@ -9,6 +9,7 @@ export const CONFIGURATION_TABS: ConfigurationTab[] = [
   { value: "general", label: "General" },
   { value: "companies", label: "Companies" },
   { value: "users", label: "Users" },
+  { value: "invoices", label: "Invoices" },
 ];
 
 /**

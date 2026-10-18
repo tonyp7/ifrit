@@ -1,8 +1,8 @@
 # Administration
 
 Administrators manage the people, companies and global settings that everything else builds on.
-Everything is under the **Configuration** icon in the navigation bar, which has three tabs:
-**General**, **Companies** and **Users**.
+Everything is under the **Configuration** icon in the navigation bar, which has four tabs:
+**General**, **Companies**, **Users** and **Invoices**.
 
 Removing a user or a company *deactivates* it: it disappears from lists and can no longer be used,
 but everything recorded against it is kept. Deactivation cannot be undone from the application.
@@ -22,6 +22,70 @@ The **PDF Report Export** card controls the logo in exported PDF reports:
 - a slider, **Logo height, in mm**, from 1 to 60 (20 by default).
 
 The slider keeps its value while the switch is off.
+
+### Standard workday length
+
+The **Standard Workday Length** card sets how long a working day is, from 00:30:00 to 24:00:00
+(8 hours by default). Invoices use it to turn the hours logged on a service line billed in days
+into a number of days: 20 hours with an 8-hour day is 2.5 days. Timesheets are always entered in
+hours.
+
+Enter the length in the **Hours**, **Minutes** and **Seconds** fields. It is saved when you leave
+the fields or press Enter. A value outside the allowed range is brought to the nearest limit
+before it is saved, and the fields show what was saved. Changing the length only affects invoice
+lines generated afterwards.
+
+## Invoices
+
+### Document name
+
+The **Document Name** card sets the title that invoices carry, "Invoice" by default. Some
+jurisdictions require another title, such as "Tax Invoice". The name can be up to 60 characters
+and cannot be empty. It is saved when you leave the field or press Enter.
+
+### Invoice numbering
+
+The **Invoice Numbering** card decides how issued invoices are numbered. A draft has no number: it
+gets the next one when it is issued, so numbers have no gaps from drafts that were deleted. A
+new installation numbers invoices `INV-2026-0001`, `INV-2026-0002` and so on, starting again at
+`0001` every year.
+
+Build the format from:
+
+- **Presets**: `INV-00001`, `2026-0001` and `202610-001`, the usual starting points. Pick one, then
+  adjust it.
+- **Tiles**: **Year**, **Month** and **Day** (of the day the invoice is issued) and **Sequence #**,
+  the counter. A format has exactly one sequence.
+- **Text** typed directly between the tiles, such as `INV-` or `/`. Letters, digits, `-`, `/` and `_`
+  are allowed.
+
+Click a tile to insert it where the cursor is, or at the end. Drag the parts to reorder them, or
+select one and press **Alt** with the left or right arrow. Backspace removes the part before the
+cursor, and each part has its own remove button. **Undo**, **Redo** and **Reset to default** are
+below the format.
+
+Click the sequence to set:
+
+- **Digits**: how many digits the counter has, padded with zeros (5 digits gives `00001`). A
+  counter that outgrows its digits is written in full, never cut.
+- **Start at**: the first value.
+- **Restart**: **Never**, **Yearly** (every 1 January), **Monthly** (the 1st of each month) or
+  **Daily**.
+
+The **Preview** shows the next three numbers. The card warns, without blocking, when a counter
+restarts but the format lacks the date that tells the periods apart, for example a monthly counter
+with no month, which would give two invoices the same number. A format with no sequence, or that
+could produce a number longer than 100 characters, cannot be saved.
+
+**Changing the format later**: once invoices have been issued, saving asks you to confirm. The new
+format only applies to invoices issued from then on; issued invoices keep their numbers.
+
+**Next number**: set the counter's next value, for example to continue from another system. A value
+whose number already exists is refused. It applies to the current period: a yearly counter still
+starts again next year.
+
+Invoice dates and the dates in numbers follow the server's time zone, see
+[Time zone](../configuration.md#time-zone).
 
 ## Companies
 

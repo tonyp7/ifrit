@@ -95,7 +95,7 @@ async def _roles_by_name(db: AsyncSession, names: list[str]) -> list[Role]:
     roles = list(result.scalars().all())
     # Every name in `names` is already validated as one of VALID_ROLES by the
     # UserCreate/UserUpdate schema, so a mismatch here means a seeded Role row is
-    # genuinely missing (migration 0001 should have created it): fail loudly rather
+    # genuinely missing (migrations 0001 and 0003 create them): fail loudly rather
     # than silently saving a user with fewer roles than the admin actually granted.
     found = {role.name for role in roles}
     missing = set(names) - found

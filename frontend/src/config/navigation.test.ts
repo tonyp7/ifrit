@@ -29,8 +29,35 @@ describe("navigation items per role", () => {
     ]);
   });
 
+  it("shows a billing-only user Timesheet and Invoices", () => {
+    expect(visibleLabels(["billing"])).toEqual(["Timesheet", "Invoices"]);
+  });
+
+  it("shows every item, in order, to a user holding every role", () => {
+    expect(visibleLabels(["administrator", "manager", "consultant", "billing"])).toEqual([
+      "Timesheet",
+      "Reporting",
+      "Projects",
+      "Invoices",
+      "Configuration",
+    ]);
+  });
+
+  it("shows Timesheet whatever the roles", () => {
+    const timesheet = NAV_ITEMS.find((item) => item.label === "Timesheet")!;
+    expect(timesheet.requiredRoles).toBeUndefined();
+    expect(canAccessNavItem(timesheet, [])).toBe(true);
+  });
+
+  it("gates Invoices behind billing only", () => {
+    const invoices = NAV_ITEMS.find((item) => item.label === "Invoices");
+    expect(invoices?.requiredRoles).toEqual(["billing"]);
+    expect(invoices?.to).toBe("/invoices");
+  });
+
   it("gates Reporting and Projects behind manager only", () => {
-    const required = (label: string) => NAV_ITEMS.find((item) => item.label === label)?.requiredRoles;
+    const required = (label: string) =>
+      NAV_ITEMS.find((item) => item.label === label)?.requiredRoles;
     expect(required("Reporting")).toEqual(["manager"]);
     expect(required("Projects")).toEqual(["manager"]);
   });

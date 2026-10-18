@@ -23,7 +23,7 @@ export function SortableRow({
   sortable: boolean;
   children: ReactNode;
 }) {
-  const { t } = useTranslation("projects");
+  const { t } = useTranslation();
   const {
     attributes,
     listeners,

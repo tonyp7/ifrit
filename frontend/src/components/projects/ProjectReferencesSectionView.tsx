@@ -19,7 +19,7 @@ import {
 import { MoreHorizontal, Plus } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { SortableRow } from "@/components/projects/SortableRow";
+import { SortableRow } from "@/components/SortableRow";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,

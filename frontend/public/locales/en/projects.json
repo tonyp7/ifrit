@@ -113,7 +113,6 @@
   "Failed to delete billing milestone.": "Failed to delete billing milestone.",
   "Delete this billing milestone?": "Delete this billing milestone?",
   "This billing milestone will be permanently removed. This can't be undone.": "This billing milestone will be permanently removed. This can't be undone.",
-  "Drag to reorder {{name}}": "Drag to reorder {{name}}",
   "Picked up {{name}}.": "Picked up {{name}}.",
   "{{name}} was moved over {{target}}.": "{{name}} was moved over {{target}}.",
   "{{name}} is no longer over a milestone.": "{{name}} is no longer over a milestone.",

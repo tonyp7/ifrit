@@ -34,7 +34,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { SortableRow } from "@/components/projects/SortableRow";
+import { SortableRow } from "@/components/SortableRow";
 import { formatDueDate } from "@/lib/billingMilestones";
 import { formatMoney } from "@/lib/format";
 import { differsFromContract, sumValues, valueToPercent } from "@/lib/milestoneMath";

@@ -73,20 +73,28 @@ export function percentToValue(
   return format(divideRounded(numerator, denominator), decimals);
 }
 
-/** `value`'s share of `contract` in percent, rounded to 2 decimals; `null` when the
- * contract value is zero (no share to compute). */
-export function valueToPercent(value: string, contract: string): string | null {
+/** `value`'s share of `contract` in percent, rounded half away from zero to `decimals`
+ * (2 unless asked); `null` when the contract value is zero (no share to compute). */
+export function valueToPercent(value: string, contract: string, decimals = 2): string | null {
   const v = parse(value);
   const c = parse(contract);
   if (!v || !c || c.digits === 0n) return null;
-  // value / contract × 100, expressed in hundredths of a percent.
-  let numerator = v.digits * pow10(c.scale) * 10000n;
+  // value / contract × 100, expressed in units of 10^-decimals of a percent.
+  let numerator = v.digits * pow10(c.scale) * 100n * pow10(decimals);
   let denominator = c.digits * pow10(v.scale);
   if (denominator < 0n) {
     numerator = -numerator;
     denominator = -denominator;
   }
-  return format(divideRounded(numerator, denominator), 2);
+  return format(divideRounded(numerator, denominator), decimals);
+}
+
+/** The exact product of two decimal strings, unrounded; `null` when either is not a number. */
+export function multiplyDecimal(a: string, b: string): string | null {
+  const x = parse(a);
+  const y = parse(b);
+  if (!x || !y) return null;
+  return format(x.digits * y.digits, x.scale + y.scale);
 }
 
 /** The exact sum of `values`, at the largest scale among them. */

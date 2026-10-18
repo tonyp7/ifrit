@@ -14,11 +14,31 @@ class PdfExportSettings(BaseModel):
     logo_height_mm: int = Field(default=20, ge=1, le=60)
 
 
+class GeneralSettings(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    # Converts logged hours into days when invoicing a service line billed in days. Whole
+    # seconds so the hh:mm:ss input stores exactly what is shown, and the range runs from
+    # half an hour to a full 24-hour day.
+    standard_workday_seconds: int = Field(default=28800, ge=1800, le=86400)
+
+
+class InvoicingSettings(BaseModel):
+    # Spaces are stripped before the length check, so a name of only spaces fails
+    # min_length and is rejected as blank rather than stored.
+    model_config = ConfigDict(extra="forbid", strict=True, str_strip_whitespace=True)
+
+    # Some jurisdictions require the title "Tax Invoice" instead of "Invoice".
+    document_name: str = Field(default="Invoice", min_length=1, max_length=60)
+
+
 # The single source of truth for which groups and keys exist. Every field needs a default
 # (a missing row must never be an error) and must be a scalar: bool, int, str, or float
 # declared with allow_inf_nan=False, since JSONB cannot hold NaN or infinity.
 SETTINGS_REGISTRY: dict[str, type[BaseModel]] = {
     "pdf-export": PdfExportSettings,
+    "general": GeneralSettings,
+    "invoicing": InvoicingSettings,
 }
 
 

@@ -85,6 +85,11 @@ def test_token_missing_required_claim_rejected(claim: str) -> None:
         decode_token(_encode(_claims(**{claim: None})), expected_type="access")
 
 
+# The forged token is signed with HS512 using the app's own secret, which is sized for the
+# configured algorithm, not for HS512's 64-byte recommendation, so PyJWT warns about the key
+# length. Signing with an algorithm the app does not use is the point of the test, so the
+# warning says nothing about how real tokens are signed.
+@pytest.mark.filterwarnings("ignore::jwt.warnings.InsecureKeyLengthWarning")
 def test_token_signed_with_other_algorithm_rejected() -> None:
     other = "HS512" if settings.jwt_algorithm != "HS512" else "HS256"
     with pytest.raises(InvalidTokenError):

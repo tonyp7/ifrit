@@ -6,6 +6,7 @@ import auth from "../../public/locales/en/auth.json";
 import common from "../../public/locales/en/common.json";
 import company from "../../public/locales/en/company.json";
 import configuration from "../../public/locales/en/configuration.json";
+import invoices from "../../public/locales/en/invoices.json";
 import projects from "../../public/locales/en/projects.json";
 import timesheet from "../../public/locales/en/timesheet.json";
 import user from "../../public/locales/en/user.json";
@@ -22,7 +23,9 @@ const missing: string[] = [];
 
 void i18n.use(initReactI18next).init({
   lng: "en",
-  resources: { en: { auth, common, company, configuration, projects, timesheet, user } },
+  resources: {
+    en: { auth, common, company, configuration, invoices, projects, timesheet, user },
+  },
   defaultNS: "common",
   // Synchronous init with the namespaces preloaded, so nothing suspends while rendering.
   initAsync: false,

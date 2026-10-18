@@ -2,6 +2,7 @@
   "Timesheet": "Timesheet",
   "Reporting": "Reporting",
   "Projects": "Projects",
+  "Invoices": "Invoices",
   "Configuration": "Configuration",
   "General": "General",
   "Companies": "Companies",
@@ -41,5 +42,7 @@
   "Only see my projects": "Only see my projects",
   "Select a country…": "Select a country…",
   "Search countries…": "Search countries…",
-  "No country found.": "No country found."
+  "No country found.": "No country found.",
+  "Drag to reorder {{name}}": "Drag to reorder {{name}}",
+  "Open": "Open"
 }

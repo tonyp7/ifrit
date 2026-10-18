@@ -13,6 +13,7 @@ function render(path: string): string {
           <Route path="general" element={<p>general body</p>} />
           <Route path="companies/:companyId" element={<p>company body</p>} />
           <Route path="users/new" element={<p>new user body</p>} />
+          <Route path="invoices" element={<p>invoices body</p>} />
         </Route>
       </Routes>
     </MemoryRouter>,
@@ -29,31 +30,32 @@ function tabs(html: string): [string, string, boolean][] {
 }
 
 describe("ConfigurationLayout", () => {
-  it("renders General, Companies and Users as links, in that order", () => {
+  it("renders General, Companies, Users and Invoices as links, in that order", () => {
     expect(
       tabs(render("/configuration/general")).map(([href, label]) => [href, label]),
     ).toEqual([
       ["/configuration/general", "General"],
       ["/configuration/companies", "Companies"],
       ["/configuration/users", "Users"],
+      ["/configuration/invoices", "Invoices"],
     ]);
   });
 
   it("marks General active and shows its screen", () => {
     const html = render("/configuration/general");
-    expect(tabs(html).map(([, , active]) => active)).toEqual([true, false, false]);
+    expect(tabs(html).map(([, , active]) => active)).toEqual([true, false, false, false]);
     expect(html).toContain("general body");
   });
 
   it("keeps Companies active on a company's edit screen", () => {
     const html = render("/configuration/companies/42");
-    expect(tabs(html).map(([, , active]) => active)).toEqual([false, true, false]);
+    expect(tabs(html).map(([, , active]) => active)).toEqual([false, true, false, false]);
     expect(html).toContain("company body");
   });
 
   it("keeps Users active on the new-user screen", () => {
     const html = render("/configuration/users/new");
-    expect(tabs(html).map(([, , active]) => active)).toEqual([false, false, true]);
+    expect(tabs(html).map(([, , active]) => active)).toEqual([false, false, true, false]);
     expect(html).toContain("new user body");
   });
 });
@@ -67,5 +69,11 @@ describe("configurationTabForPath", () => {
   it("returns undefined for the bare path and unknown sections", () => {
     expect(configurationTabForPath("/configuration")).toBeUndefined();
     expect(configurationTabForPath("/configuration/unknown")).toBeUndefined();
+  });
+
+  it("marks Invoices active and shows its screen", () => {
+    const html = render("/configuration/invoices");
+    expect(tabs(html).map(([, , active]) => active)).toEqual([false, false, false, true]);
+    expect(html).toContain("invoices body");
   });
 });
