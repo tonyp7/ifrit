@@ -3,6 +3,7 @@ import { useTranslation } from "react-i18next";
 
 import { useServiceLineLabel } from "@/hooks/useServiceLineLabel";
 import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Separator } from "@/components/ui/separator";
 import type { InvoiceWarning, OmittedServiceLine } from "@/types/invoice";
 
 interface InvoiceWarningsProps {
@@ -11,6 +12,10 @@ interface InvoiceWarningsProps {
   omitted: OmittedServiceLine[];
   minorUnit: number | null;
 }
+
+// The shadcn Alert stays as the CLI writes it, so the yellow is passed in.
+const WARNING_CLASSES =
+  "border-amber-500/50 bg-amber-50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-100";
 
 /** Warnings never block saving; each carries an icon and text, not colour alone. */
 export function InvoiceWarnings({ warnings, omitted, minorUnit }: InvoiceWarningsProps) {
@@ -53,23 +58,27 @@ export function InvoiceWarnings({ warnings, omitted, minorUnit }: InvoiceWarning
   if (warnings.length === 0 && omitted.length === 0) return null;
 
   return (
-    <div className="flex flex-col gap-2" aria-live="polite">
-      {omitted.length > 0 && (
-        <Alert>
-          <Info className="h-4 w-4" aria-hidden="true" />
-          <AlertDescription>
-            {t("No hours in the period, left out: {{lines}}.", {
-              lines: omitted.map((line) => label(line)).join(", "),
-            })}
-          </AlertDescription>
-        </Alert>
-      )}
-      {warnings.map((warning) => (
-        <Alert key={warning.code}>
-          <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden="true" />
-          <AlertDescription>{message(warning)}</AlertDescription>
-        </Alert>
-      ))}
-    </div>
+    <section className="flex flex-col gap-4">
+      <Separator />
+      <h3 className="text-sm font-semibold tracking-wide uppercase">{t("Warnings")}</h3>
+      <div className="flex flex-col gap-2" aria-live="polite">
+        {omitted.length > 0 && (
+          <Alert>
+            <Info className="h-4 w-4" aria-hidden="true" />
+            <AlertDescription>
+              {t("No hours in the period, left out: {{lines}}.", {
+                lines: omitted.map((line) => label(line)).join(", "),
+              })}
+            </AlertDescription>
+          </Alert>
+        )}
+        {warnings.map((warning) => (
+          <Alert key={warning.code} className={WARNING_CLASSES}>
+            <AlertTriangle className="h-4 w-4 text-amber-600" aria-hidden="true" />
+            <AlertDescription>{message(warning)}</AlertDescription>
+          </Alert>
+        ))}
+      </div>
+    </section>
   );
 }

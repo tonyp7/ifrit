@@ -3,6 +3,7 @@ import { useForm, type UseFormReturn } from "react-hook-form";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
+import { GenerateLinesGroup } from "@/components/invoices/GenerateLinesGroup";
 import { InvoiceLinesTable } from "@/components/invoices/InvoiceLinesTable";
 import { InvoiceTaxesTable } from "@/components/invoices/InvoiceTaxesTable";
 import { InvoiceReferencesFields } from "@/components/invoices/InvoiceReferencesFields";
@@ -16,12 +17,18 @@ import {
 } from "@/components/invoices/invoiceForm";
 import { PartyFields } from "@/components/invoices/PartyFields";
 import { PayeeAccountFields } from "@/components/invoices/PayeeAccountFields";
+import { PaymentSection } from "@/components/invoices/PaymentSection";
 import { PaymentTermsField } from "@/components/invoices/PaymentTermsField";
 import { TmBillingPanel } from "@/components/invoices/TmBillingPanel";
 import { formatDueDate } from "@/lib/billingMilestones";
 import { BLANK_PAYEE_ACCOUNT_VALUES } from "@/lib/payeeAccounts";
 import { formatMoney } from "@/lib/format";
-import type { ContextAddress, ContextCompany, ContextMilestone } from "@/types/invoice";
+import type {
+  ContextAddress,
+  ContextCompany,
+  ContextMilestone,
+  InvoiceDetail,
+} from "@/types/invoice";
 
 vi.mock("@/api/currencies", () => ({ listCurrencies: vi.fn(() => new Promise(() => {})) }));
 
@@ -147,6 +154,85 @@ describe("PaymentTermsField", () => {
   });
 });
 
+describe("PaymentSection", () => {
+  const today = new Date(2026, 9, 14);
+
+  it("stacks the payment terms group above the payee account group", () => {
+    const html = withForm({ payee: null }, (form) => (
+      <PaymentSection
+        form={form}
+        accounts={[]}
+        invoiceCurrency="EUR"
+        paymentTerms="net_30"
+        dueDate={null}
+        today={today}
+        onTermsChange={vi.fn()}
+        readOnly={false}
+        detail={null}
+      />
+    ));
+    const terms = html.indexOf("<legend");
+    const payee = html.indexOf("Payee account</legend>");
+    expect(html).toContain("Payment terms</legend>");
+    expect(payee).toBeGreaterThan(terms);
+    // One column of groups: no two-column grid wrapping them.
+    expect(html).not.toMatch(/class="[^"]*sm:grid-cols-2[^"]*"[^>]*><fieldset/);
+    expect(html.match(/<fieldset/g)?.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("shows the issued dates in the payment terms group when read-only", () => {
+    const detail = {
+      invoice_date: "2026-10-14",
+      due_date: "2026-11-13",
+      payment_terms: "net_30",
+    } as unknown as InvoiceDetail;
+    const html = withForm({ payee: null }, (form) => (
+      <PaymentSection
+        form={form}
+        accounts={[]}
+        invoiceCurrency="EUR"
+        paymentTerms="net_30"
+        dueDate={null}
+        today={today}
+        onTermsChange={vi.fn()}
+        readOnly
+        detail={detail}
+      />
+    ));
+    expect(html).toContain("Payment terms</legend>");
+    expect(html).toContain(formatDueDate("2026-11-13"));
+    expect(html).not.toContain('id="payment_terms"');
+  });
+});
+
+describe("GenerateLinesGroup", () => {
+  it("puts what to bill above the Generate line items button, in a group of that name", () => {
+    const html = renderToStaticMarkup(
+      <GenerateLinesGroup canGenerate generating={false} onGenerate={vi.fn()}>
+        <p>billing choices</p>
+      </GenerateLinesGroup>,
+    );
+    expect(html).toContain("Generate line items</legend>");
+    expect(html.indexOf("billing choices")).toBeLessThan(html.indexOf("<button"));
+    expect(html).not.toMatch(/<button[^>]*disabled=""/);
+  });
+
+  it("disables the button when nothing can be generated, and shows progress", () => {
+    const off = renderToStaticMarkup(
+      <GenerateLinesGroup canGenerate={false} generating={false} onGenerate={vi.fn()}>
+        <p />
+      </GenerateLinesGroup>,
+    );
+    expect(off).toMatch(/<button[^>]*disabled=""/);
+    const busy = renderToStaticMarkup(
+      <GenerateLinesGroup canGenerate generating onGenerate={vi.fn()}>
+        <p />
+      </GenerateLinesGroup>,
+    );
+    expect(busy).toContain("Generating…");
+  });
+});
+
 describe("InvoiceReferencesFields", () => {
   it("asks which value for a kind the project has several of", () => {
     const html = withForm(
@@ -237,6 +323,38 @@ describe("InvoiceWarnings", () => {
     expect(html).toContain("Payee account currency");
     expect(html).toContain("client has been deactivated");
     expect(html).toContain("left out: Idle");
+  });
+
+  it("is a Warnings section, with its own separator", () => {
+    const html = renderToStaticMarkup(
+      <InvoiceWarnings
+        minorUnit={2}
+        omitted={[]}
+        warnings={[{ code: "payee_currency", service_lines: [], companies: [] }]}
+      />,
+    );
+    expect(html).toContain("Warnings</h3>");
+    expect(html).toContain('data-orientation="horizontal"');
+  });
+
+  it("shows warnings on a yellow background and the left-out note on the plain one", () => {
+    const html = renderToStaticMarkup(
+      <InvoiceWarnings
+        minorUnit={2}
+        omitted={[{ service_line_id: "s", name: "Idle", uom: "hours", unit_price: "95" }]}
+        warnings={[{ code: "payee_currency", service_lines: [], companies: [] }]}
+      />,
+    );
+    const alerts = [...html.matchAll(/<div role="alert" class="([^"]*)"/g)].map((m) => m[1]);
+    expect(alerts).toHaveLength(2);
+    const [note, warning] = alerts;
+    expect(note).not.toContain("bg-amber-50");
+    expect(warning).toContain("bg-amber-50");
+    expect(warning).toContain("dark:bg-amber-950/30");
+    // The note comes first.
+    expect(html.indexOf("left out: Idle")).toBeLessThan(
+      html.indexOf("Payee account currency"),
+    );
   });
 
   it("renders nothing when there is nothing to say", () => {

@@ -47,11 +47,17 @@ Choose **+ New**. The form has five steps.
 1. **Project.** Pick an Active Time & Material, Capped T&M or Fixed Price project. Its currency and type are
    shown next to it; the invoice is always in the project's currency. Changing the project of an
    invoice that already has lines asks first, because the lines are cleared.
-2. **Parties.** **Bill From** is filled in from the project's vendor and **Bill To** from its
+2. **References.** The project's purchase orders, contract and other references are copied in.
+   When the project has several values of one kind (several purchase orders, for example), pick
+   the one this invoice is for. You can edit, remove and add references without changing the
+   project.
+3. **Parties.** **Bill From** is filled in from the project's vendor and **Bill To** from its
    client: the trading name (or legal name) and an address. Bill From prefers the registered
    address, Bill To the billing address. When the company has several addresses, a dropdown lets
    you copy another one in. Every field stays editable, and changing the companies later never
    changes the invoice.
+4. **Payment.** Two groups, one above the other:
+   - **Payment terms**: pick a preset, a fixed date, or neither (see below).
    - **Payee account**: the bank account the client should pay into. One of the vendor's accounts
      is copied in, the first that applies: its primary account in the invoice currency; any
      account in the invoice currency; a primary account in another currency; any account. Between
@@ -60,20 +66,16 @@ Choose **+ New**. The form has five steps.
      **Payee account currency** warning says so. Pick another one from the dropdown, edit the
      details, or clear them. The details are a copy: editing or deleting the vendor's account
      afterwards does not change the invoice.
-   - **References**: the project's purchase orders, contract and other references are copied in.
-     When the project has several values of one kind (several purchase orders, for example), pick
-     the one this invoice is for. You can edit, remove and add references without changing the
-     project.
-   - **Payment terms**: pick a preset, a fixed date, or neither (see below).
-3. **What to bill.** For a Fixed Price project, tick the milestones to bill (see below). Otherwise, tick the
-   service lines to bill (all of them by default) and choose the period:
-   **This month**, **Last month** (the default), **This week**, **Last week**, or any range in the
-   calendar. Weeks run Monday to Sunday, like the timesheet.
-4. **Generate.** **Generate line items** builds the lines from the hours logged in the period.
-   The lines are added after any already on the draft, which are left as they are, so generating
-   the same selection twice adds it twice. Delete the lines you do not want.
-5. **Line items.** Edit the lines, add more, add taxes under the subtotal (see
-   [Taxes](#taxes)), and save with **Save draft**.
+5. **Line items.** Start with the **Generate line items** group. For a Fixed Price project, tick
+   the milestones to bill (see below). Otherwise, tick the service lines to bill (all of them by
+   default) and choose the period: **This month**, **Last month** (the default), **This week**,
+   **Last week**, or any range in the calendar. Weeks run Monday to Sunday, like the timesheet.
+   Then choose **Generate line items**, which builds the lines from the hours logged in the
+   period. The lines are added after any already on the draft, which are left as they are, so
+   generating the same selection twice adds it twice. Delete the lines you do not want.
+   Below the group, edit the lines, add more, add taxes under the subtotal (see
+   [Taxes](#taxes)), and save with **Save draft**. The [warnings](#warnings) are listed in
+   yellow below the total.
 
 ## How lines are generated
 
@@ -87,14 +89,14 @@ For each ticked service line, one line:
   default), with up to 5 decimals. Lines billed **each** come out with quantity 0 for you to fill in.
 - **Unit and unit price**: the service line's.
 
-Lines with no hours in the period are left out, and a note says which. Generating never locks or
+Lines with no hours in the period are left out, and a note at the top of the warnings says which. Generating never locks or
 unlocks any hours. A generated line is a plain line: editing or removing the service line later
 does not change the invoice.
 
 ## Invoicing a Fixed Price project
 
 A Fixed Price project is billed by its **billing milestones**, which a manager sets up on the
-project. In step 3, **What to bill** lists every milestone in order, with its due date and value;
+project. In step 5, the **Generate line items** group lists every milestone in order, with its due date and value;
 there is no period. Tick one or more (none are ticked to start with), then **Generate line
 items**. The invoice gets one line per ticked milestone, in the project's milestone order whatever
 order you ticked them in:

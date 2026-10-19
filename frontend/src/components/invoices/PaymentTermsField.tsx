@@ -1,7 +1,6 @@
 import { useTranslation } from "react-i18next";
 
 import { DueDatePicker } from "@/components/projects/DueDatePicker";
-import { Label } from "@/components/ui/label";
 import {
   Select,
   SelectContent,
@@ -37,8 +36,8 @@ export function PaymentTermsField({
   const { t } = useTranslation(["invoices"]);
 
   return (
-    <div className="flex flex-col gap-2">
-      <Label htmlFor="payment_terms">{t("Payment terms")}</Label>
+    <fieldset className="flex flex-col gap-2 rounded-md border p-4">
+      <legend className="px-1 text-sm font-medium">{t("Payment terms")}</legend>
       <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
         <Select
           value={paymentTerms ?? NONE}
@@ -50,7 +49,7 @@ export function PaymentTermsField({
             })
           }
         >
-          <SelectTrigger id="payment_terms">
+          <SelectTrigger id="payment_terms" aria-label={t("Payment terms")}>
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -83,6 +82,6 @@ export function PaymentTermsField({
       ) : (
         <p className="text-muted-foreground text-sm">{t("No due date")}</p>
       )}
-    </div>
+    </fieldset>
   );
 }
