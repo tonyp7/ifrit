@@ -353,15 +353,17 @@ export function InvoiceNumberingCardView({
             <RotateCcw className="h-4 w-4" aria-hidden="true" />
             {t("Reset to default")}
           </Button>
+          {/* Red: it changes how every future invoice is numbered. */}
           <Button
             type="button"
+            variant="destructive"
             size="sm"
-            className={cn("ml-auto", TOUCH)}
+            className={TOUCH}
             disabled={disabled || errors.length > 0 || !changed}
             onClick={onSave}
           >
             {busy === "format" && <Spinner />}
-            {busy === "format" ? t("Saving…", { ns: "common" }) : t("Save", { ns: "common" })}
+            {busy === "format" ? t("Applying…") : t("Apply")}
           </Button>
         </div>
 

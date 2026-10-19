@@ -65,6 +65,10 @@ handle to reorder them, or select one and press **Alt** with the left or right a
 a label too, has its own remove button. **Undo**, **Redo** and **Reset to default** are below the
 format.
 
+The format is not saved as you edit it. Choose the red **Apply** button, after **Reset to
+default**, to apply it: it stays greyed out until the format differs from the saved one and has no
+error. Red because the new format numbers every invoice issued from then on.
+
 Click the sequence to set:
 
 - **Digits**: how many digits the counter has, padded with zeros (5 digits gives `00001`). A
@@ -78,7 +82,7 @@ restarts but the format lacks the date that tells the periods apart, for example
 with no month, which would give two invoices the same number. A format with no sequence, or that
 could produce a number longer than 100 characters, cannot be saved.
 
-**Changing the format later**: once invoices have been issued, saving asks you to confirm. The new
+**Changing the format later**: once invoices have been issued, applying asks you to confirm. The new
 format only applies to invoices issued from then on; issued invoices keep their numbers.
 
 **Next number**: set the counter's next value, for example to continue from another system. A value

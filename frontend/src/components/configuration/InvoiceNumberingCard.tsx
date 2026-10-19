@@ -28,7 +28,7 @@ export function InvoiceNumberingCard() {
 
   async function save(confirm: boolean) {
     const result = await saveFormat(confirm);
-    report(result, t("Invoice numbering saved"));
+    report(result, t("Invoice numbering applied"));
   }
 
   function report(result: NumberingResult, success: string) {
@@ -97,7 +97,7 @@ export function InvoiceNumberingCard() {
                 void save(true);
               }}
             >
-              {t("Change numbering")}
+              {t("Apply numbering")}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
