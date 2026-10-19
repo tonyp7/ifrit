@@ -25,12 +25,12 @@ import { InvoiceTaxesTable } from "@/components/invoices/InvoiceTaxesTable";
 import { IssueInvoiceDialog } from "@/components/invoices/IssueInvoiceDialog";
 import {
   InvoiceHeading,
-  IssuedDates,
   IssuedIdentifiers,
   ProjectNotActiveBanner,
   VoidNotice,
 } from "@/components/invoices/IssuedInvoiceDetails";
 import { VoidInvoiceDialog } from "@/components/invoices/VoidInvoiceDialog";
+import { GenerateLinesGroup } from "@/components/invoices/GenerateLinesGroup";
 import { InvoiceReferencesFields } from "@/components/invoices/InvoiceReferencesFields";
 import { InvoiceWarnings } from "@/components/invoices/InvoiceWarnings";
 import {
@@ -42,8 +42,7 @@ import {
   type InvoiceFormValues,
 } from "@/components/invoices/invoiceForm";
 import { PartyFields } from "@/components/invoices/PartyFields";
-import { PayeeAccountFields } from "@/components/invoices/PayeeAccountFields";
-import { PaymentTermsField } from "@/components/invoices/PaymentTermsField";
+import { PaymentSection } from "@/components/invoices/PaymentSection";
 import { MilestoneBillingPanel } from "@/components/invoices/MilestoneBillingPanel";
 import { TmBillingPanel } from "@/components/invoices/TmBillingPanel";
 import { useServiceLineLabel } from "@/hooks/useServiceLineLabel";
@@ -541,7 +540,13 @@ export function InvoiceFormPage() {
         <>
           <Separator />
           <section className="flex flex-col gap-4">
-            <SectionHeading step={2} title={t("Parties")} />
+            <SectionHeading step={2} title={t("References")} />
+            <InvoiceReferencesFields form={form} disabled={readOnly} />
+          </section>
+
+          <Separator />
+          <section className="flex flex-col gap-4">
+            <SectionHeading step={3} title={t("Parties")} />
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <PartyFields
                 side="bill_from"
@@ -570,92 +575,64 @@ export function InvoiceFormPage() {
                 />
               </div>
             )}
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <PayeeAccountFields
-                accounts={context?.payee_accounts ?? []}
-                invoiceCurrency={context?.currency_code ?? null}
-                form={form}
-                disabled={readOnly}
-              />
-              <div className="flex flex-col gap-4">
-                <InvoiceReferencesFields form={form} disabled={readOnly} />
-                {readOnly && detail ? (
-                  <IssuedDates detail={detail} />
-                ) : (
-                  <PaymentTermsField
-                    paymentTerms={paymentTerms}
-                    dueDate={dueDate}
-                    today={today}
+          </section>
+
+          <Separator />
+          <section className="flex flex-col gap-4">
+            <SectionHeading step={4} title={t("Payment")} />
+            <PaymentSection
+              form={form}
+              accounts={context?.payee_accounts ?? []}
+              invoiceCurrency={context?.currency_code ?? null}
+              paymentTerms={paymentTerms}
+              dueDate={dueDate}
+              today={today}
+              readOnly={readOnly}
+              detail={detail}
+              onTermsChange={({ paymentTerms: terms, dueDate: date }) => {
+                setValue("payment_terms", terms, { shouldDirty: true });
+                setValue("due_date", date, { shouldDirty: true });
+              }}
+            />
+          </section>
+
+          <Separator />
+          <section className="flex flex-col gap-4">
+            <SectionHeading step={5} title={t("Line items")} />
+            {!readOnly && (
+              <GenerateLinesGroup
+                canGenerate={canGenerate && busy === null}
+                generating={busy === "generating"}
+                onGenerate={() => void runGenerate()}
+              >
+                {context && isFixedPrice && (
+                  <MilestoneBillingPanel
+                    milestones={context.milestones}
+                    selected={milestoneIds}
+                    onSelectedChange={setMilestoneIds}
+                    currencyCode={context.currency_code}
+                    minorUnit={context.currency_minor_unit}
                     disabled={readOnly}
-                    onChange={({ paymentTerms: terms, dueDate: date }) => {
-                      setValue("payment_terms", terms, { shouldDirty: true });
-                      setValue("due_date", date, { shouldDirty: true });
-                    }}
                   />
                 )}
-              </div>
-            </div>
-          </section>
-
-          <Separator />
-          <section className="flex flex-col gap-4">
-            <SectionHeading step={3} title={t("What to bill")} />
-            {context && isFixedPrice && (
-              <MilestoneBillingPanel
-                milestones={context.milestones}
-                selected={milestoneIds}
-                onSelectedChange={setMilestoneIds}
-                currencyCode={context.currency_code}
-                minorUnit={context.currency_minor_unit}
-                disabled={readOnly}
-              />
+                {context && !isFixedPrice && (
+                  <TmBillingPanel
+                    serviceLines={context.service_lines}
+                    selected={serviceLineIds}
+                    onSelectedChange={(ids) => setValue("service_line_ids", ids)}
+                    period={{ preset: periodPreset, start: periodStart, end: periodEnd }}
+                    onPeriodChange={(period) => {
+                      setValue("period_preset", period.preset);
+                      setValue("period_start", period.start, { shouldDirty: true });
+                      setValue("period_end", period.end, { shouldDirty: true });
+                    }}
+                    minorUnit={context.currency_minor_unit}
+                    today={today}
+                    disabled={readOnly}
+                  />
+                )}
+              </GenerateLinesGroup>
             )}
-            {context && !isFixedPrice && (
-              <TmBillingPanel
-                serviceLines={context.service_lines}
-                selected={serviceLineIds}
-                onSelectedChange={(ids) => setValue("service_line_ids", ids)}
-                period={{ preset: periodPreset, start: periodStart, end: periodEnd }}
-                onPeriodChange={(period) => {
-                  setValue("period_preset", period.preset);
-                  setValue("period_start", period.start, { shouldDirty: true });
-                  setValue("period_end", period.end, { shouldDirty: true });
-                }}
-                minorUnit={context.currency_minor_unit}
-                today={today}
-                disabled={readOnly}
-              />
-            )}
-          </section>
-
-          {!readOnly && (
-            <>
-              <Separator />
-              <section className="flex flex-col gap-4">
-                <SectionHeading step={4} title={t("Generate")} />
-                <div className="flex flex-wrap items-center gap-3">
-                  <Button
-                    type="button"
-                    variant="outline"
-                    disabled={!canGenerate || busy !== null}
-                    onClick={() => void runGenerate()}
-                  >
-                    {busy === "generating" && <Spinner />}
-                    {busy === "generating" ? t("Generating…") : t("Generate line items")}
-                  </Button>
-                </div>
-                <InvoiceWarnings
-                  warnings={warnings}
-                  omitted={omitted}
-                  minorUnit={context?.currency_minor_unit ?? null}
-                />
-              </section>
-            </>
-          )}
-
-          <Separator />
-          <section className="flex flex-col gap-4">
-            <SectionHeading step={readOnly ? 4 : 5} title={t("Line items")} />
             <InvoiceLinesTable
               form={form}
               currencyCode={
@@ -681,6 +658,13 @@ export function InvoiceFormPage() {
               disabled={readOnly}
               stored={readOnly && detail ? { taxes: detail.taxes, total: detail.total } : null}
             />
+            {!readOnly && (
+              <InvoiceWarnings
+                warnings={warnings}
+                omitted={omitted}
+                minorUnit={context?.currency_minor_unit ?? null}
+              />
+            )}
           </section>
         </>
       )}
