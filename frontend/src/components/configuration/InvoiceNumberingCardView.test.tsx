@@ -99,19 +99,41 @@ describe("InvoiceNumberingCardView", () => {
     expect(html).toContain("--0001");
   });
 
-  it("flags a bad character in a Label and disables Save", () => {
+  it("flags a bad character in a Label and disables Apply", () => {
     const html = render([
       { type: "text", value: "INV#" },
       { type: "sequence", digits: 4, start_at: 1, restart: "never" },
     ]);
     expect(html).toContain("Only letters, numbers, -, / and _ are allowed.");
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Save</);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Apply</);
   });
 
-  it("shows an error and disables Save without a sequence", () => {
+  it("puts a red Apply button last in the left group, after Reset to default", () => {
+    const html = render(DEFAULT_TOKENS, { saved: { ...saved, tokens: [{ type: "year" }] } });
+    const apply =
+      /<button[^>]*class="([^"]*)"[^>]*>(?:<svg[^>]*>.*?<\/svg>)?Apply<\/button>/.exec(html);
+    expect(apply).not.toBeNull();
+    const classes = apply![1].split(" ");
+    expect(classes).toContain("bg-destructive");
+    expect(classes).not.toContain("ml-auto");
+    expect(classes).not.toContain("bg-primary");
+    // After Undo, Redo and Reset to default, and nothing but Next number follows it.
+    const order = ["Undo", "Redo", "Reset to default", "Apply"].map((label) =>
+      html.indexOf(`${label}</button>`),
+    );
+    expect(order.every((position) => position > -1)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
+    expect(html.indexOf("Save")).toBe(-1);
+  });
+
+  it("disables Apply while the format matches the saved one", () => {
+    expect(render()).toMatch(/<button[^>]*disabled=""[^>]*>Apply</);
+  });
+
+  it("shows an error and disables Apply without a sequence", () => {
     const html = render([{ type: "text", value: "INV-" }]);
     expect(html).toContain("Invoice numbers may not be unique. Add a sequence.");
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Save</);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>Apply</);
   });
 
   it("warns about a counter restarting without its date tiles, without blocking", () => {
