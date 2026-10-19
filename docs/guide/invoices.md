@@ -52,10 +52,14 @@ Choose **+ New**. The form has five steps.
    address, Bill To the billing address. When the company has several addresses, a dropdown lets
    you copy another one in. Every field stays editable, and changing the companies later never
    changes the invoice.
-   - **Payee account**: the bank account the client should pay into. The vendor's primary account
-     in the invoice currency is copied in, or its only account in that currency. Pick another one
-     from the dropdown, edit the details, or clear them. The details are a copy: editing or
-     deleting the vendor's account afterwards does not change the invoice.
+   - **Payee account**: the bank account the client should pay into. One of the vendor's accounts
+     is copied in, the first that applies: its primary account in the invoice currency; any
+     account in the invoice currency; a primary account in another currency; any account. Between
+     accounts that tie, the one with the lowest id is taken. A vendor with no account leaves the
+     details empty for you to fill in. When the account is not in the invoice currency, the
+     **Payee account currency** warning says so. Pick another one from the dropdown, edit the
+     details, or clear them. The details are a copy: editing or deleting the vendor's account
+     afterwards does not change the invoice.
    - **References**: the project's purchase orders, contract and other references are copied in.
      When the project has several values of one kind (several purchase orders, for example), pick
      the one this invoice is for. You can edit, remove and add references without changing the
