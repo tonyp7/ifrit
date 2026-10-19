@@ -6,18 +6,33 @@ import {
 } from "@/lib/payeeAccounts";
 import type { ContextPayeeAccount, InvoicePayee } from "@/types/invoice";
 
-/** The vendor account to copy onto a new draft: the primary one in the invoice currency,
- * else the only one in that currency, else none (several and no primary is the user's
- * call). */
+/** How well an account suits the invoice: 1 the primary one in the invoice currency, 2 any
+ * in that currency, 3 a primary one in another currency, 4 anything else. */
+function payeeRank(account: ContextPayeeAccount, currency: string): number {
+  if (account.currency_code === currency) return account.is_primary ? 1 : 2;
+  return account.is_primary ? 3 : 4;
+}
+
+/** The vendor account to copy onto a new draft: the best-ranked one (see `payeeRank`), the
+ * lowest id deciding between equals, so the pick does not depend on the order received. The
+ * ids are compared as plain strings, as the server orders them. A vendor with an account in
+ * another currency only still gets it: the payee currency warning flags the difference. Null
+ * only when the vendor has no account. */
 export function preselectPayee(
   accounts: ContextPayeeAccount[],
   currency: string,
 ): ContextPayeeAccount | null {
-  const inCurrency = accounts.filter((account) => account.currency_code === currency);
-  return (
-    inCurrency.find((account) => account.is_primary) ??
-    (inCurrency.length === 1 ? inCurrency[0] : null)
-  );
+  let best: ContextPayeeAccount | null = null;
+  for (const account of accounts) {
+    if (best === null) {
+      best = account;
+      continue;
+    }
+    const rank = payeeRank(account, currency);
+    const bestRank = payeeRank(best, currency);
+    if (rank < bestRank || (rank === bestRank && account.id < best.id)) best = account;
+  }
+  return best;
 }
 
 /** The dropdown's order: accounts in the invoice currency first, otherwise as received. */
