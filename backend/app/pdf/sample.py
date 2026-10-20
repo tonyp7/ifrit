@@ -26,7 +26,7 @@ def sample_template_data() -> TemplateData:
         bill_from_name="Sample Consulting Pte. Ltd.",
         bill_from_line1="1 Sample Street",
         bill_from_city="Singapore",
-        bill_from_postal_zone="018989",
+        bill_from_postal_zone="123456",
         bill_from_country_code="SG",
         bill_to_name="Example Client Ltd",
         bill_to_line1="22 Example Road",
@@ -42,7 +42,7 @@ def sample_template_data() -> TemplateData:
         payee_bank_name="Sample Bank",
         payee_bank_line1="1 Bank Street",
         payee_bank_city="Singapore",
-        payee_bank_postal_zone="018989",
+        payee_bank_postal_zone="123456",
         payee_bank_country_code="SG",
         subtotal=Decimal(6000),
         total=Decimal(6420),
@@ -58,7 +58,7 @@ def sample_template_data() -> TemplateData:
         ],
         references=[
             InvoiceReference(
-                position=0, kind="purchase_order", label=None, value="PO-1070000772"
+                position=0, kind="purchase_order", label=None, value="PO-2026-0001"
             )
         ],
         taxes=[

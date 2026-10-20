@@ -36,9 +36,9 @@ def _invoice(**overrides: Any) -> Invoice:
         "status": "draft",
         "currency_code": "USD",
         "bill_from_name": "Ifrit Consulting",
-        "bill_from_line1": "8 Ah Soo Garden",
+        "bill_from_line1": "1 Example Road",
         "bill_from_city": "Singapore",
-        "bill_from_postal_zone": "539960",
+        "bill_from_postal_zone": "123456",
         "bill_from_country_code": "SG",
         "bill_to_name": "ACME",
         "subtotal": Decimal(6000),
@@ -132,9 +132,9 @@ def test_issued_values_come_from_the_invoice() -> None:
 def test_party_values() -> None:
     invoice = _invoice(
         bill_to_name="Acme Pte Ltd",
-        bill_to_line1="8 Ah Soo Garden",
+        bill_to_line1="1 Example Road",
         bill_to_city="Singapore",
-        bill_to_postal_zone="539960",
+        bill_to_postal_zone="123456",
         bill_to_country_code="SG",
     )
     data = _data(invoice, client_identifiers=[VENDOR_IDS[1]])
@@ -142,11 +142,11 @@ def test_party_values() -> None:
     assert data.values["bill_to_country"] == "Singapore"
     assert data.values["bill_to_country_code"] == "SG"
     assert (
-        data.values["bill_to_address"] == "8 Ah Soo Garden, 539960 Singapore, Singapore"
+        data.values["bill_to_address"] == "1 Example Road, 123456 Singapore, Singapore"
     )
     assert data.blocks["bill_to_address_lines"] == [
-        "8 Ah Soo Garden",
-        "539960 Singapore",
+        "1 Example Road",
+        "123456 Singapore",
         "Singapore",
     ]
     assert data.values["bill_to_registration_id"] == "UEN9"
@@ -197,9 +197,9 @@ def test_payee_values_and_iban_grouping() -> None:
         payee_account_identifier="SG1234567890123456",
         payee_account_name="Ifrit",
         payee_currency_code="USD",
-        payee_bic="DBSSSGSG",
+        payee_bic="EXMPSGSG",
         payee_bank_name="DBS Bank",
-        payee_bank_line1="12 Marina Blvd",
+        payee_bank_line1="1 Sample Blvd",
         payee_bank_city="Singapore",
         payee_bank_country_code="SG",
     )
@@ -210,7 +210,7 @@ def test_payee_values_and_iban_grouping() -> None:
     assert values["payee_account_identifier"] == "SG12 3456 7890 1234 56"
     assert values["payee_account_identifier_raw"] == "SG1234567890123456"
     assert values["payee_bank_country"] == "Singapore"
-    assert values["payee_bank_address"] == "12 Marina Blvd, Singapore, Singapore"
+    assert values["payee_bank_address"] == "1 Sample Blvd, Singapore, Singapore"
 
 
 def test_a_non_iban_account_is_not_regrouped() -> None:

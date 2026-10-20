@@ -6,7 +6,8 @@ and **placeholders** such as `{{invoice_number}}` that are replaced by the invoi
 placeholder, `{{invoice_lines}}`, stands for the whole table of lines, subtotal, taxes and total.
 
 An administrator manages the template under **Configuration > Invoices > Invoice Template**. Out
-of the box the **default template** that ships with the application is used.
+of the box the **default template** that ships with the application is used. The card does not
+list the placeholders: this page does, in the [placeholder reference](#placeholder-reference) below.
 
 ## Changing the template
 
@@ -98,7 +99,7 @@ message; try again later.
 
 ## Placeholder reference
 
-The same list is on the Invoice Template card, under **Placeholders**.
+Every placeholder a template can use. The examples are made-up values, only there to show the shape of what is printed.
 
 ### Document
 
@@ -127,20 +128,20 @@ Every row exists twice: `bill_from_` is the vendor (the company issuing the invo
 | Placeholder | What it prints | Kind | Example |
 | --- | --- | --- | --- |
 | `{{bill_from_name}}` | The vendor's name | text | Acme Pte Ltd |
-| `{{bill_from_line1}}` | First address line of the vendor | text | 8 Ah Soo Garden |
+| `{{bill_from_line1}}` | First address line of the vendor | text | 1 Example Road |
 | `{{bill_from_line2}}` | Second address line of the vendor | text | Unit 4 |
 | `{{bill_from_line3}}` | Third address line of the vendor | text | - |
 | `{{bill_from_city}}` | City of the vendor | text | Singapore |
-| `{{bill_from_postal_zone}}` | Postal code of the vendor | text | 539960 |
+| `{{bill_from_postal_zone}}` | Postal code of the vendor | text | 123456 |
 | `{{bill_from_country_subdivision}}` | State or province of the vendor | text | - |
 | `{{bill_from_country_code}}` | ISO country code of the vendor | text | SG |
 | `{{bill_from_country}}` | Country of the vendor, in English | text | Singapore |
-| `{{bill_from_address}}` | The vendor's whole address on one line | text | 8 Ah Soo Garden, 539960 Singapore, Singapore |
-| `{{bill_from_address_lines}}` | The vendor's address, one paragraph per line | one paragraph per item | 8 Ah Soo Garden / 539960 Singapore / Singapore |
-| `{{bill_from_vat_id}}` | The vendor's primary VAT identifier | text | SG123456789 |
-| `{{bill_from_registration_id}}` | The vendor's primary legal registration identifier | text | 201912345K |
-| `{{bill_from_peppol_id}}` | The vendor's primary Peppol participant identifier | text | 0195:SGUENT08GA0028A |
-| `{{bill_from_identifiers}}` | The vendor's identifiers, one paragraph each | one paragraph per item | VAT: SG123456789 |
+| `{{bill_from_address}}` | The vendor's whole address on one line | text | 1 Example Road, 123456 Singapore, Singapore |
+| `{{bill_from_address_lines}}` | The vendor's address, one paragraph per line | one paragraph per item | 1 Example Road / 123456 Singapore / Singapore |
+| `{{bill_from_vat_id}}` | The vendor's primary VAT identifier | text | SG000000000 |
+| `{{bill_from_registration_id}}` | The vendor's primary legal registration identifier | text | 201900000A |
+| `{{bill_from_peppol_id}}` | The vendor's primary Peppol participant identifier | text | 0195:SGUEN99999999Z |
+| `{{bill_from_identifiers}}` | The vendor's identifiers, one paragraph each | one paragraph per item | VAT: SG000000000 |
 
 ### Payment
 
@@ -151,20 +152,20 @@ Every row exists twice: `bill_from_` is the vendor (the company issuing the invo
 | `{{payee_account_name}}` | The account holder | text | Acme Pte Ltd |
 | `{{payee_account_scheme}}` | IBAN or Other | text | IBAN |
 | `{{payee_account_identifier}}` | The account number (IBAN in groups of four) | text | SG12 3456 7890 1234 |
-| `{{payee_account_identifier_raw}}` | The account number as stored | text | SG1234567890123456 |
+| `{{payee_account_identifier_raw}}` | The account number as stored | text | SG0000000000123456 |
 | `{{payee_currency_code}}` | The account's currency | text | USD |
-| `{{payee_bic}}` | The bank's BIC (SWIFT) | text | DBSSSGSG |
-| `{{payee_bank_name}}` | The bank's name | text | DBS Bank |
-| `{{payee_bank_line1}}` | First address line of the bank | text | 12 Marina Boulevard |
+| `{{payee_bic}}` | The bank's BIC (SWIFT) | text | EXMPSGSG |
+| `{{payee_bank_name}}` | The bank's name | text | Sample Bank |
+| `{{payee_bank_line1}}` | First address line of the bank | text | 1 Sample Boulevard |
 | `{{payee_bank_line2}}` | Second address line of the bank | text | - |
 | `{{payee_bank_line3}}` | Third address line of the bank | text | - |
 | `{{payee_bank_city}}` | City of the bank | text | Singapore |
-| `{{payee_bank_postal_zone}}` | Postal code of the bank | text | 018982 |
+| `{{payee_bank_postal_zone}}` | Postal code of the bank | text | 654321 |
 | `{{payee_bank_country_subdivision}}` | State or province of the bank | text | - |
 | `{{payee_bank_country_code}}` | ISO country code of the bank | text | SG |
 | `{{payee_bank_country}}` | Country of the bank, in English | text | Singapore |
-| `{{payee_bank_address}}` | The bank's address on one line | text | 12 Marina Boulevard, 018982 Singapore, Singapore |
-| `{{payee_bank_address_lines}}` | The bank's address, one paragraph per line | one paragraph per item | 12 Marina Boulevard / 018982 Singapore |
+| `{{payee_bank_address}}` | The bank's address on one line | text | 1 Sample Boulevard, 654321 Singapore, Singapore |
+| `{{payee_bank_address_lines}}` | The bank's address, one paragraph per line | one paragraph per item | 1 Sample Boulevard / 654321 Singapore |
 
 ### Amounts
 
@@ -181,7 +182,7 @@ Every row exists twice: `bill_from_` is the vendor (the company issuing the invo
 
 | Placeholder | What it prints | Kind | Example |
 | --- | --- | --- | --- |
-| `{{references}}` | The references, one paragraph each | one paragraph per item | Purchase order: 1070000772 |
+| `{{references}}` | The references, one paragraph each | one paragraph per item | Purchase order: PO-2026-0001 |
 | `{{reference_purchase_order}}` | The values of the purchase order references | text | PO-1, PO-2 |
 | `{{reference_sales_order}}` | The values of the sales order references | text | PO-1, PO-2 |
 | `{{reference_contract}}` | The values of the contract references | text | PO-1, PO-2 |

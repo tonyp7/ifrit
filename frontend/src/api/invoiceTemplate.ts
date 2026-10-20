@@ -4,17 +4,12 @@ import type {
   InvoiceTemplateSaved,
   TemplateFinding,
   TemplateRejection,
-  TemplateToken,
 } from "@/types/invoiceTemplate";
 
 const PATH = "/invoice-template";
 
 export function getInvoiceTemplate() {
   return apiClient.get<InvoiceTemplateInfo>(PATH);
-}
-
-export function getTemplateTokens() {
-  return apiClient.get<TemplateToken[]>(`${PATH}/tokens`);
 }
 
 /** The template in use as an .odt, with the file name the server gives it. */

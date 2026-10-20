@@ -9,7 +9,7 @@ import {
   InvoiceTemplateCardView,
   type InvoiceTemplateCardViewProps,
 } from "@/components/configuration/InvoiceTemplateCardView";
-import type { InvoiceTemplateInfo, TemplateToken } from "@/types/invoiceTemplate";
+import type { InvoiceTemplateInfo } from "@/types/invoiceTemplate";
 
 const defaultInfo: InvoiceTemplateInfo = {
   source: "default",
@@ -29,28 +29,10 @@ const customInfo: InvoiceTemplateInfo = {
   placeholders: ["invoice_number"],
 };
 
-const tokens: TemplateToken[] = [
-  {
-    name: "invoice_number",
-    description: "The invoice number",
-    kind: "value",
-    optional_capable: true,
-    example: "INV-2026-0043",
-  },
-  {
-    name: "invoice_lines",
-    description: "The line-items table",
-    kind: "lines",
-    optional_capable: false,
-    example: "",
-  },
-];
-
 const baseProps: InvoiceTemplateCardViewProps = {
   info: defaultInfo,
   loading: false,
   loadFailed: false,
-  tokens,
   review: null,
   saving: false,
   resetting: false,
@@ -230,24 +212,19 @@ describe("InvoiceTemplateCardView", () => {
     });
   });
 
-  describe("the placeholder reference", () => {
-    it("is collapsed by default and lists every placeholder with its meaning and example", () => {
+  describe("where the placeholders are listed", () => {
+    it("lists none, and says they are in the documentation", () => {
       const html = render();
 
-      expect(html).toContain("<details");
-      expect(html).not.toContain("<details open");
-      expect(html).toContain("{{invoice_number}}");
-      expect(html).toContain("The invoice number");
-      expect(html).toContain("INV-2026-0043");
-      expect(html).toContain("{{invoice_lines}}");
+      expect(html).not.toContain("<details");
+      expect(html).not.toContain("{{");
+      expect(html).toContain(
+        "The list of placeholders and how to use them is in the documentation (the invoice template guide).",
+      );
     });
 
-    it("explains the optional form with a question mark", () => {
-      expect(render()).toContain("{{payee_bank_name?}}");
-    });
-
-    it("shows that it is loading until the placeholders arrive", () => {
-      expect(render({ tokens: null })).toContain("Loading…");
+    it("has no link to the documentation", () => {
+      expect(render()).not.toContain("<a ");
     });
   });
 });

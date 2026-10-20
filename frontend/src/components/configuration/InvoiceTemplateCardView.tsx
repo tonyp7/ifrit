@@ -24,11 +24,7 @@ import {
 } from "@/components/ui/card";
 import { Spinner } from "@/components/ui/spinner";
 import { formatFileSize } from "@/lib/format";
-import type {
-  InvoiceTemplateInfo,
-  TemplateFinding,
-  TemplateToken,
-} from "@/types/invoiceTemplate";
+import type { InvoiceTemplateInfo, TemplateFinding } from "@/types/invoiceTemplate";
 
 // What the file chooser offers; the server checks the real content.
 const ACCEPTED_TYPES = ".odt,application/vnd.oasis.opendocument.text";
@@ -51,7 +47,6 @@ export interface InvoiceTemplateCardViewProps {
   /** True until the template in use has been read, whatever the outcome. */
   loading: boolean;
   loadFailed: boolean;
-  tokens: TemplateToken[] | null;
   review: TemplateReview | null;
   saving: boolean;
   resetting: boolean;
@@ -81,7 +76,6 @@ export function InvoiceTemplateCardView({
   info,
   loading,
   loadFailed,
-  tokens,
   review,
   saving,
   resetting,
@@ -105,6 +99,9 @@ export function InvoiceTemplateCardView({
         <CardDescription>
           {t(
             "The layout invoice PDFs are made from. Download it, edit it in LibreOffice Writer, and upload it again.",
+          )}{" "}
+          {t(
+            "The list of placeholders and how to use them is in the documentation (the invoice template guide).",
           )}
         </CardDescription>
       </CardHeader>
@@ -275,40 +272,6 @@ export function InvoiceTemplateCardView({
             </div>
           </section>
         )}
-
-        <details className="text-sm">
-          <summary className="cursor-pointer font-medium">{t("Placeholders")}</summary>
-          <p className="text-muted-foreground mt-2">
-            {t(
-              "Type a placeholder such as {{example}} in the template. Add a ? ({{optional}}) to drop its paragraph when it is empty.",
-              { example: "{{invoice_number}}", optional: "{{payee_bank_name?}}" },
-            )}
-          </p>
-          {tokens ? (
-            <table className="mt-2 w-full text-left">
-              <thead>
-                <tr className="text-muted-foreground">
-                  <th className="py-1 pr-4 font-normal">{t("Placeholder")}</th>
-                  <th className="py-1 pr-4 font-normal">{t("Meaning")}</th>
-                  <th className="py-1 font-normal">{t("Example")}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tokens.map((token) => (
-                  <tr key={token.name} className="border-t align-top">
-                    <td className="py-1 pr-4">
-                      <code>{`{{${token.name}}}`}</code>
-                    </td>
-                    <td className="py-1 pr-4">{token.description}</td>
-                    <td className="py-1">{token.example}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          ) : (
-            <p className="text-muted-foreground mt-2">{t("Loading…", { ns: "common" })}</p>
-          )}
-        </details>
       </CardContent>
     </Card>
   );
