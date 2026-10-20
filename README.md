@@ -40,7 +40,10 @@ exported as a report.
   reused across projects.
 - **Reports.** Filter by consultant, project, service line or status, then export to PDF, Excel or
   CSV.
-- **Roles.** Consultants, managers and administrators each see only the screens they need.
+- **Invoicing.** Billing prepares invoices for time and fixed-price projects from the hours logged or
+  from billing milestones, adds taxes, issues and voids them with their own numbering, and gets a PDF
+  made from a template you can edit.
+- **Roles.** Consultants, managers, billing and administrators each see only the screens they need.
 - **Light and dark themes**, following your system by default.
 - **Self-hosted.** One container image plus PostgreSQL, started with Docker Compose. Database
   migrations run automatically when the container starts.
@@ -87,8 +90,8 @@ Ifrit follows [semantic versioning](https://semver.org). Each release is a `vX.Y
 publishes a container image to the GitHub Container Registry:
 
 ```text
-ghcr.io/tonyp7/ifrit:1.1.1     an exact release (recommended for production)
-ghcr.io/tonyp7/ifrit:1.1       the latest patch of 1.1
+ghcr.io/tonyp7/ifrit:2.0.0     an exact release (recommended for production)
+ghcr.io/tonyp7/ifrit:2.0       the latest patch of 2.0
 ghcr.io/tonyp7/ifrit:latest    the current state of main (not for production)
 ```
 
@@ -101,6 +104,8 @@ Read the [changelog](CHANGELOG.md) before upgrading, and back up first. Upgradin
 - **Frontend:** React and TypeScript, built with [Vite](https://vite.dev), UI from
   [shadcn/ui](https://ui.shadcn.com) and Tailwind CSS
 - **Database:** PostgreSQL
+- **PDF invoices:** [LibreOffice](https://www.libreoffice.org) (headless) turns an editable template
+  into the PDF
 - **Deployment:** a single multi-stage Docker image, with nginx serving the web interface
 
 ## Contributing
