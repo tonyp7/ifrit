@@ -5,15 +5,19 @@ from decimal import Decimal
 from typing import Any
 
 import pytest
-from sqlalchemy import select
+from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.models.company import PartyIdentifier, PayeeAccount
+from app.models.file import File, StoredFile
 from app.models.invoice import Invoice
 from app.models.invoice_numbering import InvoiceNumberCounter
 from app.models.project import Project
+from app.pdf.errors import PdfEngineError
+from app.pdf.odt import TemplateData
 from app.schemas.invoice import InvoiceWrite
-from app.services import invoice_service
+from app.services import file_storage_service, invoice_service
 from app.services.app_settings import update_group
 from tests.factories import create_company, create_user
 from tests.invoice_helpers import (
@@ -389,3 +393,173 @@ async def test_duplicate_of_an_issued_invoice_is_a_fresh_draft(db_session) -> No
         .all()
     )
     assert [invoice.id for invoice in others] == [copy.id]
+
+
+# --- the PDF made at issue ---------------------------------------------------------------
+
+
+async def test_issuing_stores_the_pdf_and_links_it(
+    db_session, _storage_settings
+) -> None:
+    user = await _user(db_session)
+    project = await make_project(db_session)
+    issued = await _issue(
+        db_session, await _draft(db_session, project, user.id), user.id
+    )
+
+    assert issued.pdf_file_id is not None
+    file = await file_storage_service.get_file(db_session, issued.pdf_file_id)
+    assert file is not None and file.kind == "invoice"
+    assert file.original_filename == "INV-2026-0001.pdf"
+    assert file.uploaded_by == user.id
+    path = file_storage_service.resolve_storage_path(file.stored_file.bucket_key)
+    assert path.read_bytes() == b"%PDF-1.7 fake INV-2026-0001"
+    assert file.stored_file.detected_content_type == "application/pdf"
+
+
+async def test_the_pdf_is_made_from_the_issued_values(
+    db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[TemplateData] = []
+
+    async def spy(data: TemplateData, template: bytes | None = None) -> bytes:
+        seen.append(data)
+        return b"%PDF"
+
+    monkeypatch.setattr(invoice_service, "render_invoice_pdf", spy)
+    user = await _user(db_session)
+    project = await make_project(db_session)
+    draft = await _draft(db_session, project, user.id, payment_terms="net_30")
+    await _issue(db_session, draft, user.id)
+
+    values = seen[0].values
+    assert values["invoice_number"] == "INV-2026-0001"
+    assert values["invoice_date"] == "14 October 2026"
+    assert values["due_date"] == "13 November 2026"
+    assert values["status"] == "Issued"
+    assert values["draft_watermark"] == ""
+    assert values["document_name"] == "Invoice"
+
+
+async def test_a_currency_without_decimals_is_not_printed_with_two(
+    db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[TemplateData] = []
+
+    async def spy(data: TemplateData, template: bytes | None = None) -> bytes:
+        seen.append(data)
+        return b"%PDF"
+
+    monkeypatch.setattr(invoice_service, "render_invoice_pdf", spy)
+    user = await _user(db_session)
+    project = await make_project(db_session, currency="JPY")
+    await _issue(db_session, await _draft(db_session, project, user.id), user.id)
+
+    assert seen[0].values["total"] == "950"
+    assert seen[0].lines.rows[0].amount == "950"
+
+
+async def test_a_pdf_that_cannot_be_made_issues_nothing(
+    db_session, _storage_settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    working = False
+
+    async def broken(data: TemplateData, template: bytes | None = None) -> bytes:
+        if not working:
+            raise PdfEngineError("down")
+        return b"%PDF-1.7 fake"
+
+    user = await _user(db_session)
+    project = await make_project(db_session)
+    draft = await _draft(db_session, project, user.id)
+    draft_id = draft.id
+    user_id = user.id
+    monkeypatch.setattr(invoice_service, "render_invoice_pdf", broken)
+
+    with pytest.raises(invoice_service.PdfUnavailableError):
+        await invoice_service.issue(db_session, draft_id, user_id, OCT_14)
+
+    reloaded = await db_session.get(Invoice, draft_id)
+    assert reloaded is not None
+    await db_session.refresh(reloaded)
+    assert reloaded.status == "draft" and reloaded.number is None
+    assert reloaded.pdf_file_id is None
+    assert await db_session.get(InvoiceNumberCounter, ("invoice", "2026")) is None
+    count = (
+        await db_session.execute(select(func.count()).select_from(File))
+    ).scalar_one()
+    assert count == 0
+    stored = (
+        await db_session.execute(select(func.count()).select_from(StoredFile))
+    ).scalar_one()
+    assert stored == 0
+    # The next issue takes the number the failed one would have had.
+    working = True
+    again = await invoice_service.issue(db_session, draft_id, user_id, OCT_14)
+    assert again is not None and again.number == "INV-2026-0001"
+
+
+async def test_a_failure_after_the_file_is_written_removes_it(
+    db_session, _storage_settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user = await _user(db_session)
+    project = await make_project(db_session)
+    draft = await _draft(db_session, project, user.id)
+    draft_id = draft.id
+    real_commit = db_session.commit
+
+    async def failing_commit() -> None:
+        raise RuntimeError("commit failed")
+
+    monkeypatch.setattr(db_session, "commit", failing_commit)
+    with pytest.raises(RuntimeError):
+        await invoice_service.issue(db_session, draft_id, user.id, OCT_14)
+    monkeypatch.setattr(db_session, "commit", real_commit)
+
+    leftovers = [p for p in _storage_settings.rglob("*") if p.is_file()]
+    assert leftovers == []
+
+
+async def test_identical_pdfs_share_stored_content(
+    db_session, _storage_settings
+) -> None:
+    # The fake PDF depends only on the number, so two invoices differ; reissuing the same
+    # content is covered by the storage tests.
+    user = await _user(db_session)
+    project = await make_project(db_session)
+    first = await _issue(
+        db_session, await _draft(db_session, project, user.id), user.id
+    )
+    second = await _issue(
+        db_session, await _draft(db_session, project, user.id), user.id
+    )
+    assert first.pdf_file_id != second.pdf_file_id
+
+
+async def test_a_draft_has_no_pdf_and_a_duplicate_does_not_copy_it(db_session) -> None:
+    user = await _user(db_session)
+    project = await make_project(db_session)
+    draft = await _draft(db_session, project, user.id)
+    assert draft.pdf_file_id is None
+    issued = await _issue(db_session, draft, user.id)
+    source = await invoice_service.get_invoice(db_session, issued.id)
+    assert source is not None and source.pdf_file_id is not None
+
+    copy = await invoice_service.duplicate_invoice(db_session, source, user.id)
+
+    assert copy.pdf_file_id is None
+
+
+async def test_an_invoice_file_cannot_be_deleted_while_the_invoice_refers_to_it(
+    db_session,
+) -> None:
+    user = await _user(db_session)
+    project = await make_project(db_session)
+    issued = await _issue(
+        db_session, await _draft(db_session, project, user.id), user.id
+    )
+    file_id = issued.pdf_file_id
+    assert file_id is not None
+
+    with pytest.raises(IntegrityError):
+        await db_session.execute(delete(File).where(File.id == file_id))

@@ -10,7 +10,7 @@ from app.core.db import get_db
 from app.models.invoice import Invoice, InvoiceStatus
 from app.models.user import User
 from app.pdf.errors import PdfError
-from app.pdf.http import pdf_response
+from app.pdf.http import pdf_filename, pdf_response
 from app.pdf.render import render_invoice_pdf
 from app.pdf.values import build_template_data
 from app.schemas.invoice import (
@@ -25,13 +25,14 @@ from app.schemas.invoice import (
     IssuePreview,
     VoidWrite,
 )
-from app.services import invoice_service
+from app.services import file_storage_service, invoice_service
 from app.services.invoice_service import (
     InvalidInvoiceDataError,
     InvoiceNotDraftError,
     InvoiceNotIssuedError,
     NoLinesError,
     NumberAlreadyUsedError,
+    PdfUnavailableError,
     ProjectNotActiveError,
     ProjectNotInvoiceableError,
 )
@@ -44,6 +45,9 @@ router = APIRouter(prefix="/invoices", tags=["invoices"], dependencies=[_billing
 
 _NOT_INVOICEABLE = "A new invoice can only be started for an Active Time & Material or Capped T&M project"
 _PDF_UNAVAILABLE = "The PDF engine is not available"
+_PDF_NOT_ISSUED = (
+    "The PDF could not be produced, so the invoice was not issued. Try again later."
+)
 _NOT_DRAFT = "Only a draft invoice can be changed or deleted"
 # The same sentence the form's banner shows.
 _PROJECT_NOT_ACTIVE = "This invoice cannot be issued because its project is not Active."
@@ -139,6 +143,7 @@ async def list_invoices(
                 invoice_date=invoice.invoice_date,
                 issued_at=invoice.issued_at,
                 lines_summary=lines_summary,
+                has_pdf=invoice.pdf_file_id is not None,
             )
             for invoice, project_name, minor_unit, lines_summary in rows
         ],
@@ -181,6 +186,44 @@ async def preview_pdf(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=_PDF_UNAVAILABLE
         ) from None
     return pdf_response(pdf)
+
+
+@router.get("/{invoice_id}/pdf")
+async def download_pdf(
+    invoice_id: uuid.UUID, db: AsyncSession = Depends(get_db)
+) -> Response:
+    """An issued or void invoice's own PDF, byte for byte; a draft's rendered now with the
+    DRAFT mark. Nothing is stored."""
+    invoice = await _get_invoice_or_404(db, invoice_id)
+    if invoice.status == "draft":
+        source = await invoice_service.saved_draft_pdf_input(db, invoice)
+        data = build_template_data(
+            source.invoice,
+            minor_unit=source.minor_unit,
+            document_name=source.document_name,
+            vendor_identifiers=source.vendor_identifiers,
+            client_identifiers=source.client_identifiers,
+            now=datetime.now(UTC),
+        )
+        try:
+            pdf = await render_invoice_pdf(data)
+        except PdfError:
+            logger.exception("Could not make the PDF of draft %s", invoice_id)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=_PDF_UNAVAILABLE,
+            ) from None
+        return pdf_response(pdf, f"draft-{str(invoice_id)[:8]}.pdf")
+    try:
+        stored = await invoice_service.stored_pdf(db, invoice)
+    except OSError, file_storage_service.StoragePathError:
+        logger.exception("The stored PDF of invoice %s cannot be read", invoice_id)
+        stored = None
+    if stored is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="This invoice has no PDF"
+        )
+    return pdf_response(stored, pdf_filename(invoice.number or "invoice"))
 
 
 @router.post("", response_model=InvoiceDetail, status_code=status.HTTP_201_CREATED)
@@ -313,6 +356,10 @@ async def issue_invoice(
                 f"The number {err.number} is already used. An administrator must set the "
                 "next number in Configuration → Invoices."
             ),
+        ) from err
+    except PdfUnavailableError as err:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=_PDF_NOT_ISSUED
         ) from err
     if issued is None:
         raise HTTPException(

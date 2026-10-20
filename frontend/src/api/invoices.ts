@@ -87,3 +87,8 @@ export async function previewInvoicePdf(payload: InvoiceInput): Promise<Blob> {
   const { blob } = await apiClient.postBlob("/invoices/preview-pdf", payload);
   return blob;
 }
+
+/** The PDF kept when the invoice was issued, with the file name the server gives it. */
+export function downloadInvoicePdf(invoiceId: string) {
+  return apiClient.getBlob(`/invoices/${invoiceId}/pdf`);
+}

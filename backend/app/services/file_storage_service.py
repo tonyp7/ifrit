@@ -457,6 +457,76 @@ async def _store_content(
     return stored, written
 
 
+@dataclass(frozen=True)
+class StoredGeneratedFile:
+    """A generated file stored in the caller's transaction. `written` is the disk file this
+    call created (None when identical content was already stored), so a caller whose
+    transaction later fails can remove it."""
+
+    file: File
+    written: Path | None
+
+
+def _write_staged(tmp_path: Path, content: bytes) -> None:
+    tmp_path.parent.mkdir(mode=0o750, parents=True, exist_ok=True)
+    tmp_path.write_bytes(content)
+    os.chmod(tmp_path, 0o640)
+
+
+async def store_generated_file(
+    db: AsyncSession,
+    *,
+    content: bytes,
+    display_name: str,
+    kind: Literal["invoice"],
+    uploaded_by: uuid.UUID | None,
+    content_type: str = "application/pdf",
+    extension: str = ".pdf",
+) -> StoredGeneratedFile:
+    """Stores bytes the application made itself exactly like an upload: staged in the
+    storage root's own temporary folder (the same filesystem as the final place, so the move
+    is atomic), hashed, stored content-addressed and attached by a new `files` row. Nothing
+    is committed. The type is the caller's, not sniffed, since the bytes are not the client's."""
+    tmp_path = _storage_root() / TMP_DIR_NAME / f"{uuid.uuid4()}.tmp"
+    try:
+        await asyncio.to_thread(_write_staged, tmp_path, content)
+    except BaseException:
+        await _discard(tmp_path)
+        raise
+    prepared = PreparedUpload(
+        tmp_path=tmp_path,
+        checksum=hashlib.sha256(content).hexdigest(),
+        size_bytes=len(content),
+        content_type=content_type,
+        extension=extension,
+        display_name=display_name,
+    )
+    written: Path | None = None
+    try:
+        stored, written = await _store_content(db, prepared)
+        file = File(
+            stored_file_id=stored.id,
+            kind=kind,
+            uploaded_by=uploaded_by,
+            original_filename=display_name,
+        )
+        db.add(file)
+        await db.flush()
+        file.stored_file = stored
+    except BaseException:
+        await _cleanup_failed(prepared, written)
+        raise
+    # Only still present when the content was already stored.
+    await _discard(prepared.tmp_path)
+    return StoredGeneratedFile(file=file, written=written)
+
+
+async def discard_generated_file(stored: StoredGeneratedFile) -> None:
+    """Removes the disk file a rolled-back transaction left behind."""
+    if stored.written is not None:
+        await _discard(stored.written)
+
+
 async def attach_setting_file(
     db: AsyncSession,
     *,
@@ -634,11 +704,13 @@ async def user_can_access_file(db: AsyncSession, user: User, file: File) -> bool
     """Access is decided by the object the file is attached to, never by the file or
     its uploader, so it cannot drift from that object's own role rules. Each new
     attachable kind adds one branch."""
-    kind: Literal["setting", "project"] = file.kind
+    kind: Literal["setting", "project", "invoice"] = file.kind
     role_names = {role.name for role in user.roles}
     if kind == "setting":
         return "administrator" in role_names
     if kind == "project":
         # The literal role: holding `administrator` alone grants nothing here.
         return "manager" in role_names
-    return False  # pragma: no cover - unknown kinds get no access
+    # An invoice's PDF is served only by the invoice endpoint, which checks the billing
+    # role itself, so it is never offered by the generic download.
+    return False

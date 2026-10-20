@@ -192,5 +192,8 @@
   "Preview": "Preview",
   "The PDF engine is not available": "The PDF engine is not available",
   "Failed to prepare the preview.": "Failed to prepare the preview.",
-  "Allow pop-ups for this site to see the preview.": "Allow pop-ups for this site to see the preview."
+  "Allow pop-ups for this site to see the preview.": "Allow pop-ups for this site to see the preview.",
+  "Download PDF": "Download PDF",
+  "Failed to download the PDF.": "Failed to download the PDF.",
+  "The PDF could not be produced, so the invoice was not issued. Try again later.": "The PDF could not be produced, so the invoice was not issued. Try again later."
 }

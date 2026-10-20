@@ -17,6 +17,7 @@ import {
   duplicateInvoice,
   listInvoiceProjects,
   listInvoices,
+  downloadInvoicePdf,
 } from "@/api/invoices";
 import { DataTable } from "@/components/data-table/DataTable";
 import { DataTableColumnHeader } from "@/components/data-table/DataTableColumnHeader";
@@ -56,7 +57,9 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { formatDueDate } from "@/lib/billingMilestones";
+import { downloadBlob } from "@/lib/download";
 import { formatMoney } from "@/lib/format";
+import { canDownloadPdf } from "@/lib/invoicePdf";
 import { formatPeriod } from "@/lib/invoicePeriods";
 import { parseDayKey } from "@/lib/timesheetDates";
 import {
@@ -147,6 +150,7 @@ export interface InvoicesTableViewProps {
   onColumnVisibilityChange: OnChangeFn<ColumnVisibilityState>;
   onOpen: (invoice: InvoiceListItem) => void;
   onDuplicate: (invoice: InvoiceListItem) => void;
+  onDownload: (invoice: InvoiceListItem) => void;
   onDelete: (invoice: InvoiceListItem) => void;
 }
 
@@ -159,6 +163,7 @@ export function InvoicesTableView({
   onColumnVisibilityChange,
   onOpen,
   onDuplicate,
+  onDownload,
   onDelete,
 }: InvoicesTableViewProps) {
   const { t } = useTranslation(["invoices", "common"]);
@@ -255,6 +260,11 @@ export function InvoicesTableView({
               <DropdownMenuItem onClick={() => onDuplicate(row.original)}>
                 {t("Duplicate", { ns: "common" })}
               </DropdownMenuItem>
+              {canDownloadPdf(row.original) && (
+                <DropdownMenuItem onClick={() => onDownload(row.original)}>
+                  {t("Download PDF")}
+                </DropdownMenuItem>
+              )}
               {row.original.status === "draft" && (
                 <>
                   <DropdownMenuSeparator />
@@ -401,6 +411,15 @@ export function InvoicesTable() {
     }
   }
 
+  async function handleDownload(invoice: InvoiceListItem) {
+    try {
+      const { blob, filename } = await downloadInvoicePdf(invoice.id);
+      downloadBlob(blob, filename ?? `${invoice.number ?? "invoice"}.pdf`);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : t("Failed to download the PDF."));
+    }
+  }
+
   async function handleConfirmDelete() {
     if (!deleteTarget) return;
     setIsDeleting(true);
@@ -487,6 +506,7 @@ export function InvoicesTable() {
         onColumnVisibilityChange={setColumnVisibility}
         onOpen={(invoice) => navigate(`/invoices/${invoice.id}`)}
         onDuplicate={(invoice) => void handleDuplicate(invoice)}
+        onDownload={(invoice) => void handleDownload(invoice)}
         onDelete={setDeleteTarget}
       />
 

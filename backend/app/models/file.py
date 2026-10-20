@@ -23,7 +23,7 @@ from app.core.db import Base
 FileStatus = Literal["pending", "scanning", "processing", "ready", "rejected", "failed"]
 # The kind of object a file is attached to. A new attachable object adds its value here
 # and a `<object>_files` link table.
-FileKind = Literal["setting", "project"]
+FileKind = Literal["setting", "project", "invoice"]
 SettingKey = Literal["org_logo"]
 
 
@@ -100,7 +100,9 @@ class File(Base):
         # A superkey that lets link tables point at (id, kind), so a file can be linked
         # only from the one link table matching its kind.
         UniqueConstraint("id", "kind", name="uq_files_id_kind"),
-        CheckConstraint("kind IN ('setting', 'project')", name="ck_files_kind"),
+        CheckConstraint(
+            "kind IN ('setting', 'project', 'invoice')", name="ck_files_kind"
+        ),
     )
 
 

@@ -20,6 +20,7 @@ import {
   updateInvoice,
   voidInvoice,
   previewInvoicePdf,
+  downloadInvoicePdf,
 } from "@/api/invoices";
 import { InvoiceLinesTable } from "@/components/invoices/InvoiceLinesTable";
 import { InvoiceTaxesTable } from "@/components/invoices/InvoiceTaxesTable";
@@ -73,6 +74,8 @@ import { payeeFormFromAccount, preselectPayee } from "@/lib/invoicePayee";
 import { formatPeriod, isValidPeriod, presetRange } from "@/lib/invoicePeriods";
 import { prefillReferences } from "@/lib/invoiceReferences";
 import { subtotal } from "@/lib/invoiceMath";
+import { downloadBlob } from "@/lib/download";
+import { canDownloadPdf, isPdfUnavailable } from "@/lib/invoicePdf";
 import { openPdfPreview, previewErrorMessage } from "@/lib/pdfPreview";
 import { computeTaxes } from "@/lib/invoiceTaxes";
 import { combineWarnings, formWarnings } from "@/lib/invoiceWarnings";
@@ -160,6 +163,7 @@ export function InvoiceFormPage() {
     | "voiding"
     | "duplicating"
     | "previewing"
+    | "downloading"
     | null
   >(null);
   // The saved invoice as the server returned it: the number, dates and snapshot.
@@ -379,6 +383,20 @@ export function InvoiceFormPage() {
     }
   }
 
+  async function handleDownload() {
+    if (!invoiceId) return;
+    setBusy("downloading");
+    setFormError(null);
+    try {
+      const { blob, filename } = await downloadInvoicePdf(invoiceId);
+      downloadBlob(blob, filename ?? `${detail?.number ?? "invoice"}.pdf`);
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : t("Failed to download the PDF."));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   // Unsaved edits are saved first, so what is issued is what the form shows.
   const handleIssue = handleSubmit(async (values) => {
     if (invoiceId && !form.formState.isDirty) {
@@ -399,8 +417,11 @@ export function InvoiceFormPage() {
       setReloadToken((n) => n + 1);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : t("Failed to issue the invoice."));
-      setIssueOpen(false);
-      setReloadToken((n) => n + 1);
+      // Without a PDF nothing was issued: keep the confirmation open to try again.
+      if (!isPdfUnavailable(err)) {
+        setIssueOpen(false);
+        setReloadToken((n) => n + 1);
+      }
     } finally {
       setBusy(null);
     }
@@ -708,6 +729,17 @@ export function InvoiceFormPage() {
             onClick={() => setConfirmDelete(true)}
           >
             {t("Delete draft")}
+          </Button>
+        )}
+        {detail && canDownloadPdf(detail) && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy !== null}
+            onClick={() => void handleDownload()}
+          >
+            {busy === "downloading" && <Spinner />}
+            {t("Download PDF")}
           </Button>
         )}
         {readOnly && (

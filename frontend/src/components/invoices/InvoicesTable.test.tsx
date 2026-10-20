@@ -36,6 +36,7 @@ const draft: InvoiceListItem = {
   invoice_date: null,
   issued_at: null,
   lines_summary: "Senior developer — September 2026",
+  has_pdf: false,
 };
 
 const issued: InvoiceListItem = {
@@ -47,6 +48,7 @@ const issued: InvoiceListItem = {
   issued_at: "2026-10-14T09:30:00Z",
   payment_terms: "net_30",
   due_date: "2026-11-13",
+  has_pdf: true,
 };
 
 // What the list starts with: Issued and Due are optional and hidden.
@@ -63,6 +65,7 @@ function render(items: InvoiceListItem[], columnVisibility = DEFAULT_VISIBILITY)
     onColumnVisibilityChange: vi.fn(),
     onOpen: vi.fn(),
     onDuplicate: vi.fn(),
+    onDownload: vi.fn(),
     onDelete: vi.fn(),
   };
   return renderToStaticMarkup(<InvoicesTableView {...props} />);

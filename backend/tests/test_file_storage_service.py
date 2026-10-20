@@ -461,3 +461,86 @@ async def test_read_setting_file_bytes_raises_for_a_path_outside_the_root(db_ses
 
     with pytest.raises(storage.StoragePathError):
         await storage.read_setting_file_bytes(db_session, "org_logo")
+
+
+# --- generated files ---------------------------------------------------------------------------
+
+PDF = b"%PDF-1.7 generated"
+
+
+async def _generated(db: AsyncSession, content: bytes = PDF, name: str = "INV-1.pdf"):
+    user = await _admin(db)
+    return await storage.store_generated_file(
+        db, content=content, display_name=name, kind="invoice", uploaded_by=user.id
+    )
+
+
+async def test_a_generated_file_is_stored_like_an_upload(db_session, _storage_settings):
+    stored = await _generated(db_session)
+    await db_session.commit()
+
+    content = stored.file.stored_file
+    assert content.detected_content_type == "application/pdf"
+    assert content.checksum_sha256 == hashlib.sha256(PDF).hexdigest()
+    digest = content.checksum_sha256
+    path = _storage_settings / digest[0:2] / digest[2:4] / Path(content.bucket_key).name
+    assert content.bucket_key == f"{digest[0:2]}/{digest[2:4]}/{path.name}"
+    assert path.suffix == ".pdf" and path.read_bytes() == PDF
+    assert stat.S_IMODE(path.stat().st_mode) == 0o640
+    assert (
+        stored.file.kind == "invoice" and stored.file.original_filename == "INV-1.pdf"
+    )
+    # Nothing is left in the staging folder.
+    assert list((_storage_settings / ".tmp").iterdir()) == []
+
+
+async def test_identical_generated_content_is_stored_once(
+    db_session, _storage_settings
+):
+    first = await _generated(db_session)
+    second = await _generated(db_session, name="INV-2.pdf")
+    await db_session.commit()
+
+    assert first.file.stored_file_id == second.file.stored_file_id
+    assert first.file.id != second.file.id
+    assert first.written is not None and second.written is None
+    count = (
+        await db_session.execute(select(func.count()).select_from(StoredFile))
+    ).scalar_one()
+    assert count == 1
+    assert list((_storage_settings / ".tmp").iterdir()) == []
+
+
+async def test_a_failed_store_removes_the_staged_file(
+    db_session, _storage_settings, monkeypatch: pytest.MonkeyPatch
+):
+    async def failing(*args, **kwargs):
+        raise RuntimeError("database down")
+
+    monkeypatch.setattr(storage, "_store_content", failing)
+    with pytest.raises(RuntimeError):
+        await _generated(db_session)
+    assert list((_storage_settings / ".tmp").iterdir()) == []
+
+
+async def test_a_rolled_back_generated_file_can_be_discarded(
+    db_session, _storage_settings
+):
+    stored = await _generated(db_session)
+    await db_session.rollback()
+    assert stored.written is not None and stored.written.exists()
+
+    await storage.discard_generated_file(stored)
+
+    assert not stored.written.exists()
+
+
+async def test_the_generic_download_never_serves_an_invoice_file(db_session):
+    stored = await _generated(db_session)
+    await db_session.commit()
+    for role in ("administrator", "billing", "manager"):
+        user = await create_user(
+            db_session, name_id=f"{role}@x.com", password="pw", role_name=role
+        )
+        await db_session.refresh(user, ["roles"])
+        assert not await storage.user_can_access_file(db_session, user, stored.file)

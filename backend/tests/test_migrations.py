@@ -282,7 +282,10 @@ def test_the_invoice_checks_match_the_models() -> None:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 
-    assert module._INVOICE_CHECKS == _model_checks(Invoice)
+    # 0004 adds the PDF check to this table, so it is compared there.
+    invoice_checks = _model_checks(Invoice)
+    assert invoice_checks.pop("ck_invoices_pdf_draft")
+    assert module._INVOICE_CHECKS == invoice_checks
     assert module._LINE_CHECKS == _model_checks(InvoiceLine)
     assert module._REFERENCE_CHECKS == _model_checks(InvoiceReference)
     assert module._TAX_CHECKS == _model_checks(InvoiceTax)
@@ -299,7 +302,12 @@ def test_an_invoice_does_not_depend_on_payee_accounts(scratch_database) -> None:
             "WHERE conrelid = 'invoices'::regclass AND contype = 'f'"
         )
     )
-    assert {row["target"] for row in rows} == {"projects", "currencies", "users"}
+    assert {row["target"] for row in rows} == {
+        "projects",
+        "currencies",
+        "users",
+        "files",
+    }
 
 
 def _columns(table: str) -> set[str]:
@@ -342,3 +350,82 @@ def test_downgrading_below_invoicing_is_refused_once_an_invoice_is_issued(
         command.downgrade(scratch_database, "0002")
     assert "issued_at" in _columns("invoices")
     assert "invoice_taxes" in _tables()
+
+
+_ISSUED_INVOICE = """
+    WITH c AS (
+        INSERT INTO companies (id, legal_name, country_of_registration, is_vendor)
+        VALUES (gen_random_uuid(), 'C', 'BE', true) RETURNING id
+    ), p AS (
+        INSERT INTO projects (id, name, vendor_company_id, client_company_id,
+            invoicing_currency, project_type, status)
+        SELECT gen_random_uuid(), 'P', c.id, c.id, 'EUR', 'time_and_material', 'active'
+        FROM c RETURNING id
+    )
+    INSERT INTO invoices (id, status, number, project_id, currency_code,
+        bill_from_name, bill_to_name, subtotal, total, invoice_date, issued_at,
+        currency_minor_unit)
+    SELECT gen_random_uuid(), 'issued', 'INV-1', p.id, 'EUR', 'F', 'T', 0, 0,
+        current_date, now(), 2
+    FROM p RETURNING id
+"""
+
+
+def test_an_invoice_issued_before_pdfs_were_kept_survives_the_migration(
+    scratch_database,
+) -> None:
+    command.upgrade(scratch_database, "0003")
+    asyncio.run(_fetch(_ISSUED_INVOICE))
+
+    command.upgrade(scratch_database, "head")
+
+    rows = asyncio.run(_fetch("SELECT status, pdf_file_id FROM invoices"))
+    assert [(r["status"], r["pdf_file_id"]) for r in rows] == [("issued", None)]
+
+
+def test_the_pdf_migration_can_be_undone_and_applied_again(scratch_database) -> None:
+    command.upgrade(scratch_database, "head")
+    assert "pdf_file_id" in _columns("invoices")
+
+    command.downgrade(scratch_database, "0003")
+    assert "pdf_file_id" not in _columns("invoices")
+
+    command.upgrade(scratch_database, "head")
+    assert "pdf_file_id" in _columns("invoices")
+
+
+def test_a_draft_cannot_have_a_pdf_and_an_issued_invoice_may_lack_one(
+    scratch_database,
+) -> None:
+    command.upgrade(scratch_database, "head")
+    invoice_id = asyncio.run(_fetch(_ISSUED_INVOICE))[0]["id"]
+    file_id = asyncio.run(
+        _fetch(
+            """
+            WITH s AS (
+                INSERT INTO stored_files (id, checksum_sha256, size_bytes,
+                    detected_content_type, bucket_key, status)
+                VALUES (gen_random_uuid(), 'abc', 1, 'application/pdf', 'ab/cd/x.pdf', 'ready')
+                RETURNING id
+            )
+            INSERT INTO files (id, stored_file_id, kind, original_filename)
+            SELECT gen_random_uuid(), s.id, 'invoice', 'INV-1.pdf' FROM s RETURNING id
+            """
+        )
+    )[0]["id"]
+
+    asyncio.run(
+        _fetch(
+            f"UPDATE invoices SET pdf_file_id = '{file_id}' WHERE id = '{invoice_id}'"
+        )
+    )
+    with pytest.raises(asyncpg.CheckViolationError):
+        asyncio.run(
+            _fetch(
+                "UPDATE invoices SET status = 'draft', number = NULL, invoice_date = NULL,"
+                " issued_at = NULL, currency_minor_unit = NULL "
+                f"WHERE id = '{invoice_id}'"
+            )
+        )
+    with pytest.raises(asyncpg.RestrictViolationError):
+        asyncio.run(_fetch(f"DELETE FROM files WHERE id = '{file_id}'"))

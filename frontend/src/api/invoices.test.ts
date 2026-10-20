@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/api/client";
 import {
   createInvoice,
+  downloadInvoicePdf,
   deleteInvoice,
   duplicateInvoice,
   generateLines,
@@ -25,6 +26,7 @@ vi.mock("@/api/client", () => ({
     patch: vi.fn(),
     delete: vi.fn(),
     postBlob: vi.fn(),
+    getBlob: vi.fn(),
   },
 }));
 
@@ -140,5 +142,12 @@ describe("invoice API", () => {
     vi.mocked(apiClient.postBlob).mockResolvedValue({ blob, filename: null });
     await expect(previewInvoicePdf(input)).resolves.toBe(blob);
     expect(apiClient.postBlob).toHaveBeenCalledWith("/invoices/preview-pdf", input);
+  });
+
+  it("downloads the PDF kept at issue and returns its name", async () => {
+    const result = { blob: new Blob(["%PDF"]), filename: "INV-1.pdf" };
+    vi.mocked(apiClient.getBlob).mockResolvedValue(result);
+    await expect(downloadInvoicePdf("i1")).resolves.toBe(result);
+    expect(apiClient.getBlob).toHaveBeenCalledWith("/invoices/i1/pdf");
   });
 });

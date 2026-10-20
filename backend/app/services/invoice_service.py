@@ -1,3 +1,5 @@
+import asyncio
+import logging
 import uuid
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
@@ -24,6 +26,10 @@ from app.models.invoice import (
 from app.models.project import BillingMilestone, Project, ProjectType, ServiceLine
 from app.models.time_entry import TimeEntry
 from app.models.user import User
+from app.pdf.errors import PdfError
+from app.pdf.http import pdf_filename
+from app.pdf.render import render_invoice_pdf
+from app.pdf.values import build_template_data
 from app.schemas.company import BankAddress
 from app.schemas.invoice import (
     BillingContext,
@@ -57,9 +63,11 @@ from app.schemas.invoice import (
     UnlockedServiceLine,
 )
 from app.schemas.project import ProjectReferenceWrite
-from app.services import app_settings, invoice_numbering_service
+from app.services import app_settings, file_storage_service, invoice_numbering_service
 from app.services.payment_terms import apply_payment_terms
 from app.services.sorting import resolve_sort
+
+logger = logging.getLogger(__name__)
 
 PAGE_SIZE = 50
 INVOICEABLE_TYPES: tuple[ProjectType, ...] = (
@@ -112,6 +120,10 @@ class NumberAlreadyUsedError(Exception):
     def __init__(self, number: str) -> None:
         super().__init__(number)
         self.number = number
+
+
+class PdfUnavailableError(Exception):
+    """The invoice's PDF could not be made, so nothing was issued."""
 
 
 class InvalidInvoiceDataError(Exception):
@@ -705,6 +717,20 @@ async def draft_pdf_input(db: AsyncSession, data: InvoiceWrite) -> DraftPdfInput
         status="draft", created_by=None, lines=[], references=[], taxes=[]
     )
     await _apply(db, invoice, data, project)
+    return await _draft_pdf_input(db, invoice, project)
+
+
+async def saved_draft_pdf_input(db: AsyncSession, invoice: Invoice) -> DraftPdfInput:
+    """A saved draft, for its PDF."""
+    project = await db.get(Project, invoice.project_id)
+    if project is None:
+        raise ProjectNotInvoiceableError()
+    return await _draft_pdf_input(db, invoice, project)
+
+
+async def _draft_pdf_input(
+    db: AsyncSession, invoice: Invoice, project: Project
+) -> DraftPdfInput:
     minor = await _minor_unit(db, project.invoicing_currency)
     today = server_today()
     document_name = (await app_settings.get_group(db, "invoicing")).model_dump()[
@@ -717,6 +743,18 @@ async def draft_pdf_input(db: AsyncSession, data: InvoiceWrite) -> DraftPdfInput
         vendor_identifiers=await _identifiers(db, project.vendor_company_id, today),
         client_identifiers=await _identifiers(db, project.client_company_id, today),
     )
+
+
+async def stored_pdf(db: AsyncSession, invoice: Invoice) -> bytes | None:
+    """The bytes kept when the invoice was issued, or None when it has none. A file missing
+    from the disk, or recorded outside the storage root, is raised for the caller to log."""
+    if invoice.pdf_file_id is None:
+        return None
+    file = await file_storage_service.get_file(db, invoice.pdf_file_id)
+    if file is None:
+        return None
+    path = file_storage_service.resolve_storage_path(file.stored_file.bucket_key)
+    return await asyncio.to_thread(path.read_bytes)
 
 
 async def get_invoice(db: AsyncSession, invoice_id: uuid.UUID) -> Invoice | None:
@@ -953,6 +991,7 @@ async def to_detail(db: AsyncSession, invoice: Invoice) -> InvoiceDetail:
         voided_at=invoice.voided_at,
         voided_by_name=await _user_name(db, invoice.voided_by),
         void_reason=invoice.void_reason,
+        has_pdf=invoice.pdf_file_id is not None,
     )
 
 
@@ -1224,7 +1263,41 @@ async def issue(
         if "uq_invoices_number" in str(err.orig):
             raise NumberAlreadyUsedError(number) from err
         raise
-    await db.commit()
+
+    # The PDF is made last, from the values just fixed, and stored in this same transaction:
+    # if it cannot be made, nothing is issued and no number is used.
+    stored: file_storage_service.StoredGeneratedFile | None = None
+    try:
+        data = build_template_data(
+            invoice,
+            # 0 is a real value (yen): only a missing one means 2.
+            minor_unit=2
+            if invoice.currency_minor_unit is None
+            else invoice.currency_minor_unit,
+            document_name=document_name,
+            vendor_identifiers=vendor_identifiers,
+            client_identifiers=client_identifiers,
+            now=datetime.now(UTC),
+        )
+        pdf = await render_invoice_pdf(data)
+        stored = await file_storage_service.store_generated_file(
+            db,
+            content=pdf,
+            display_name=pdf_filename(number),
+            kind="invoice",
+            uploaded_by=user_id,
+        )
+        invoice.pdf_file_id = stored.file.id
+        await db.commit()
+    except PdfError as err:
+        await db.rollback()
+        logger.exception("Could not make the PDF of invoice %s", number)
+        raise PdfUnavailableError() from err
+    except BaseException:
+        await db.rollback()
+        if stored is not None:
+            await file_storage_service.discard_generated_file(stored)
+        raise
     return invoice
 
 

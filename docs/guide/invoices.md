@@ -230,6 +230,18 @@ If the number would already be in use, for example after the numbering format wa
 issuing is refused and nothing changes; an administrator sets the next number under
 Configuration → Invoices.
 
+### The invoice PDF
+
+Issuing also makes the invoice's **PDF**, from the invoice template, and keeps it. It is the
+document that was sent: it is made once, when the invoice is issued, and never again, so changing
+the template or the document name later does not alter it. **Download PDF**, on the invoice and in
+the row menu of the list, gives you that file, named after the invoice number. A void invoice's
+PDF is the same file.
+
+If the PDF cannot be made (the converter that makes PDFs is not installed or did not answer),
+issuing fails with a message, **nothing is issued** and no number is used, so you can try again
+later. Invoices issued before PDFs were kept have none, and show no download.
+
 ## Voiding
 
 **Void** cancels an issued invoice, after a confirmation where you can give a reason. A void

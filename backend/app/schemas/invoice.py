@@ -356,6 +356,7 @@ class InvoiceDetail(BaseModel):
     voided_at: datetime | None
     voided_by_name: str | None
     void_reason: str | None
+    has_pdf: bool
 
 
 class InvoiceListItem(BaseModel):
@@ -378,6 +379,9 @@ class InvoiceListItem(BaseModel):
     # What Billed for shows when there is no period (a Fixed Price invoice): every line's
     # description in order, joined with ", ". Null when the invoice has no line.
     lines_summary: str | None
+    # Whether a PDF was kept when the invoice was issued: false for a draft and for an
+    # invoice issued before PDFs were kept.
+    has_pdf: bool
 
 
 class InvoiceListResponse(BaseModel):

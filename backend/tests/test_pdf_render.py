@@ -123,3 +123,12 @@ def _text(pdf: bytes) -> str:
     return subprocess.run(
         ["pdftotext", "-", "-"], input=pdf, capture_output=True, check=True
     ).stdout.decode()
+
+
+def test_a_pdf_file_name_is_one_name() -> None:
+    from app.pdf.http import pdf_filename
+
+    assert pdf_filename("INV-2026-0043") == "INV-2026-0043.pdf"
+    assert pdf_filename("2026/0043") == "2026-0043.pdf"
+    assert pdf_filename('a\\b:c"d') == "a-b-c-d.pdf"
+    assert pdf_filename("  ") == "invoice.pdf"
