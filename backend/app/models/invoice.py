@@ -253,6 +253,14 @@ class Invoice(Base):
         UUID(as_uuid=True), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
     )
     void_reason: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    # The PDF made when the invoice was issued, and the document that was sent: never
+    # rendered again. Empty on a draft, and on an invoice issued before PDFs were kept.
+    # RESTRICT: the file cannot be deleted while the invoice refers to it.
+    pdf_file_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("files.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
 
     project: Mapped[Project] = relationship()
     lines: Mapped[list[InvoiceLine]] = relationship(
@@ -321,6 +329,12 @@ class Invoice(Base):
         ),
         CheckConstraint(ISSUED_FIELDS_CHECK, name="ck_invoices_issued_fields"),
         CheckConstraint(VOID_FIELDS_CHECK, name="ck_invoices_void_fields"),
+        # A draft never has a PDF. The reverse is not required: invoices issued before PDFs
+        # were kept have none.
+        CheckConstraint(
+            "status <> 'draft' OR pdf_file_id IS NULL", name="ck_invoices_pdf_draft"
+        ),
+        Index("ix_invoices_pdf_file_id", "pdf_file_id"),
         Index("ix_invoices_project_id_status", "project_id", "status"),
         Index(
             "uq_invoices_number",

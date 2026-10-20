@@ -188,5 +188,12 @@
   "0 to 100, with up to 3 decimals": "0 to 100, with up to 3 decimals",
   "An invoice has at most 20 taxes": "An invoice has at most 20 taxes",
   "Tax rate cannot be derived: a tax amount is set by hand on a zero base.": "Tax rate cannot be derived: a tax amount is set by hand on a zero base.",
-  "Negative subtotal: the tax amounts are negative too.": "Negative subtotal: the tax amounts are negative too."
+  "Negative subtotal: the tax amounts are negative too.": "Negative subtotal: the tax amounts are negative too.",
+  "Preview": "Preview",
+  "The PDF engine is not available": "The PDF engine is not available",
+  "Failed to prepare the preview.": "Failed to prepare the preview.",
+  "Allow pop-ups for this site to see the preview.": "Allow pop-ups for this site to see the preview.",
+  "Download PDF": "Download PDF",
+  "Failed to download the PDF.": "Failed to download the PDF.",
+  "The PDF could not be produced, so the invoice was not issued. Try again later.": "The PDF could not be produced, so the invoice was not issued. Try again later."
 }

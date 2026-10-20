@@ -22,6 +22,8 @@ from app.core.db import Base, get_db
 from app.core.rate_limit import limiter
 from app.main import app
 from app.models.file import FILE_TAGS_SEED_STATEMENT
+from app.pdf.odt import TemplateData
+from tests.pdf_helpers import fake_invoice_pdf
 
 
 def _test_database_url() -> str:
@@ -78,6 +80,21 @@ def _storage_settings(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Path:
     monkeypatch.setattr(settings, "storage_root", root)
     monkeypatch.setattr(settings, "max_upload_bytes", TEST_MAX_UPLOAD_BYTES)
     return root
+
+
+@pytest.fixture(autouse=True)
+def _fake_invoice_pdf(
+    request: pytest.FixtureRequest, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Issuing an invoice renders its PDF, which needs LibreOffice. Tests stand in a small
+    fake whose bytes depend on the invoice number, unless they are marked `libreoffice`."""
+    if request.node.get_closest_marker("libreoffice"):
+        return
+
+    async def fake(data: TemplateData, template: bytes | None = None) -> bytes:
+        return fake_invoice_pdf(data.values["invoice_number"])
+
+    monkeypatch.setattr("app.services.invoice_service.render_invoice_pdf", fake)
 
 
 @pytest.fixture(autouse=True)

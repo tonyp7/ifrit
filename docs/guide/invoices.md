@@ -77,6 +77,19 @@ Choose **+ New**. The form has five steps.
    [Taxes](#taxes)), and save with **Save draft**. The [warnings](#warnings) are listed in
    yellow below the total.
 
+### Previewing the PDF
+
+**Preview**, next to **Save draft**, opens the invoice as a PDF in a new browser tab, so you can
+see how it will look before issuing it. It shows what is in the form right now, saved or not, and
+it saves nothing. A draft's PDF carries a gray **DRAFT** mark behind the text on every page. It
+has no number yet and no invoice date, so both read "Assigned when issued", and a due date worked
+out from payment terms reads "Calculated when issued". The layout comes from the [invoice template](invoice-template.md),
+and the amounts are worked out the same way as when you save.
+
+Making the PDF takes a few seconds. If the server cannot make it, the form says "The PDF engine is
+not available" (the converter that makes PDFs is not installed or did not answer), and everything
+else keeps working. If nothing opens, allow pop-ups for the site.
+
 ## How lines are generated
 
 For each ticked service line, one line:
@@ -217,12 +230,32 @@ If the number would already be in use, for example after the numbering format wa
 issuing is refused and nothing changes; an administrator sets the next number under
 Configuration → Invoices.
 
+### The invoice PDF
+
+Issuing also makes the invoice's **PDF**, from the invoice template, and keeps it. It is the
+document that was sent: it is made once, when the invoice is issued, and never again, so changing
+the template or the document name later does not alter it. **Download PDF**, on the invoice and in
+the row menu of the list, gives you that file, named after the invoice number. A void invoice's
+PDF is the same file.
+
+If the PDF cannot be made (the converter that makes PDFs is not installed or did not answer),
+issuing fails with a message, **nothing is issued** and no number is used, so you can try again
+later. Invoices issued before PDFs were kept have none, and show no download.
+
 ## Voiding
 
 **Void** cancels an issued invoice, after a confirmation where you can give a reason. A void
 invoice keeps its number and stays in the list, marked void, with who voided it, when and why. It
 cannot be changed or deleted, and voiding cannot be undone. Voiding is not a credit note: to bill
 again, create a new invoice, for example by duplicating the void one.
+
+Voiding also marks the invoice's PDF: a large gray **VOIDED** is drawn across every page, over
+the content but light enough to read through, and **Download PDF** from then on gives that marked
+copy. Nothing else in the document changes, and the PDF the invoice was issued with is kept in
+storage. Making the mark needs no PDF engine, so you can void an invoice even when previews and
+issuing are not available. If the stored PDF cannot be read or marked, the void is refused with a
+message and the invoice stays issued. An invoice issued before PDFs were kept is voided with no
+PDF.
 
 ## Duplicate and delete
 

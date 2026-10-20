@@ -1,19 +1,25 @@
 import asyncio
+import io
 import uuid
 from datetime import date
 from decimal import Decimal
 from typing import Any
 
 import pytest
-from sqlalchemy import select
+from pypdf import PdfReader
+from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker
 
 from app.models.company import PartyIdentifier, PayeeAccount
+from app.models.file import File, StoredFile
 from app.models.invoice import Invoice
 from app.models.invoice_numbering import InvoiceNumberCounter
 from app.models.project import Project
+from app.pdf.errors import PdfEngineError, PdfStampError
+from app.pdf.odt import TemplateData
 from app.schemas.invoice import InvoiceWrite
-from app.services import invoice_service
+from app.services import file_storage_service, invoice_service
 from app.services.app_settings import update_group
 from tests.factories import create_company, create_user
 from tests.invoice_helpers import (
@@ -24,6 +30,7 @@ from tests.invoice_helpers import (
     make_issued_invoice,
     make_project,
 )
+from tests.pdf_helpers import fake_invoice_pdf
 
 OCT_14 = date(2026, 10, 14)
 PAYEE: dict[str, Any] = {
@@ -389,3 +396,296 @@ async def test_duplicate_of_an_issued_invoice_is_a_fresh_draft(db_session) -> No
         .all()
     )
     assert [invoice.id for invoice in others] == [copy.id]
+
+
+# --- the PDF made at issue ---------------------------------------------------------------
+
+
+async def test_issuing_stores_the_pdf_and_links_it(
+    db_session, _storage_settings
+) -> None:
+    user = await _user(db_session)
+    project = await make_project(db_session)
+    issued = await _issue(
+        db_session, await _draft(db_session, project, user.id), user.id
+    )
+
+    assert issued.pdf_file_id is not None
+    file = await file_storage_service.get_file(db_session, issued.pdf_file_id)
+    assert file is not None and file.kind == "invoice"
+    assert file.original_filename == "INV-2026-0001.pdf"
+    assert file.uploaded_by == user.id
+    path = file_storage_service.resolve_storage_path(file.stored_file.bucket_key)
+    assert path.read_bytes() == fake_invoice_pdf("INV-2026-0001")
+    assert file.stored_file.detected_content_type == "application/pdf"
+
+
+async def test_the_pdf_is_made_from_the_issued_values(
+    db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[TemplateData] = []
+
+    async def spy(data: TemplateData, template: bytes | None = None) -> bytes:
+        seen.append(data)
+        return b"%PDF"
+
+    monkeypatch.setattr(invoice_service, "render_invoice_pdf", spy)
+    user = await _user(db_session)
+    project = await make_project(db_session)
+    draft = await _draft(db_session, project, user.id, payment_terms="net_30")
+    await _issue(db_session, draft, user.id)
+
+    values = seen[0].values
+    assert values["invoice_number"] == "INV-2026-0001"
+    assert values["invoice_date"] == "14 October 2026"
+    assert values["due_date"] == "13 November 2026"
+    assert values["status"] == "Issued"
+    assert values["draft_watermark"] == ""
+    assert values["document_name"] == "Invoice"
+
+
+async def test_a_currency_without_decimals_is_not_printed_with_two(
+    db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[TemplateData] = []
+
+    async def spy(data: TemplateData, template: bytes | None = None) -> bytes:
+        seen.append(data)
+        return b"%PDF"
+
+    monkeypatch.setattr(invoice_service, "render_invoice_pdf", spy)
+    user = await _user(db_session)
+    project = await make_project(db_session, currency="JPY")
+    await _issue(db_session, await _draft(db_session, project, user.id), user.id)
+
+    assert seen[0].values["total"] == "950"
+    assert seen[0].lines.rows[0].amount == "950"
+
+
+async def test_a_pdf_that_cannot_be_made_issues_nothing(
+    db_session, _storage_settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    working = False
+
+    async def broken(data: TemplateData, template: bytes | None = None) -> bytes:
+        if not working:
+            raise PdfEngineError("down")
+        return b"%PDF-1.7 fake"
+
+    user = await _user(db_session)
+    project = await make_project(db_session)
+    draft = await _draft(db_session, project, user.id)
+    draft_id = draft.id
+    user_id = user.id
+    monkeypatch.setattr(invoice_service, "render_invoice_pdf", broken)
+
+    with pytest.raises(invoice_service.PdfUnavailableError):
+        await invoice_service.issue(db_session, draft_id, user_id, OCT_14)
+
+    reloaded = await db_session.get(Invoice, draft_id)
+    assert reloaded is not None
+    await db_session.refresh(reloaded)
+    assert reloaded.status == "draft" and reloaded.number is None
+    assert reloaded.pdf_file_id is None
+    assert await db_session.get(InvoiceNumberCounter, ("invoice", "2026")) is None
+    count = (
+        await db_session.execute(select(func.count()).select_from(File))
+    ).scalar_one()
+    assert count == 0
+    stored = (
+        await db_session.execute(select(func.count()).select_from(StoredFile))
+    ).scalar_one()
+    assert stored == 0
+    # The next issue takes the number the failed one would have had.
+    working = True
+    again = await invoice_service.issue(db_session, draft_id, user_id, OCT_14)
+    assert again is not None and again.number == "INV-2026-0001"
+
+
+async def test_a_failure_after_the_file_is_written_removes_it(
+    db_session, _storage_settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user = await _user(db_session)
+    project = await make_project(db_session)
+    draft = await _draft(db_session, project, user.id)
+    draft_id = draft.id
+    real_commit = db_session.commit
+
+    async def failing_commit() -> None:
+        raise RuntimeError("commit failed")
+
+    monkeypatch.setattr(db_session, "commit", failing_commit)
+    with pytest.raises(RuntimeError):
+        await invoice_service.issue(db_session, draft_id, user.id, OCT_14)
+    monkeypatch.setattr(db_session, "commit", real_commit)
+
+    leftovers = [p for p in _storage_settings.rglob("*") if p.is_file()]
+    assert leftovers == []
+
+
+async def test_identical_pdfs_share_stored_content(
+    db_session, _storage_settings
+) -> None:
+    # The fake PDF depends only on the number, so two invoices differ; reissuing the same
+    # content is covered by the storage tests.
+    user = await _user(db_session)
+    project = await make_project(db_session)
+    first = await _issue(
+        db_session, await _draft(db_session, project, user.id), user.id
+    )
+    second = await _issue(
+        db_session, await _draft(db_session, project, user.id), user.id
+    )
+    assert first.pdf_file_id != second.pdf_file_id
+
+
+async def test_a_draft_has_no_pdf_and_a_duplicate_does_not_copy_it(db_session) -> None:
+    user = await _user(db_session)
+    project = await make_project(db_session)
+    draft = await _draft(db_session, project, user.id)
+    assert draft.pdf_file_id is None
+    issued = await _issue(db_session, draft, user.id)
+    source = await invoice_service.get_invoice(db_session, issued.id)
+    assert source is not None and source.pdf_file_id is not None
+
+    copy = await invoice_service.duplicate_invoice(db_session, source, user.id)
+
+    assert copy.pdf_file_id is None
+
+
+async def test_an_invoice_file_cannot_be_deleted_while_the_invoice_refers_to_it(
+    db_session,
+) -> None:
+    user = await _user(db_session)
+    project = await make_project(db_session)
+    issued = await _issue(
+        db_session, await _draft(db_session, project, user.id), user.id
+    )
+    file_id = issued.pdf_file_id
+    assert file_id is not None
+
+    with pytest.raises(IntegrityError):
+        await db_session.execute(delete(File).where(File.id == file_id))
+
+
+# --- voiding marks the stored PDF -------------------------------------------------------------
+
+
+def _stored_bytes(file) -> bytes:
+    return file_storage_service.resolve_storage_path(
+        file.stored_file.bucket_key
+    ).read_bytes()
+
+
+async def _issued_with_pdf(db_session):
+    user = await _user(db_session)
+    project = await make_project(db_session)
+    issued = await _issue(
+        db_session, await _draft(db_session, project, user.id), user.id
+    )
+    return user, issued
+
+
+async def test_voiding_stores_a_stamped_copy_and_keeps_the_original(db_session) -> None:
+    user, issued = await _issued_with_pdf(db_session)
+    original_id = issued.pdf_file_id
+    assert original_id is not None
+    original_file = await file_storage_service.get_file(db_session, original_id)
+    assert original_file is not None
+    original_bytes = _stored_bytes(original_file)
+
+    voided = await invoice_service.void(db_session, issued.id, None, user.id)
+
+    assert voided is not None and voided.status == "void"
+    assert voided.pdf_file_id is not None and voided.pdf_file_id != original_id
+    stamped_file = await file_storage_service.get_file(db_session, voided.pdf_file_id)
+    assert stamped_file is not None and stamped_file.kind == "invoice"
+    assert stamped_file.original_filename == "INV-2026-0001.pdf"
+    pages = PdfReader(io.BytesIO(_stored_bytes(stamped_file))).pages
+    assert len(pages) == 1 and "VOIDED" in pages[0].extract_text()
+    # The issued document is still there, byte for byte, with nothing referring to it.
+    kept = await file_storage_service.get_file(db_session, original_id)
+    assert kept is not None and _stored_bytes(kept) == original_bytes
+    assert b"VOIDED" not in original_bytes
+
+
+async def test_a_void_never_calls_the_pdf_engine(
+    db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user, issued = await _issued_with_pdf(db_session)
+
+    async def forbidden(data: TemplateData, template: bytes | None = None) -> bytes:
+        raise AssertionError("a void must not render")
+
+    monkeypatch.setattr(invoice_service, "render_invoice_pdf", forbidden)
+
+    voided = await invoice_service.void(db_session, issued.id, "Wrong period", user.id)
+
+    assert voided is not None and voided.status == "void"
+
+
+async def test_an_invoice_issued_before_pdfs_were_kept_is_voided_without_a_file(
+    db_session,
+) -> None:
+    user = await _user(db_session)
+    legacy = await make_issued_invoice(db_session, "OLD-1")
+
+    voided = await invoice_service.void(db_session, legacy.id, None, user.id)
+
+    assert voided is not None and voided.status == "void" and voided.pdf_file_id is None
+    count = (
+        await db_session.execute(select(func.count()).select_from(File))
+    ).scalar_one()
+    assert count == 0
+
+
+async def _damage_stored_pdf(db_session, issued, *, delete: bool) -> None:
+    assert issued.pdf_file_id is not None
+    file = await file_storage_service.get_file(db_session, issued.pdf_file_id)
+    assert file is not None
+    path = file_storage_service.resolve_storage_path(file.stored_file.bucket_key)
+    if delete:
+        path.unlink()
+    else:
+        path.write_bytes(b"this is not a pdf")
+
+
+@pytest.mark.parametrize("delete", [False, True])
+async def test_a_pdf_that_cannot_be_marked_leaves_the_invoice_issued(
+    db_session, delete: bool
+) -> None:
+    user, issued = await _issued_with_pdf(db_session)
+    issued_id, user_id, original_id = issued.id, user.id, issued.pdf_file_id
+    await _damage_stored_pdf(db_session, issued, delete=delete)
+
+    with pytest.raises(PdfStampError):
+        await invoice_service.void(db_session, issued_id, "x", user_id)
+
+    reloaded = await db_session.get(Invoice, issued_id)
+    assert reloaded is not None
+    await db_session.refresh(reloaded)
+    assert reloaded.status == "issued" and reloaded.voided_at is None
+    assert reloaded.void_reason is None and reloaded.pdf_file_id == original_id
+    count = (
+        await db_session.execute(select(func.count()).select_from(File))
+    ).scalar_one()
+    assert count == 1
+
+
+async def test_a_failed_commit_removes_the_stamped_file(
+    db_session, _storage_settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user, issued = await _issued_with_pdf(db_session)
+    before = sorted(p for p in _storage_settings.rglob("*") if p.is_file())
+    real_commit = db_session.commit
+
+    async def failing_commit() -> None:
+        raise RuntimeError("commit failed")
+
+    issued_id, user_id = issued.id, user.id
+    monkeypatch.setattr(db_session, "commit", failing_commit)
+    with pytest.raises(RuntimeError):
+        await invoice_service.void(db_session, issued_id, None, user_id)
+    monkeypatch.setattr(db_session, "commit", real_commit)
+
+    assert sorted(p for p in _storage_settings.rglob("*") if p.is_file()) == before

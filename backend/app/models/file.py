@@ -23,8 +23,8 @@ from app.core.db import Base
 FileStatus = Literal["pending", "scanning", "processing", "ready", "rejected", "failed"]
 # The kind of object a file is attached to. A new attachable object adds its value here
 # and a `<object>_files` link table.
-FileKind = Literal["setting", "project"]
-SettingKey = Literal["org_logo"]
+FileKind = Literal["setting", "project", "invoice"]
+SettingKey = Literal["org_logo", "invoice_template"]
 
 
 class StoredFile(Base):
@@ -100,7 +100,9 @@ class File(Base):
         # A superkey that lets link tables point at (id, kind), so a file can be linked
         # only from the one link table matching its kind.
         UniqueConstraint("id", "kind", name="uq_files_id_kind"),
-        CheckConstraint("kind IN ('setting', 'project')", name="ck_files_kind"),
+        CheckConstraint(
+            "kind IN ('setting', 'project', 'invoice')", name="ck_files_kind"
+        ),
     )
 
 
@@ -127,14 +129,17 @@ class SettingFile(Base):
             name="fk_setting_files_file_id_kind",
         ),
         CheckConstraint("kind = 'setting'", name="ck_setting_files_kind"),
-        CheckConstraint("setting_key IN ('org_logo')", name="ck_setting_files_key"),
+        CheckConstraint(
+            "setting_key IN ('org_logo', 'invoice_template')",
+            name="ck_setting_files_key",
+        ),
         # A single-slot setting holds at most one file and keeps no history. Keys that
         # may hold several files are simply left out of this index.
         Index(
             "setting_files_single_slot",
             "setting_key",
             unique=True,
-            postgresql_where=text("setting_key IN ('org_logo')"),
+            postgresql_where=text("setting_key IN ('org_logo', 'invoice_template')"),
         ),
     )
 

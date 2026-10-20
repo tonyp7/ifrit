@@ -19,6 +19,8 @@ import {
   listInvoiceProjects,
   updateInvoice,
   voidInvoice,
+  previewInvoicePdf,
+  downloadInvoicePdf,
 } from "@/api/invoices";
 import { InvoiceLinesTable } from "@/components/invoices/InvoiceLinesTable";
 import { InvoiceTaxesTable } from "@/components/invoices/InvoiceTaxesTable";
@@ -72,6 +74,9 @@ import { payeeFormFromAccount, preselectPayee } from "@/lib/invoicePayee";
 import { formatPeriod, isValidPeriod, presetRange } from "@/lib/invoicePeriods";
 import { prefillReferences } from "@/lib/invoiceReferences";
 import { subtotal } from "@/lib/invoiceMath";
+import { downloadBlob } from "@/lib/download";
+import { canDownloadPdf, isPdfUnavailable } from "@/lib/invoicePdf";
+import { openPdfPreview, previewErrorMessage } from "@/lib/pdfPreview";
 import { computeTaxes } from "@/lib/invoiceTaxes";
 import { combineWarnings, formWarnings } from "@/lib/invoiceWarnings";
 import { parseDayKey, toDayKey } from "@/lib/timesheetDates";
@@ -151,7 +156,15 @@ export function InvoiceFormPage() {
   const [milestoneIds, setMilestoneIds] = useState<string[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState<
-    "saving" | "generating" | "deleting" | "issuing" | "voiding" | "duplicating" | null
+    | "saving"
+    | "generating"
+    | "deleting"
+    | "issuing"
+    | "voiding"
+    | "duplicating"
+    | "previewing"
+    | "downloading"
+    | null
   >(null);
   // The saved invoice as the server returned it: the number, dates and snapshot.
   const [detail, setDetail] = useState<InvoiceDetail | null>(null);
@@ -352,6 +365,38 @@ export function InvoiceFormPage() {
     }
   }
 
+  // The PDF of the form as it stands, saved or not: nothing is written.
+  async function handlePreview() {
+    setBusy("previewing");
+    setFormError(null);
+    try {
+      const outcome = await openPdfPreview(() =>
+        previewInvoicePdf(toInvoiceInput(getValues())),
+      );
+      if (outcome === "blocked") {
+        setFormError(t("Allow pop-ups for this site to see the preview."));
+      }
+    } catch (err) {
+      setFormError(previewErrorMessage(err, t));
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleDownload() {
+    if (!invoiceId) return;
+    setBusy("downloading");
+    setFormError(null);
+    try {
+      const { blob, filename } = await downloadInvoicePdf(invoiceId);
+      downloadBlob(blob, filename ?? `${detail?.number ?? "invoice"}.pdf`);
+    } catch (err) {
+      setFormError(err instanceof ApiError ? err.message : t("Failed to download the PDF."));
+    } finally {
+      setBusy(null);
+    }
+  }
+
   // Unsaved edits are saved first, so what is issued is what the form shows.
   const handleIssue = handleSubmit(async (values) => {
     if (invoiceId && !form.formState.isDirty) {
@@ -372,8 +417,11 @@ export function InvoiceFormPage() {
       setReloadToken((n) => n + 1);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : t("Failed to issue the invoice."));
-      setIssueOpen(false);
-      setReloadToken((n) => n + 1);
+      // Without a PDF nothing was issued: keep the confirmation open to try again.
+      if (!isPdfUnavailable(err)) {
+        setIssueOpen(false);
+        setReloadToken((n) => n + 1);
+      }
     } finally {
       setBusy(null);
     }
@@ -683,6 +731,17 @@ export function InvoiceFormPage() {
             {t("Delete draft")}
           </Button>
         )}
+        {detail && canDownloadPdf(detail) && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy !== null}
+            onClick={() => void handleDownload()}
+          >
+            {busy === "downloading" && <Spinner />}
+            {t("Download PDF")}
+          </Button>
+        )}
         {readOnly && (
           <Button
             type="button"
@@ -708,6 +767,17 @@ export function InvoiceFormPage() {
         <Button type="button" variant="outline" onClick={() => navigate("/invoices")}>
           {t("Close", { ns: "common" })}
         </Button>
+        {!readOnly && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy !== null || !projectId}
+            onClick={() => void handlePreview()}
+          >
+            {busy === "previewing" && <Spinner />}
+            {t("Preview")}
+          </Button>
+        )}
         {!readOnly && (
           <Button type="submit" variant="outline" disabled={busy !== null || !projectId}>
             {busy === "saving" && <Spinner />}

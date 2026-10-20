@@ -158,6 +158,9 @@ export interface InvoiceDetail {
   voided_at: string | null;
   voided_by_name: string | null;
   void_reason: string | null;
+  /** The PDF kept when the invoice was issued; false on a draft and on an invoice issued
+   * before PDFs were kept. */
+  has_pdf: boolean;
 }
 
 /** A company identifier as it stood when the invoice was issued. */
@@ -209,6 +212,7 @@ export interface InvoiceListItem {
   /** What Billed for shows when there is no period (a Fixed Price invoice): every line's
    * description in order, joined with ", ". Null when the invoice has no line. */
   lines_summary: string | null;
+  has_pdf: boolean;
 }
 
 export interface InvoiceListResponse {

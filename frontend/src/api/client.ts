@@ -4,10 +4,14 @@ const BASE_URL = "/api";
 
 export class ApiError extends Error {
   status: number;
+  /** The `detail` of the error body as the server sent it, for errors that carry more than a
+   * sentence (a rejected template lists its problems). */
+  detail: unknown;
 
-  constructor(status: number, message: string) {
+  constructor(status: number, message: string, detail?: unknown) {
     super(message);
     this.status = status;
+    this.detail = detail;
   }
 }
 
@@ -51,6 +55,14 @@ function messageFromBody(status: number, body: unknown): string {
   if (typeof detail === "string") {
     // A plain error message (most endpoints).
     message = detail;
+  } else if (
+    detail &&
+    typeof detail === "object" &&
+    !Array.isArray(detail) &&
+    typeof (detail as { message?: unknown }).message === "string"
+  ) {
+    // A structured error: its sentence is `message`, the rest is in `ApiError.detail`.
+    message = (detail as { message: string }).message;
   } else if (Array.isArray(detail)) {
     // FastAPI/Pydantic 422 validation errors: a list of {msg, loc, type}.
     message = detail
@@ -71,7 +83,11 @@ async function throwApiError(response: Response): Promise<never> {
   } catch {
     // response had no JSON body; keep the generic message
   }
-  throw new ApiError(response.status, messageFromBody(response.status, body));
+  throw new ApiError(
+    response.status,
+    messageFromBody(response.status, body),
+    (body as { detail?: unknown } | null)?.detail,
+  );
 }
 
 async function request<T>(path: string, init?: RequestInit, isRetry = false): Promise<T> {
@@ -116,12 +132,31 @@ function parseFilename(disposition: string | null): string | null {
   return match ? match[1] : null;
 }
 
+export interface BlobResponse {
+  blob: Blob;
+  filename: string | null;
+  headers: Headers;
+}
+
+// A FormData body is sent as it is (the browser adds the multipart boundary); anything else
+// is sent as JSON.
+function blobRequestInit(init: { method: "GET" | "POST"; body?: unknown }): RequestInit {
+  if (init.body === undefined) return { method: init.method };
+  if (init.body instanceof FormData) return { method: init.method, body: init.body };
+  return {
+    method: init.method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(init.body),
+  };
+}
+
 async function requestBlob(
   path: string,
+  init: { method: "GET" | "POST"; body?: unknown } = { method: "GET" },
   isRetry = false,
-): Promise<{ blob: Blob; filename: string | null }> {
+): Promise<BlobResponse> {
   const response = await fetch(`${BASE_URL}${path}`, {
-    method: "GET",
+    ...blobRequestInit(init),
     credentials: "include",
   });
 
@@ -129,7 +164,7 @@ async function requestBlob(
     if (response.status === 401 && !isRetry && !AUTH_EXEMPT_PATHS.includes(path)) {
       const refreshed = await attemptRefresh();
       if (refreshed) {
-        return requestBlob(path, true);
+        return requestBlob(path, init, true);
       }
       notifySessionExpired();
     }
@@ -137,7 +172,11 @@ async function requestBlob(
   }
 
   const blob = await response.blob();
-  return { blob, filename: parseFilename(response.headers.get("Content-Disposition")) };
+  return {
+    blob,
+    filename: parseFilename(response.headers.get("Content-Disposition")),
+    headers: response.headers,
+  };
 }
 
 export interface UploadOptions {
@@ -187,7 +226,11 @@ function requestUpload<T>(
       } catch {
         // response had no JSON body; keep the generic message
       }
-      const failure = new ApiError(xhr.status, messageFromBody(xhr.status, parsed));
+      const failure = new ApiError(
+        xhr.status,
+        messageFromBody(xhr.status, parsed),
+        (parsed as { detail?: unknown } | null)?.detail,
+      );
 
       if (xhr.status === 401 && !isRetry) {
         void attemptRefresh().then((refreshed) => {
@@ -213,6 +256,9 @@ export const apiClient = {
   // same auth/401-refresh handling as `get`, but reads the response as a Blob
   // and surfaces the server-built filename instead of parsing a JSON body.
   getBlob: (path: string) => requestBlob(path),
+  // The same for an endpoint that takes a JSON body and answers with a file.
+  // A JSON body, or a FormData for an upload that answers with a file (a template preview).
+  postBlob: (path: string, body: unknown) => requestBlob(path, { method: "POST", body }),
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, {
       method: "POST",

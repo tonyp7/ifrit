@@ -299,7 +299,12 @@ def test_an_invoice_does_not_depend_on_payee_accounts(scratch_database) -> None:
             "WHERE conrelid = 'invoices'::regclass AND contype = 'f'"
         )
     )
-    assert {row["target"] for row in rows} == {"projects", "currencies", "users"}
+    assert {row["target"] for row in rows} == {
+        "projects",
+        "currencies",
+        "users",
+        "files",
+    }
 
 
 def _columns(table: str) -> set[str]:
@@ -342,3 +347,136 @@ def test_downgrading_below_invoicing_is_refused_once_an_invoice_is_issued(
         command.downgrade(scratch_database, "0002")
     assert "issued_at" in _columns("invoices")
     assert "invoice_taxes" in _tables()
+
+
+_ISSUED_INVOICE = """
+    WITH c AS (
+        INSERT INTO companies (id, legal_name, country_of_registration, is_vendor)
+        VALUES (gen_random_uuid(), 'C', 'BE', true) RETURNING id
+    ), p AS (
+        INSERT INTO projects (id, name, vendor_company_id, client_company_id,
+            invoicing_currency, project_type, status)
+        SELECT gen_random_uuid(), 'P', c.id, c.id, 'EUR', 'time_and_material', 'active'
+        FROM c RETURNING id
+    )
+    INSERT INTO invoices (id, status, number, project_id, currency_code,
+        bill_from_name, bill_to_name, subtotal, total, invoice_date, issued_at,
+        currency_minor_unit)
+    SELECT gen_random_uuid(), 'issued', 'INV-1', p.id, 'EUR', 'F', 'T', 0, 0,
+        current_date, now(), 2
+    FROM p RETURNING id
+"""
+
+
+def test_a_draft_cannot_have_a_pdf_and_an_issued_invoice_may_lack_one(
+    scratch_database,
+) -> None:
+    command.upgrade(scratch_database, "head")
+    invoice_id = asyncio.run(_fetch(_ISSUED_INVOICE))[0]["id"]
+    file_id = asyncio.run(
+        _fetch(
+            """
+            WITH s AS (
+                INSERT INTO stored_files (id, checksum_sha256, size_bytes,
+                    detected_content_type, bucket_key, status)
+                VALUES (gen_random_uuid(), 'abc', 1, 'application/pdf', 'ab/cd/x.pdf', 'ready')
+                RETURNING id
+            )
+            INSERT INTO files (id, stored_file_id, kind, original_filename)
+            SELECT gen_random_uuid(), s.id, 'invoice', 'INV-1.pdf' FROM s RETURNING id
+            """
+        )
+    )[0]["id"]
+
+    asyncio.run(
+        _fetch(
+            f"UPDATE invoices SET pdf_file_id = '{file_id}' WHERE id = '{invoice_id}'"
+        )
+    )
+    with pytest.raises(asyncpg.CheckViolationError):
+        asyncio.run(
+            _fetch(
+                "UPDATE invoices SET status = 'draft', number = NULL, invoice_date = NULL,"
+                " issued_at = NULL, currency_minor_unit = NULL "
+                f"WHERE id = '{invoice_id}'"
+            )
+        )
+    with pytest.raises(asyncpg.RestrictViolationError):
+        asyncio.run(_fetch(f"DELETE FROM files WHERE id = '{file_id}'"))
+
+
+def test_downgrading_invoicing_discards_an_uploaded_template_and_restores_the_older_checks(
+    scratch_database,
+) -> None:
+    command.upgrade(scratch_database, "head")
+    asyncio.run(
+        _fetch(
+            """
+            WITH s AS (
+                INSERT INTO stored_files (id, checksum_sha256, size_bytes,
+                    detected_content_type, bucket_key, status)
+                VALUES (gen_random_uuid(), 'tpl', 1,
+                    'application/vnd.oasis.opendocument.text', 'ab/cd/t.odt', 'ready')
+                RETURNING id
+            ), f AS (
+                INSERT INTO files (id, stored_file_id, kind, original_filename)
+                SELECT gen_random_uuid(), s.id, 'setting', 'acme.odt' FROM s RETURNING id
+            )
+            INSERT INTO setting_files (file_id, kind, setting_key)
+            SELECT f.id, 'setting', 'invoice_template' FROM f RETURNING file_id
+            """
+        )
+    )
+
+    command.downgrade(scratch_database, "0002")
+
+    assert asyncio.run(_fetch("SELECT * FROM setting_files")) == []
+    leftover = asyncio.run(
+        _fetch(
+            "INSERT INTO files (id, stored_file_id, kind, original_filename) "
+            "SELECT gen_random_uuid(), id, 'setting', 'x.odt' FROM stored_files "
+            "RETURNING id"
+        )
+    )[0]["id"]
+    with pytest.raises(asyncpg.CheckViolationError):
+        asyncio.run(
+            _fetch(
+                "INSERT INTO setting_files (file_id, kind, setting_key) "
+                f"VALUES ('{leftover}', 'setting', 'invoice_template')"
+            )
+        )
+    with pytest.raises(asyncpg.CheckViolationError):
+        asyncio.run(
+            _fetch(
+                "INSERT INTO files (id, stored_file_id, kind, original_filename) "
+                "SELECT gen_random_uuid(), id, 'invoice', 'x.pdf' FROM stored_files"
+            )
+        )
+    command.upgrade(scratch_database, "head")
+
+
+def test_the_template_slot_holds_one_file(scratch_database) -> None:
+    command.upgrade(scratch_database, "head")
+    stored = """
+        INSERT INTO stored_files (id, checksum_sha256, size_bytes, detected_content_type,
+            bucket_key, status)
+        VALUES (gen_random_uuid(), '{n}', 1, 'x', 'k/{n}', 'ready') RETURNING id
+    """
+    ids = []
+    for n in ("one", "two"):
+        stored_id = asyncio.run(_fetch(stored.format(n=n)))[0]["id"]
+        ids.append(
+            asyncio.run(
+                _fetch(
+                    "INSERT INTO files (id, stored_file_id, kind, original_filename) "
+                    f"VALUES (gen_random_uuid(), '{stored_id}', 'setting', '{n}.odt') RETURNING id"
+                )
+            )[0]["id"]
+        )
+    attach = (
+        "INSERT INTO setting_files (file_id, kind, setting_key) "
+        "VALUES ('{id}', 'setting', 'invoice_template')"
+    )
+    asyncio.run(_fetch(attach.format(id=ids[0])))
+    with pytest.raises(asyncpg.UniqueViolationError):
+        asyncio.run(_fetch(attach.format(id=ids[1])))

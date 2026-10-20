@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { apiClient } from "@/api/client";
 import {
   createInvoice,
+  downloadInvoicePdf,
   deleteInvoice,
   duplicateInvoice,
   generateLines,
@@ -12,13 +13,21 @@ import {
   issueInvoice,
   listInvoiceProjects,
   listInvoices,
+  previewInvoicePdf,
   updateInvoice,
   voidInvoice,
 } from "@/api/invoices";
 import type { InvoiceInput } from "@/types/invoice";
 
 vi.mock("@/api/client", () => ({
-  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+  apiClient: {
+    get: vi.fn(),
+    post: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+    postBlob: vi.fn(),
+    getBlob: vi.fn(),
+  },
 }));
 
 beforeEach(() => vi.clearAllMocks());
@@ -126,5 +135,23 @@ describe("invoice API", () => {
       reason: "Wrong period",
     });
     expect(apiClient.post).toHaveBeenCalledWith("/invoices/i2/void", { reason: null });
+  });
+
+  it("previews a draft by posting the form values and returns the PDF", async () => {
+    const blob = new Blob(["%PDF"]);
+    vi.mocked(apiClient.postBlob).mockResolvedValue({
+      blob,
+      filename: null,
+      headers: new Headers(),
+    });
+    await expect(previewInvoicePdf(input)).resolves.toBe(blob);
+    expect(apiClient.postBlob).toHaveBeenCalledWith("/invoices/preview-pdf", input);
+  });
+
+  it("downloads the PDF kept at issue and returns its name", async () => {
+    const result = { blob: new Blob(["%PDF"]), filename: "INV-1.pdf", headers: new Headers() };
+    vi.mocked(apiClient.getBlob).mockResolvedValue(result);
+    await expect(downloadInvoicePdf("i1")).resolves.toBe(result);
+    expect(apiClient.getBlob).toHaveBeenCalledWith("/invoices/i1/pdf");
   });
 });

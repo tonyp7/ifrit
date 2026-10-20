@@ -36,4 +36,5 @@ nav:
       - Reporting: guide/reporting.md
       - Projects: guide/projects.md
       - Invoices: guide/invoices.md
+      - Invoice template: guide/invoice-template.md
       - Administration: guide/administration.md

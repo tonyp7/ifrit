@@ -19,6 +19,7 @@ dependencies = [
     "python-multipart>=0.0.32",
     "pillow>=12.3.0",
     "python-magic>=0.4.27",
+    "pypdf>=6.21.1",
 ]
 
 [dependency-groups]
@@ -42,6 +43,9 @@ extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Path"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+markers = [
+    "libreoffice: renders a PDF with the real LibreOffice, and is skipped when it is not installed",
+]
 
 [build-system]
 requires = ["hatchling"]

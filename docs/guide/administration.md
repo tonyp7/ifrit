@@ -92,6 +92,14 @@ starts again next year.
 Invoice dates and the dates in numbers follow the server's time zone, see
 [Time zone](../configuration.md#time-zone).
 
+### Invoice template
+
+The **Invoice Template** card chooses the layout invoice PDFs are made from. It shows whether the
+default template or one you uploaded is in use, lets you **Download** the one in use, **Upload** a
+new one (you see a sample PDF and any warnings first, and confirm before it is used), and **Reset
+to default**. Changing it affects previews and invoices issued from then on, never invoices that
+were already issued. See [The invoice template](invoice-template.md) for how to edit one.
+
 ## Companies
 
 Companies are the vendors and clients that projects refer to. Both administrators and managers
