@@ -13,7 +13,6 @@ from app.models.user import User
 from app.pdf.errors import PdfEngineNotInstalledError, PdfError, TemplateError
 from app.pdf.http import pdf_response
 from app.pdf.odt import placeholders_in
-from app.pdf.tokens import CATALOGUE
 from app.pdf.trial import trial_render
 from app.pdf.validate import (
     MAX_BYTES,
@@ -26,7 +25,6 @@ from app.schemas.invoice_template import (
     TemplateFinding,
     TemplateInfo,
     TemplateSaved,
-    TemplateTokenOut,
 )
 from app.services import file_storage_service, invoice_template_service
 from app.services.invoice_template_service import ResolvedTemplate
@@ -179,20 +177,6 @@ async def download_template(db: AsyncSession = Depends(get_db)) -> Response:
             "Content-Disposition": f'attachment; filename="{safe or DEFAULT_FILENAME}"',
         },
     )
-
-
-@router.get("/tokens", response_model=list[TemplateTokenOut])
-async def list_tokens() -> list[TemplateTokenOut]:
-    return [
-        TemplateTokenOut(
-            name=token.name,
-            description=token.description,
-            kind=token.kind,
-            optional_capable=token.kind == "value",
-            example=token.example,
-        )
-        for token in CATALOGUE
-    ]
 
 
 @router.post("/preview")

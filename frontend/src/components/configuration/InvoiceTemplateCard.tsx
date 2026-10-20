@@ -6,7 +6,6 @@ import { ApiError } from "@/api/client";
 import {
   downloadTemplate,
   getInvoiceTemplate,
-  getTemplateTokens,
   previewTemplate,
   resetTemplate,
   templateRejection,
@@ -17,14 +16,13 @@ import {
   type TemplateReview,
 } from "@/components/configuration/InvoiceTemplateCardView";
 import { downloadBlob } from "@/lib/download";
-import type { InvoiceTemplateInfo, TemplateToken } from "@/types/invoiceTemplate";
+import type { InvoiceTemplateInfo } from "@/types/invoiceTemplate";
 
 export function InvoiceTemplateCard() {
   const { t } = useTranslation(["configuration"]);
   const [info, setInfo] = useState<InvoiceTemplateInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [loadFailed, setLoadFailed] = useState(false);
-  const [tokens, setTokens] = useState<TemplateToken[] | null>(null);
   const [review, setReview] = useState<TemplateReview | null>(null);
   const [saving, setSaving] = useState(false);
   const [resetting, setResetting] = useState(false);
@@ -43,13 +41,6 @@ export function InvoiceTemplateCard() {
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
-      });
-    getTemplateTokens()
-      .then((list) => {
-        if (!cancelled) setTokens(list);
-      })
-      .catch(() => {
-        // The reference is only help: the card works without it.
       });
     return () => {
       cancelled = true;
@@ -157,7 +148,6 @@ export function InvoiceTemplateCard() {
       info={info}
       loading={loading}
       loadFailed={loadFailed}
-      tokens={tokens}
       review={review}
       saving={saving}
       resetting={resetting}

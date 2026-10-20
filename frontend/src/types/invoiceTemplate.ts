@@ -19,14 +19,6 @@ export interface InvoiceTemplateSaved extends InvoiceTemplateInfo {
   warnings: TemplateFinding[];
 }
 
-export interface TemplateToken {
-  name: string;
-  description: string;
-  kind: "value" | "block" | "lines";
-  optional_capable: boolean;
-  example: string;
-}
-
 /** What a rejected template comes back with. */
 export interface TemplateRejection {
   problems: TemplateFinding[];

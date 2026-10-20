@@ -4,7 +4,6 @@ import { ApiError, apiClient } from "@/api/client";
 import {
   downloadTemplate,
   getInvoiceTemplate,
-  getTemplateTokens,
   previewTemplate,
   resetTemplate,
   templateRejection,
@@ -30,11 +29,9 @@ beforeEach(() => vi.clearAllMocks());
 const file = new File(["odt"], "acme.odt");
 
 describe("invoice template API", () => {
-  it("reads the template in use and the placeholder catalogue", () => {
+  it("reads the template in use", () => {
     void getInvoiceTemplate();
-    void getTemplateTokens();
-    expect(apiClient.get).toHaveBeenNthCalledWith(1, "/invoice-template");
-    expect(apiClient.get).toHaveBeenNthCalledWith(2, "/invoice-template/tokens");
+    expect(apiClient.get).toHaveBeenCalledWith("/invoice-template");
   });
 
   it("downloads the template in use", () => {

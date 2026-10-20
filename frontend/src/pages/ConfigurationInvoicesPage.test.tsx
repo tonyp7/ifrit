@@ -10,7 +10,6 @@ import { ConfigurationInvoicesPage } from "@/pages/ConfigurationInvoicesPage";
 // Requests never settle: the page is the cards as they are before anything has loaded.
 vi.mock("@/api/invoiceTemplate", () => ({
   getInvoiceTemplate: vi.fn(() => new Promise(() => {})),
-  getTemplateTokens: vi.fn(() => new Promise(() => {})),
   previewTemplate: vi.fn(),
   uploadTemplate: vi.fn(),
   resetTemplate: vi.fn(),

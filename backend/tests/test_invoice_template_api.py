@@ -9,7 +9,6 @@ from sqlalchemy import func, select
 
 from app.models.file import File
 from app.pdf.render import bundled_template
-from app.pdf.tokens import TOKENS
 from app.pdf.validate import Finding
 from app.services import invoice_service
 from app.services.invoice_template_service import resolve_template
@@ -81,7 +80,6 @@ async def _file_count(db_session) -> int:
     [
         ("get", ""),
         ("get", "/file"),
-        ("get", "/tokens"),
         ("post", "/preview"),
         ("put", ""),
         ("delete", ""),
@@ -127,15 +125,13 @@ async def test_the_default_template_downloads_as_an_odt(client, db_session) -> N
     )
 
 
-async def test_the_token_catalogue_lists_every_placeholder(client, db_session) -> None:
+async def test_there_is_no_endpoint_listing_the_placeholders(
+    client, db_session
+) -> None:
+    # The list is in the user guide, not in the API.
     await _admin(client, db_session)
 
-    tokens = (await client.get(f"{URL}/tokens")).json()
-
-    assert {t["name"] for t in tokens} == set(TOKENS)
-    lines = next(t for t in tokens if t["name"] == "invoice_lines")
-    assert lines["kind"] == "lines" and lines["optional_capable"] is False
-    assert all(t["description"] for t in tokens)
+    assert (await client.get(f"{URL}/tokens")).status_code == 404
 
 
 # --- uploading ---------------------------------------------------------------------------------

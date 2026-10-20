@@ -27,12 +27,3 @@ class TemplateFinding(BaseModel):
 
 class TemplateSaved(TemplateInfo):
     warnings: list[TemplateFinding]
-
-
-class TemplateTokenOut(BaseModel):
-    name: str
-    description: str
-    kind: Literal["value", "block", "lines"]
-    # Whether a trailing `?` is useful (a value that can be empty).
-    optional_capable: bool
-    example: str
