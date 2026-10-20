@@ -83,7 +83,7 @@ Choose **+ New**. The form has five steps.
 see how it will look before issuing it. It shows what is in the form right now, saved or not, and
 it saves nothing. A draft's PDF carries a gray **DRAFT** mark behind the text on every page. It
 has no number yet and no invoice date, so both read "Assigned when issued", and a due date worked
-out from payment terms reads "Calculated when issued". The layout comes from the invoice template,
+out from payment terms reads "Calculated when issued". The layout comes from the [invoice template](invoice-template.md),
 and the amounts are worked out the same way as when you save.
 
 Making the PDF takes a few seconds. If the server cannot make it, the form says "The PDF engine is

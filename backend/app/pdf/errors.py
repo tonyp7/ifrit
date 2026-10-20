@@ -13,5 +13,9 @@ class PdfEngineError(PdfError):
     it left no file."""
 
 
+class PdfEngineNotInstalledError(PdfEngineError):
+    """The converter is not installed: nothing is wrong with whatever was being converted."""
+
+
 class PdfStampError(PdfError):
     """A stored PDF could not be read or marked: it is damaged, empty or encrypted."""

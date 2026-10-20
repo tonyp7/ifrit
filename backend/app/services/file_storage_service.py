@@ -186,6 +186,12 @@ _PILLOW_FORMAT_FOR_TYPE = {
 }
 
 
+# The invoice template: an OpenDocument Text file and nothing else.
+TEMPLATE_CONTEXT = UploadContext(
+    allowed={".odt": AllowedType(_types(_ODF + "text"), ".odt")}
+)
+
+
 class FileUploadError(Exception):
     """An upload that was rejected. `status_code` is the HTTP status to answer with and
     `reason` a short stable code for logs; the message is safe to show the user."""

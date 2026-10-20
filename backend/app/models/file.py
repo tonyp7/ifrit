@@ -24,7 +24,7 @@ FileStatus = Literal["pending", "scanning", "processing", "ready", "rejected", "
 # The kind of object a file is attached to. A new attachable object adds its value here
 # and a `<object>_files` link table.
 FileKind = Literal["setting", "project", "invoice"]
-SettingKey = Literal["org_logo"]
+SettingKey = Literal["org_logo", "invoice_template"]
 
 
 class StoredFile(Base):
@@ -129,14 +129,17 @@ class SettingFile(Base):
             name="fk_setting_files_file_id_kind",
         ),
         CheckConstraint("kind = 'setting'", name="ck_setting_files_kind"),
-        CheckConstraint("setting_key IN ('org_logo')", name="ck_setting_files_key"),
+        CheckConstraint(
+            "setting_key IN ('org_logo', 'invoice_template')",
+            name="ck_setting_files_key",
+        ),
         # A single-slot setting holds at most one file and keeps no history. Keys that
         # may hold several files are simply left out of this index.
         Index(
             "setting_files_single_slot",
             "setting_key",
             unique=True,
-            postgresql_where=text("setting_key IN ('org_logo')"),
+            postgresql_where=text("setting_key IN ('org_logo', 'invoice_template')"),
         ),
     )
 

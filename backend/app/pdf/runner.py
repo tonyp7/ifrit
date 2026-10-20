@@ -6,6 +6,7 @@ also caps how many conversions run at once, and so the memory they use."""
 
 import asyncio
 import contextlib
+import fcntl
 import logging
 import os
 import shutil
@@ -15,7 +16,7 @@ import weakref
 from collections.abc import AsyncIterator
 from pathlib import Path
 
-from app.pdf.errors import PdfEngineError
+from app.pdf.errors import PdfEngineError, PdfEngineNotInstalledError
 
 logger = logging.getLogger(__name__)
 
@@ -61,12 +62,37 @@ def _slot_queue() -> asyncio.Queue[int]:
 async def _slot() -> AsyncIterator[Path]:
     queue = _slot_queue()
     slot = await queue.get()
+    lock_fd: int | None = None
     try:
         profile = PROFILE_ROOT / f"profile-{slot}"
         await asyncio.to_thread(_seed_profile, profile)
+        # The queue only serialises this process. LibreOffice allows one process per profile,
+        # so another process of the application (a second worker, a parallel test run) using the
+        # same directory must wait too: a lock on a file in the profile does that, across
+        # processes, and is released by the operating system if this one dies.
+        lock_fd = await asyncio.to_thread(_lock_profile, profile)
         yield profile
     finally:
+        if lock_fd is not None:
+            await asyncio.to_thread(_unlock_profile, lock_fd)
         queue.put_nowait(slot)
+
+
+def _lock_profile(profile: Path) -> int:
+    fd = os.open(profile / ".lock", os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+    except BaseException:
+        os.close(fd)
+        raise
+    return fd
+
+
+def _unlock_profile(fd: int) -> None:
+    try:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+    finally:
+        os.close(fd)
 
 
 def _seed_profile(profile: Path) -> None:
@@ -93,7 +119,7 @@ async def convert_to_pdf(odt: bytes) -> bytes:
     binary = soffice_path()
     if binary is None:
         logger.error("LibreOffice is not installed: cannot make an invoice PDF")
-        raise PdfEngineError("The PDF engine is not available")
+        raise PdfEngineNotInstalledError("The PDF engine is not available")
 
     # mkdtemp creates the directory with mode 0700: the file written in it is not readable
     # by other users of the machine.

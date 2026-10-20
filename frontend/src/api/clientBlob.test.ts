@@ -46,4 +46,31 @@ describe("apiClient.postBlob", () => {
     stubFetch(new Response("{}", { status: 422 }));
     await expect(apiClient.postBlob("/x", {})).rejects.toBeInstanceOf(ApiError);
   });
+
+  it("sends a FormData as it is and hands back the response headers", async () => {
+    const fetchMock = stubFetch(
+      new Response("%PDF", { headers: { "X-Template-Warnings": "[]" } }),
+    );
+    const form = new FormData();
+    form.append("file", new File(["x"], "a.odt"));
+
+    const result = await apiClient.postBlob("/invoice-template/preview", form);
+
+    const [, init] = fetchMock.mock.calls[0];
+    expect(init.body).toBe(form);
+    // The browser adds the multipart boundary itself.
+    expect(init.headers).toBeUndefined();
+    expect(result.headers.get("X-Template-Warnings")).toBe("[]");
+  });
+
+  it("keeps the structured detail of a rejection on the ApiError", async () => {
+    const detail = { message: "The template cannot be used", problems: [{ part: "x" }] };
+    stubFetch(new Response(JSON.stringify({ detail }), { status: 422 }));
+
+    await expect(apiClient.postBlob("/x", {})).rejects.toMatchObject({
+      status: 422,
+      message: "The template cannot be used",
+      detail,
+    });
+  });
 });

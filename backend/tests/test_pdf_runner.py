@@ -151,3 +151,27 @@ async def test_the_start_up_check_warns_without_the_converter(
 async def test_the_start_up_check_passes_with_a_working_converter(fake) -> None:
     fake("version")
     assert await runner.check_engine() is True
+
+
+async def test_a_profile_in_use_by_another_process_is_waited_for(fake) -> None:
+    import fcntl
+    import os
+
+    fake("ok")
+    # Another process holds both profiles: stand in for it with locks taken here.
+    held = []
+    for slot in range(runner.SLOTS):
+        profile = fake.profiles / f"profile-{slot}"
+        await asyncio.to_thread(runner._seed_profile, profile)
+        fd = os.open(profile / ".lock", os.O_CREAT | os.O_RDWR, 0o600)
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        held.append(fd)
+    task = asyncio.create_task(runner.convert_to_pdf(b"odt"))
+    try:
+        await asyncio.sleep(0.4)
+        assert not task.done()
+    finally:
+        for fd in held:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+            os.close(fd)
+    assert await asyncio.wait_for(task, 10) == b"%PDF-1.7 fake"

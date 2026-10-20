@@ -65,6 +65,7 @@ from app.schemas.invoice import (
 )
 from app.schemas.project import ProjectReferenceWrite
 from app.services import app_settings, file_storage_service, invoice_numbering_service
+from app.services.invoice_template_service import resolve_template
 from app.services.payment_terms import apply_payment_terms
 from app.services.sorting import resolve_sort
 
@@ -1280,7 +1281,8 @@ async def issue(
             client_identifiers=client_identifiers,
             now=datetime.now(UTC),
         )
-        pdf = await render_invoice_pdf(data)
+        template = await resolve_template(db)
+        pdf = await render_invoice_pdf(data, template.content)
         stored = await file_storage_service.store_generated_file(
             db,
             content=pdf,

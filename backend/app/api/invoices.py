@@ -36,6 +36,7 @@ from app.services.invoice_service import (
     ProjectNotActiveError,
     ProjectNotInvoiceableError,
 )
+from app.services.invoice_template_service import resolve_template
 
 logger = logging.getLogger(__name__)
 
@@ -176,10 +177,17 @@ async def preview_pdf(
         client_identifiers=source.client_identifiers,
         now=datetime.now(UTC),
     )
+    try:
+        template = await resolve_template(db)
+    except PdfError:
+        logger.exception("Could not read the invoice template")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=_PDF_UNAVAILABLE
+        ) from None
     # The preview is read-only: end the transaction so nothing the build touched lingers.
     await db.rollback()
     try:
-        pdf = await render_invoice_pdf(data)
+        pdf = await render_invoice_pdf(data, template.content)
     except PdfError:
         logger.exception("Could not make the invoice preview PDF")
         raise HTTPException(
@@ -206,7 +214,7 @@ async def download_pdf(
             now=datetime.now(UTC),
         )
         try:
-            pdf = await render_invoice_pdf(data)
+            pdf = await render_invoice_pdf(data, (await resolve_template(db)).content)
         except PdfError:
             logger.exception("Could not make the PDF of draft %s", invoice_id)
             raise HTTPException(

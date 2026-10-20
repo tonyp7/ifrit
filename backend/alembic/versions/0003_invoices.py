@@ -1,4 +1,4 @@
-"""invoicing: the billing role, invoices, their numbering, issuing and taxes
+"""invoicing: the billing role, invoices, their numbering, issuing, taxes and PDFs
 
 Revision ID: 0003
 Revises: 0002
@@ -13,9 +13,16 @@ administrator assigns it), and the invoicing tables in their final shape:
 - `invoice_numbering_formats` and `invoice_number_counters`, which number issued invoices.
 
 Parties, payee account details, references, lines and taxes are copies stored on the invoice,
-so the only links out are the project, the currency and the users who created, issued or
-voided it. No existing data to migrate, and nothing seeded besides the role: with no format
+so the only links out are the project, the currency, the users who created, issued or
+voided it and, once issued, its PDF file. No existing data to migrate, and nothing seeded besides the role: with no format
 row the application uses its default numbering format.
+
+It also gives the file subsystem what invoicing needs:
+
+- the `invoice` file kind (`ck_files_kind`) and `invoices.pdf_file_id`, which points at the PDF
+  made when an invoice is issued (`ON DELETE RESTRICT`, never set on a draft);
+- the `invoice_template` setting-file key, so an administrator can upload the template those
+  PDFs are made from (the key check and the single-slot index both learn it).
 """
 
 from collections.abc import Sequence
@@ -79,6 +86,7 @@ _INVOICE_CHECKS = {
     "ck_invoices_void_fields": (
         "(status = 'void') = (voided_at IS NOT NULL) AND (void_reason IS NULL OR status = 'void')"
     ),
+    "ck_invoices_pdf_draft": "status <> 'draft' OR pdf_file_id IS NULL",
 }
 
 _LINE_CHECKS = {
@@ -192,6 +200,7 @@ def upgrade() -> None:
         sa.Column("voided_at", sa.DateTime(timezone=True), nullable=True),
         sa.Column("voided_by", sa.UUID(), nullable=True),
         sa.Column("void_reason", sa.String(length=500), nullable=True),
+        sa.Column("pdf_file_id", sa.UUID(), nullable=True),
         sa.Column("created_by", sa.UUID(), nullable=True),
         sa.ForeignKeyConstraint(["created_by"], ["users.id"], ondelete="SET NULL"),
         sa.ForeignKeyConstraint(
@@ -211,8 +220,15 @@ def upgrade() -> None:
             ["currencies.alpha_code"],
         ),
         sa.ForeignKeyConstraint(["project_id"], ["projects.id"], ondelete="RESTRICT"),
+        sa.ForeignKeyConstraint(
+            ["pdf_file_id"],
+            ["files.id"],
+            name="invoices_pdf_file_id_fkey",
+            ondelete="RESTRICT",
+        ),
         sa.PrimaryKeyConstraint("id"),
     )
+    op.create_index("ix_invoices_pdf_file_id", "invoices", ["pdf_file_id"])
     op.create_index(
         "ix_invoices_project_id_status",
         "invoices",
@@ -314,6 +330,26 @@ def upgrade() -> None:
         sa.PrimaryKeyConstraint("series"),
     )
 
+    op.drop_constraint("ck_files_kind", "files", type_="check")
+    op.create_check_constraint(
+        "ck_files_kind", "files", "kind IN ('setting', 'project', 'invoice')"
+    )
+    _swap_setting_keys("setting_key IN ('org_logo', 'invoice_template')")
+
+
+def _swap_setting_keys(check: str) -> None:
+    """Replaces the setting key check and the single-slot index, which repeats its list."""
+    op.drop_index("setting_files_single_slot", table_name="setting_files")
+    op.drop_constraint("ck_setting_files_key", "setting_files", type_="check")
+    op.create_check_constraint("ck_setting_files_key", "setting_files", check)
+    op.create_index(
+        "setting_files_single_slot",
+        "setting_files",
+        ["setting_key"],
+        unique=True,
+        postgresql_where=sa.text(check),
+    )
+
 
 def downgrade() -> None:
     # Going back would drop the numbers, dates and snapshots of issued invoices, records that
@@ -343,3 +379,15 @@ def downgrade() -> None:
     op.drop_table("invoices")
     # Its assignments go with it (user_roles cascades).
     op.execute(f"DELETE FROM roles WHERE id = '{_BILLING_ID}'")
+    # An uploaded invoice template goes with its file record (the stored content stays until
+    # the cleanup job exists): the older key check could not hold it. Invoice PDFs belong to
+    # issued invoices, which the check above already refuses to lose.
+    op.execute(
+        "DELETE FROM files WHERE id IN "
+        "(SELECT file_id FROM setting_files WHERE setting_key = 'invoice_template')"
+    )
+    _swap_setting_keys("setting_key IN ('org_logo')")
+    op.drop_constraint("ck_files_kind", "files", type_="check")
+    op.create_check_constraint(
+        "ck_files_kind", "files", "kind IN ('setting', 'project')"
+    )
