@@ -1,12 +1,18 @@
+import logging
 import uuid
+from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import require_roles
 from app.core.db import get_db
 from app.models.invoice import Invoice, InvoiceStatus
 from app.models.user import User
+from app.pdf.errors import PdfError
+from app.pdf.http import pdf_response
+from app.pdf.render import render_invoice_pdf
+from app.pdf.values import build_template_data
 from app.schemas.invoice import (
     BillingContext,
     GenerateRequest,
@@ -30,11 +36,14 @@ from app.services.invoice_service import (
     ProjectNotInvoiceableError,
 )
 
+logger = logging.getLogger(__name__)
+
 _billing = Depends(require_roles("billing"))
 
 router = APIRouter(prefix="/invoices", tags=["invoices"], dependencies=[_billing])
 
 _NOT_INVOICEABLE = "A new invoice can only be started for an Active Time & Material or Capped T&M project"
+_PDF_UNAVAILABLE = "The PDF engine is not available"
 _NOT_DRAFT = "Only a draft invoice can be changed or deleted"
 # The same sentence the form's banner shows.
 _PROJECT_NOT_ACTIVE = "This invoice cannot be issued because its project is not Active."
@@ -137,6 +146,41 @@ async def list_invoices(
         page=page,
         page_size=invoice_service.PAGE_SIZE,
     )
+
+
+@router.post("/preview-pdf")
+async def preview_pdf(
+    payload: InvoiceWrite, db: AsyncSession = Depends(get_db)
+) -> Response:
+    """The PDF of a draft as the form holds it, saved or not. Stores nothing."""
+    try:
+        source = await invoice_service.draft_pdf_input(db, payload)
+    except ProjectNotInvoiceableError as err:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT, detail=_NOT_INVOICEABLE
+        ) from err
+    except InvalidInvoiceDataError as err:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(err)
+        ) from err
+    data = build_template_data(
+        source.invoice,
+        minor_unit=source.minor_unit,
+        document_name=source.document_name,
+        vendor_identifiers=source.vendor_identifiers,
+        client_identifiers=source.client_identifiers,
+        now=datetime.now(UTC),
+    )
+    # The preview is read-only: end the transaction so nothing the build touched lingers.
+    await db.rollback()
+    try:
+        pdf = await render_invoice_pdf(data)
+    except PdfError:
+        logger.exception("Could not make the invoice preview PDF")
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=_PDF_UNAVAILABLE
+        ) from None
+    return pdf_response(pdf)
 
 
 @router.post("", response_model=InvoiceDetail, status_code=status.HTTP_201_CREATED)

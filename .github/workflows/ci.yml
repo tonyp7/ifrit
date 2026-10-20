@@ -57,7 +57,9 @@ jobs:
     steps:
       - uses: actions/checkout@v7
       # Shared library behind python-magic, which sniffs an upload's real content type.
-      - run: sudo apt-get update && sudo apt-get install -y libmagic1
+      # LibreOffice Writer (and the Liberation fonts it lays text out in) for the tests that
+      # render an invoice PDF; they skip themselves when it is missing.
+      - run: sudo apt-get update && sudo apt-get install -y libmagic1 libreoffice-writer fonts-liberation
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           # Without this uv uses whatever Python the runner image ships. Keep it in step with

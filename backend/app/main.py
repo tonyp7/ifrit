@@ -1,3 +1,6 @@
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from slowapi import _rate_limit_exceeded_handler
@@ -7,8 +10,17 @@ from app.api.router import api_router
 from app.core.body_limit import RequestBodyLimitMiddleware
 from app.core.config import settings
 from app.core.rate_limit import limiter
+from app.pdf.runner import check_engine
 
-app = FastAPI(title="Ifrit API")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    # Warns when the PDF converter is missing; the application runs without it.
+    await check_engine()
+    yield
+
+
+app = FastAPI(title="Ifrit API", lifespan=lifespan)
 app.state.limiter = limiter
 # slowapi types the handler for RateLimitExceeded only; Starlette expects Exception.
 # pyrefly: ignore [bad-argument-type]

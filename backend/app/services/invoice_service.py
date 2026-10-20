@@ -683,6 +683,42 @@ async def create_invoice(
     return invoice
 
 
+@dataclass
+class DraftPdfInput:
+    """What a PDF of a draft is made from. The invoice is never added to the session."""
+
+    invoice: Invoice
+    minor_unit: int
+    document_name: str
+    vendor_identifiers: list[dict[str, Any]]
+    client_identifiers: list[dict[str, Any]]
+
+
+async def draft_pdf_input(db: AsyncSession, data: InvoiceWrite) -> DraftPdfInput:
+    """A draft as `data` describes it, for a PDF preview: built by the same code a save runs,
+    so its amounts and its rejections are a save's, but never added to the session, so
+    nothing is written."""
+    project = await db.get(Project, data.project_id)
+    if project is None or not is_invoiceable(project):
+        raise ProjectNotInvoiceableError()
+    invoice = Invoice(
+        status="draft", created_by=None, lines=[], references=[], taxes=[]
+    )
+    await _apply(db, invoice, data, project)
+    minor = await _minor_unit(db, project.invoicing_currency)
+    today = server_today()
+    document_name = (await app_settings.get_group(db, "invoicing")).model_dump()[
+        "document_name"
+    ]
+    return DraftPdfInput(
+        invoice=invoice,
+        minor_unit=2 if minor is None else minor,
+        document_name=document_name,
+        vendor_identifiers=await _identifiers(db, project.vendor_company_id, today),
+        client_identifiers=await _identifiers(db, project.client_company_id, today),
+    )
+
+
 async def get_invoice(db: AsyncSession, invoice_id: uuid.UUID) -> Invoice | None:
     return (
         await db.execute(

@@ -19,6 +19,7 @@ import {
   listInvoiceProjects,
   updateInvoice,
   voidInvoice,
+  previewInvoicePdf,
 } from "@/api/invoices";
 import { InvoiceLinesTable } from "@/components/invoices/InvoiceLinesTable";
 import { InvoiceTaxesTable } from "@/components/invoices/InvoiceTaxesTable";
@@ -72,6 +73,7 @@ import { payeeFormFromAccount, preselectPayee } from "@/lib/invoicePayee";
 import { formatPeriod, isValidPeriod, presetRange } from "@/lib/invoicePeriods";
 import { prefillReferences } from "@/lib/invoiceReferences";
 import { subtotal } from "@/lib/invoiceMath";
+import { openPdfPreview, previewErrorMessage } from "@/lib/pdfPreview";
 import { computeTaxes } from "@/lib/invoiceTaxes";
 import { combineWarnings, formWarnings } from "@/lib/invoiceWarnings";
 import { parseDayKey, toDayKey } from "@/lib/timesheetDates";
@@ -151,7 +153,14 @@ export function InvoiceFormPage() {
   const [milestoneIds, setMilestoneIds] = useState<string[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [busy, setBusy] = useState<
-    "saving" | "generating" | "deleting" | "issuing" | "voiding" | "duplicating" | null
+    | "saving"
+    | "generating"
+    | "deleting"
+    | "issuing"
+    | "voiding"
+    | "duplicating"
+    | "previewing"
+    | null
   >(null);
   // The saved invoice as the server returned it: the number, dates and snapshot.
   const [detail, setDetail] = useState<InvoiceDetail | null>(null);
@@ -349,6 +358,24 @@ export function InvoiceFormPage() {
           ? err.message
           : t("Failed to prepare the invoice for issuing."),
       );
+    }
+  }
+
+  // The PDF of the form as it stands, saved or not: nothing is written.
+  async function handlePreview() {
+    setBusy("previewing");
+    setFormError(null);
+    try {
+      const outcome = await openPdfPreview(() =>
+        previewInvoicePdf(toInvoiceInput(getValues())),
+      );
+      if (outcome === "blocked") {
+        setFormError(t("Allow pop-ups for this site to see the preview."));
+      }
+    } catch (err) {
+      setFormError(previewErrorMessage(err, t));
+    } finally {
+      setBusy(null);
     }
   }
 
@@ -708,6 +735,17 @@ export function InvoiceFormPage() {
         <Button type="button" variant="outline" onClick={() => navigate("/invoices")}>
           {t("Close", { ns: "common" })}
         </Button>
+        {!readOnly && (
+          <Button
+            type="button"
+            variant="outline"
+            disabled={busy !== null || !projectId}
+            onClick={() => void handlePreview()}
+          >
+            {busy === "previewing" && <Spinner />}
+            {t("Preview")}
+          </Button>
+        )}
         {!readOnly && (
           <Button type="submit" variant="outline" disabled={busy !== null || !projectId}>
             {busy === "saving" && <Spinner />}

@@ -10,6 +10,7 @@ vi.mock("@/api/invoices", () => ({
   getInvoice: vi.fn(() => new Promise(() => {})),
   getBillingContext: vi.fn(() => new Promise(() => {})),
   generateLines: vi.fn(),
+  previewInvoicePdf: vi.fn(),
   createInvoice: vi.fn(),
   updateInvoice: vi.fn(),
   deleteInvoice: vi.fn(),
@@ -35,6 +36,8 @@ describe("InvoiceFormPage", () => {
     expect(html).not.toContain("Line items");
     expect(html).toContain("Save draft");
     expect(html).toMatch(/>Issue</);
+    // Preview sits in the action row before Save draft.
+    expect(html).toMatch(/>Preview<[\s\S]*>Save draft</);
     expect(html).not.toContain("Delete draft");
     expect(html).not.toContain(">Void<");
   });

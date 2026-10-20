@@ -118,18 +118,22 @@ function parseFilename(disposition: string | null): string | null {
 
 async function requestBlob(
   path: string,
+  init: { method: "GET" | "POST"; body?: unknown } = { method: "GET" },
   isRetry = false,
 ): Promise<{ blob: Blob; filename: string | null }> {
   const response = await fetch(`${BASE_URL}${path}`, {
-    method: "GET",
+    method: init.method,
     credentials: "include",
+    ...(init.body !== undefined
+      ? { headers: { "Content-Type": "application/json" }, body: JSON.stringify(init.body) }
+      : {}),
   });
 
   if (!response.ok) {
     if (response.status === 401 && !isRetry && !AUTH_EXEMPT_PATHS.includes(path)) {
       const refreshed = await attemptRefresh();
       if (refreshed) {
-        return requestBlob(path, true);
+        return requestBlob(path, init, true);
       }
       notifySessionExpired();
     }
@@ -213,6 +217,8 @@ export const apiClient = {
   // same auth/401-refresh handling as `get`, but reads the response as a Blob
   // and surfaces the server-built filename instead of parsing a JSON body.
   getBlob: (path: string) => requestBlob(path),
+  // The same for an endpoint that takes a JSON body and answers with a file.
+  postBlob: (path: string, body: unknown) => requestBlob(path, { method: "POST", body }),
   post: <T>(path: string, body?: unknown) =>
     request<T>(path, {
       method: "POST",

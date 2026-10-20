@@ -12,13 +12,20 @@ import {
   issueInvoice,
   listInvoiceProjects,
   listInvoices,
+  previewInvoicePdf,
   updateInvoice,
   voidInvoice,
 } from "@/api/invoices";
 import type { InvoiceInput } from "@/types/invoice";
 
 vi.mock("@/api/client", () => ({
-  apiClient: { get: vi.fn(), post: vi.fn(), patch: vi.fn(), delete: vi.fn() },
+  apiClient: {
+    get: vi.fn(),
+    post: vi.fn(),
+    patch: vi.fn(),
+    delete: vi.fn(),
+    postBlob: vi.fn(),
+  },
 }));
 
 beforeEach(() => vi.clearAllMocks());
@@ -126,5 +133,12 @@ describe("invoice API", () => {
       reason: "Wrong period",
     });
     expect(apiClient.post).toHaveBeenCalledWith("/invoices/i2/void", { reason: null });
+  });
+
+  it("previews a draft by posting the form values and returns the PDF", async () => {
+    const blob = new Blob(["%PDF"]);
+    vi.mocked(apiClient.postBlob).mockResolvedValue({ blob, filename: null });
+    await expect(previewInvoicePdf(input)).resolves.toBe(blob);
+    expect(apiClient.postBlob).toHaveBeenCalledWith("/invoices/preview-pdf", input);
   });
 });

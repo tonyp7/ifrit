@@ -77,6 +77,19 @@ Choose **+ New**. The form has five steps.
    [Taxes](#taxes)), and save with **Save draft**. The [warnings](#warnings) are listed in
    yellow below the total.
 
+### Previewing the PDF
+
+**Preview**, next to **Save draft**, opens the invoice as a PDF in a new browser tab, so you can
+see how it will look before issuing it. It shows what is in the form right now, saved or not, and
+it saves nothing. A draft's PDF carries a gray **DRAFT** mark behind the text on every page. It
+has no number yet and no invoice date, so both read "Assigned when issued", and a due date worked
+out from payment terms reads "Calculated when issued". The layout comes from the invoice template,
+and the amounts are worked out the same way as when you save.
+
+Making the PDF takes a few seconds. If the server cannot make it, the form says "The PDF engine is
+not available" (the converter that makes PDFs is not installed or did not answer), and everything
+else keeps working. If nothing opens, allow pop-ups for the site.
+
 ## How lines are generated
 
 For each ticked service line, one line:

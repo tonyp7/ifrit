@@ -81,3 +81,9 @@ export function voidInvoice(invoiceId: string, reason: string) {
     reason: reason.trim() || null,
   });
 }
+
+/** The PDF of a draft as the form holds it, saved or not. Nothing is stored. */
+export async function previewInvoicePdf(payload: InvoiceInput): Promise<Blob> {
+  const { blob } = await apiClient.postBlob("/invoices/preview-pdf", payload);
+  return blob;
+}
