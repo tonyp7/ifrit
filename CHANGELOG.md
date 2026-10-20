@@ -4,6 +4,65 @@ All notable changes to Ifrit Timesheet Tracker are documented here. The format f
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org).
 
+## [2.0.0] - 20 Oct 2026
+
+### Upgrading
+
+Read this before moving from 1.x. **Back up the database and the storage volume first.**
+
+- **The database changes, and only forward.** Two migrations run when the container starts. One of
+  them cannot be undone: once an invoice has been issued, the invoicing migration refuses to go back,
+  and the role migration cannot tell who held which role. To return to 1.x, restore your backup.
+- **Roles are merged.** The *project admin* and *project manager* roles are now one role,
+  **manager**. Everyone who held either, or both, becomes a manager. Check your users afterwards: see
+  "Upgrading from separate project roles" in the
+  [user guide](https://docs.ifrit.day/guide/roles/).
+- **The image is bigger and uses more memory.** It now includes LibreOffice, which makes the invoice
+  PDFs: about 1.07 GB instead of about 497 MB. Each PDF takes up to about 225 MB of memory while it is
+  made, and two at most are made at once. A custom image must include LibreOffice too, otherwise issuing
+  an invoice is refused with a "PDF engine is not available" error.
+- **Set your time zone.** `TZ` is optional (UTC when unset) but decides the date on an invoice and the
+  year, month and day in its number. Set it to your organization's time zone before issuing invoices.
+  See [Configuration](https://docs.ifrit.day/configuration/#time-zone).
+
+### Added
+
+**Invoicing**
+- A **billing** role and an **Invoices** screen, with a list you can search and whose columns you can
+  choose.
+- Invoices for Time & Material projects, with lines generated from the hours logged on service lines
+  over a period, and for Fixed Price projects, with **billing milestones** on the project. Generating
+  adds to the lines already on a draft.
+- References on projects and invoices (purchase order, contract and others), and **payee accounts** on
+  companies, copied onto the invoice. A payee account is chosen for you when the vendor has one.
+- Taxes on an invoice, as a rate or as an amount, one after another or compounding.
+- **Issuing** an invoice gives it a number and freezes everything on it, and **voiding** cancels it
+  while keeping its number.
+- Configurable **invoice numbering** (year, month, day, a counter, fixed text), the **Document Name**
+  setting (for example "Tax Invoice") and the **Standard Workday Length** setting that turns hours into
+  days.
+- **PDF invoices.** **Preview** shows the PDF of a draft with a DRAFT mark, without saving it. The PDF
+  is made when the invoice is issued and kept, and **Download PDF** gives that same file from then on.
+  Voiding draws a VOIDED mark on it. An administrator can replace the layout with their own
+  OpenDocument template under Configuration, check it with a sample first, and reset to the default.
+
+**Elsewhere**
+- A searchable **country picker** with flags for addresses.
+- A documentation site at [docs.ifrit.day](https://docs.ifrit.day/), with a user guide, a self-hosting guide and a configuration reference.
+- The `TZ` setting for the server's time zone.
+
+### Changed
+- **Breaking:** the *project admin* and *project manager* roles are merged into **manager** (see
+  Upgrading).
+- Locked cells in the timesheet are drawn slate-blue with a hatch instead of red.
+- The container image includes LibreOffice (see Upgrading).
+- Behind the scenes: the backend is type-checked with pyrefly and both the backend and the frontend
+  are checked for formatting in CI, and the backend tests run in parallel.
+
+### Fixed
+- Uploading the organization logo no longer fails when another upload replaces it at the same moment.
+- The service line dialog shows the consultants already assigned to the line.
+
 ## [1.1.1] - 9 Oct 2026
 
 ### Changed

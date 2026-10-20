@@ -15,6 +15,8 @@ any company where timesheets are at the core of the business.
 - **Companies.** Vendor and client companies are recorded once and reused across projects.
 - **Reports.** Export the hours of individual contributors, whole projects or any combination as
   PDF, Excel or CSV.
+- **Invoicing.** Prepare invoices for time and fixed-price projects, issue and void them, and get
+  a PDF made from a template you can edit.
 - **Roles.** Four roles control who sees and changes what.
 
 ## Where to go next

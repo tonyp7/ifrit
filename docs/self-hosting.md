@@ -102,6 +102,23 @@ Database migrations are applied automatically every time the container starts, s
 separate migration step. Migrations only go forward: to return to an earlier release, restore your
 backup.
 
+### Upgrading from 1.x to 2.0
+
+2.0 changes the database in ways that cannot be undone, so the backup above is not optional:
+
+- **Roles.** The *project admin* and *project manager* roles become one **manager** role, and every
+  user who held either becomes a manager. See
+  [Upgrading from separate project roles](guide/roles.md#upgrading-from-separate-project-roles).
+- **Invoices.** The invoicing tables are added. Once an invoice has been issued the database cannot be
+  taken back to 1.x, even by the application: restore a backup instead.
+- **A bigger image.** The image now contains LibreOffice, which makes the invoice PDFs, so it is about
+  1.07 GB instead of about 497 MB. Leave room for it when you pull the image, and allow roughly
+  250 MB of memory for each PDF being made (at most two at the same time) on top of what the
+  application already uses. If you build your own image, it must include LibreOffice, otherwise
+  issuing an invoice is refused with a "PDF engine is not available" error.
+- **Time zone.** Set [`TZ`](configuration.md#time-zone) to your organization's time zone before you
+  issue invoices: it decides the date on an invoice and the year, month and day in its number.
+
 ## Security notes
 
 - Generate a strong `JWT_SECRET_KEY` and keep `.env` out of version control and out of backups you
