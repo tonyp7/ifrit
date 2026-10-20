@@ -1,13 +1,16 @@
+import io
 import shutil
 from typing import Any
 
 import pytest
+from pypdf import PdfReader
 from sqlalchemy import select
 
-from app.models.file import StoredFile
+from app.models.file import File, StoredFile
 from app.pdf.errors import PdfEngineError
 from app.pdf.odt import TemplateData
 from tests.invoice_helpers import login, make_issued_invoice, make_project
+from tests.pdf_helpers import fake_invoice_pdf
 from tests.test_pdf_render import _text as pdf_text
 
 URL = "/api/invoices"
@@ -48,7 +51,7 @@ async def test_an_issued_invoice_downloads_the_stored_bytes(client, db_session) 
     response = await client.get(f"{URL}/{issued['id']}/pdf")
 
     assert response.status_code == 200
-    assert response.content == b"%PDF-1.7 fake " + issued["number"].encode()
+    assert response.content == fake_invoice_pdf(issued["number"])
     assert response.headers["content-type"] == "application/pdf"
     assert response.headers["x-content-type-options"] == "nosniff"
     assert response.headers["content-security-policy"] == "sandbox; default-src 'none'"
@@ -271,3 +274,75 @@ async def test_an_invoice_issued_with_the_real_engine_has_a_real_pdf(
         text = pdf_text(pdf)
         assert issued["number"] in text
         assert "Assigned when issued" not in text
+
+
+async def test_a_void_invoice_downloads_the_stamped_pdf(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    issued = await _issued(client, project)
+    before = await client.get(f"{URL}/{issued['id']}/pdf")
+
+    voided = await client.post(f"{URL}/{issued['id']}/void", json={"reason": "Wrong"})
+    assert voided.status_code == 200 and voided.json()["has_pdf"] is True
+    after = await client.get(f"{URL}/{issued['id']}/pdf")
+
+    assert after.status_code == 200
+    assert after.content != before.content
+    pages = PdfReader(io.BytesIO(after.content)).pages
+    assert all("VOIDED" in page.extract_text() for page in pages)
+    assert (
+        after.headers["content-disposition"]
+        == f'inline; filename="{issued["number"]}.pdf"'
+    )
+
+
+async def test_voiding_twice_is_409_and_stamps_nothing_more(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    issued = await _issued(client, project)
+    await client.post(f"{URL}/{issued['id']}/void", json={})
+    files = len((await db_session.execute(select(File))).scalars().all())
+
+    again = await client.post(f"{URL}/{issued['id']}/void", json={})
+
+    assert again.status_code == 409
+    assert len((await db_session.execute(select(File))).scalars().all()) == files == 2
+
+
+async def test_a_pdf_that_cannot_be_marked_is_500_and_the_invoice_stays_issued(
+    client, db_session, _storage_settings
+) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    issued = await _issued(client, project)
+    for path in _storage_settings.rglob("*.pdf"):
+        path.write_bytes(b"damaged")
+
+    response = await client.post(f"{URL}/{issued['id']}/void", json={})
+
+    assert response.status_code == 500
+    assert "not voided" in response.json()["detail"]
+    detail = (await client.get(f"{URL}/{issued['id']}")).json()
+    assert detail["status"] == "issued" and detail["voided_at"] is None
+    assert len((await db_session.execute(select(File))).scalars().all()) == 1
+
+
+@pytest.mark.libreoffice
+@pytest.mark.skipif(
+    shutil.which("soffice") is None and shutil.which("libreoffice") is None,
+    reason="LibreOffice is not installed",
+)
+async def test_a_pdf_made_by_the_real_engine_can_be_stamped(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    issued = await _issued(client, project)
+    original = (await client.get(f"{URL}/{issued['id']}/pdf")).content
+
+    assert (await client.post(f"{URL}/{issued['id']}/void", json={})).status_code == 200
+    stamped = (await client.get(f"{URL}/{issued['id']}/pdf")).content
+
+    before = PdfReader(io.BytesIO(original)).pages
+    after = PdfReader(io.BytesIO(stamped)).pages
+    assert len(after) == len(before) >= 1
+    assert all("VOIDED" in page.extract_text() for page in after)
+    assert issued["number"] in after[0].extract_text()

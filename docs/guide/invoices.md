@@ -249,6 +249,14 @@ invoice keeps its number and stays in the list, marked void, with who voided it,
 cannot be changed or deleted, and voiding cannot be undone. Voiding is not a credit note: to bill
 again, create a new invoice, for example by duplicating the void one.
 
+Voiding also marks the invoice's PDF: a large gray **VOIDED** is drawn across every page, over
+the content but light enough to read through, and **Download PDF** from then on gives that marked
+copy. Nothing else in the document changes, and the PDF the invoice was issued with is kept in
+storage. Making the mark needs no PDF engine, so you can void an invoice even when previews and
+issuing are not available. If the stored PDF cannot be read or marked, the void is refused with a
+message and the invoice stays issued. An invoice issued before PDFs were kept is voided with no
+PDF.
+
 ## Duplicate and delete
 
 **Duplicate**, on any invoice, creates a new draft with everything the source has: project,

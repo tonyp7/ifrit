@@ -11,3 +11,7 @@ class TemplateError(PdfError):
 class PdfEngineError(PdfError):
     """The converter could not produce a PDF: it is not installed, it failed, it timed out or
     it left no file."""
+
+
+class PdfStampError(PdfError):
+    """A stored PDF could not be read or marked: it is damaged, empty or encrypted."""

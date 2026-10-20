@@ -1,10 +1,12 @@
 import asyncio
+import io
 import uuid
 from datetime import date
 from decimal import Decimal
 from typing import Any
 
 import pytest
+from pypdf import PdfReader
 from sqlalchemy import delete, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import async_sessionmaker
@@ -14,7 +16,7 @@ from app.models.file import File, StoredFile
 from app.models.invoice import Invoice
 from app.models.invoice_numbering import InvoiceNumberCounter
 from app.models.project import Project
-from app.pdf.errors import PdfEngineError
+from app.pdf.errors import PdfEngineError, PdfStampError
 from app.pdf.odt import TemplateData
 from app.schemas.invoice import InvoiceWrite
 from app.services import file_storage_service, invoice_service
@@ -28,6 +30,7 @@ from tests.invoice_helpers import (
     make_issued_invoice,
     make_project,
 )
+from tests.pdf_helpers import fake_invoice_pdf
 
 OCT_14 = date(2026, 10, 14)
 PAYEE: dict[str, Any] = {
@@ -413,7 +416,7 @@ async def test_issuing_stores_the_pdf_and_links_it(
     assert file.original_filename == "INV-2026-0001.pdf"
     assert file.uploaded_by == user.id
     path = file_storage_service.resolve_storage_path(file.stored_file.bucket_key)
-    assert path.read_bytes() == b"%PDF-1.7 fake INV-2026-0001"
+    assert path.read_bytes() == fake_invoice_pdf("INV-2026-0001")
     assert file.stored_file.detected_content_type == "application/pdf"
 
 
@@ -563,3 +566,126 @@ async def test_an_invoice_file_cannot_be_deleted_while_the_invoice_refers_to_it(
 
     with pytest.raises(IntegrityError):
         await db_session.execute(delete(File).where(File.id == file_id))
+
+
+# --- voiding marks the stored PDF -------------------------------------------------------------
+
+
+def _stored_bytes(file) -> bytes:
+    return file_storage_service.resolve_storage_path(
+        file.stored_file.bucket_key
+    ).read_bytes()
+
+
+async def _issued_with_pdf(db_session):
+    user = await _user(db_session)
+    project = await make_project(db_session)
+    issued = await _issue(
+        db_session, await _draft(db_session, project, user.id), user.id
+    )
+    return user, issued
+
+
+async def test_voiding_stores_a_stamped_copy_and_keeps_the_original(db_session) -> None:
+    user, issued = await _issued_with_pdf(db_session)
+    original_id = issued.pdf_file_id
+    assert original_id is not None
+    original_file = await file_storage_service.get_file(db_session, original_id)
+    assert original_file is not None
+    original_bytes = _stored_bytes(original_file)
+
+    voided = await invoice_service.void(db_session, issued.id, None, user.id)
+
+    assert voided is not None and voided.status == "void"
+    assert voided.pdf_file_id is not None and voided.pdf_file_id != original_id
+    stamped_file = await file_storage_service.get_file(db_session, voided.pdf_file_id)
+    assert stamped_file is not None and stamped_file.kind == "invoice"
+    assert stamped_file.original_filename == "INV-2026-0001.pdf"
+    pages = PdfReader(io.BytesIO(_stored_bytes(stamped_file))).pages
+    assert len(pages) == 1 and "VOIDED" in pages[0].extract_text()
+    # The issued document is still there, byte for byte, with nothing referring to it.
+    kept = await file_storage_service.get_file(db_session, original_id)
+    assert kept is not None and _stored_bytes(kept) == original_bytes
+    assert b"VOIDED" not in original_bytes
+
+
+async def test_a_void_never_calls_the_pdf_engine(
+    db_session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user, issued = await _issued_with_pdf(db_session)
+
+    async def forbidden(data: TemplateData, template: bytes | None = None) -> bytes:
+        raise AssertionError("a void must not render")
+
+    monkeypatch.setattr(invoice_service, "render_invoice_pdf", forbidden)
+
+    voided = await invoice_service.void(db_session, issued.id, "Wrong period", user.id)
+
+    assert voided is not None and voided.status == "void"
+
+
+async def test_an_invoice_issued_before_pdfs_were_kept_is_voided_without_a_file(
+    db_session,
+) -> None:
+    user = await _user(db_session)
+    legacy = await make_issued_invoice(db_session, "OLD-1")
+
+    voided = await invoice_service.void(db_session, legacy.id, None, user.id)
+
+    assert voided is not None and voided.status == "void" and voided.pdf_file_id is None
+    count = (
+        await db_session.execute(select(func.count()).select_from(File))
+    ).scalar_one()
+    assert count == 0
+
+
+async def _damage_stored_pdf(db_session, issued, *, delete: bool) -> None:
+    assert issued.pdf_file_id is not None
+    file = await file_storage_service.get_file(db_session, issued.pdf_file_id)
+    assert file is not None
+    path = file_storage_service.resolve_storage_path(file.stored_file.bucket_key)
+    if delete:
+        path.unlink()
+    else:
+        path.write_bytes(b"this is not a pdf")
+
+
+@pytest.mark.parametrize("delete", [False, True])
+async def test_a_pdf_that_cannot_be_marked_leaves_the_invoice_issued(
+    db_session, delete: bool
+) -> None:
+    user, issued = await _issued_with_pdf(db_session)
+    issued_id, user_id, original_id = issued.id, user.id, issued.pdf_file_id
+    await _damage_stored_pdf(db_session, issued, delete=delete)
+
+    with pytest.raises(PdfStampError):
+        await invoice_service.void(db_session, issued_id, "x", user_id)
+
+    reloaded = await db_session.get(Invoice, issued_id)
+    assert reloaded is not None
+    await db_session.refresh(reloaded)
+    assert reloaded.status == "issued" and reloaded.voided_at is None
+    assert reloaded.void_reason is None and reloaded.pdf_file_id == original_id
+    count = (
+        await db_session.execute(select(func.count()).select_from(File))
+    ).scalar_one()
+    assert count == 1
+
+
+async def test_a_failed_commit_removes_the_stamped_file(
+    db_session, _storage_settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    user, issued = await _issued_with_pdf(db_session)
+    before = sorted(p for p in _storage_settings.rglob("*") if p.is_file())
+    real_commit = db_session.commit
+
+    async def failing_commit() -> None:
+        raise RuntimeError("commit failed")
+
+    issued_id, user_id = issued.id, user.id
+    monkeypatch.setattr(db_session, "commit", failing_commit)
+    with pytest.raises(RuntimeError):
+        await invoice_service.void(db_session, issued_id, None, user_id)
+    monkeypatch.setattr(db_session, "commit", real_commit)
+
+    assert sorted(p for p in _storage_settings.rglob("*") if p.is_file()) == before

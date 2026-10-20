@@ -23,6 +23,7 @@ from app.core.rate_limit import limiter
 from app.main import app
 from app.models.file import FILE_TAGS_SEED_STATEMENT
 from app.pdf.odt import TemplateData
+from tests.pdf_helpers import fake_invoice_pdf
 
 
 def _test_database_url() -> str:
@@ -91,7 +92,7 @@ def _fake_invoice_pdf(
         return
 
     async def fake(data: TemplateData, template: bytes | None = None) -> bytes:
-        return b"%PDF-1.7 fake " + data.values["invoice_number"].encode()
+        return fake_invoice_pdf(data.values["invoice_number"])
 
     monkeypatch.setattr("app.services.invoice_service.render_invoice_pdf", fake)
 

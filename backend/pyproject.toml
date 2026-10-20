@@ -19,6 +19,7 @@ dependencies = [
     "python-multipart>=0.0.32",
     "pillow>=12.3.0",
     "python-magic>=0.4.27",
+    "pypdf>=6.21.1",
 ]
 
 [dependency-groups]

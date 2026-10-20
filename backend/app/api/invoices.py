@@ -9,7 +9,7 @@ from app.auth.dependencies import require_roles
 from app.core.db import get_db
 from app.models.invoice import Invoice, InvoiceStatus
 from app.models.user import User
-from app.pdf.errors import PdfError
+from app.pdf.errors import PdfError, PdfStampError
 from app.pdf.http import pdf_filename, pdf_response
 from app.pdf.render import render_invoice_pdf
 from app.pdf.values import build_template_data
@@ -383,6 +383,11 @@ async def void_invoice(
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Only an issued invoice can be voided",
+        ) from err
+    except PdfStampError as err:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="The invoice PDF could not be marked as void, so the invoice was not voided",
         ) from err
     if voided is None:
         raise HTTPException(

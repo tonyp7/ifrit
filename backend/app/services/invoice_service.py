@@ -26,9 +26,10 @@ from app.models.invoice import (
 from app.models.project import BillingMilestone, Project, ProjectType, ServiceLine
 from app.models.time_entry import TimeEntry
 from app.models.user import User
-from app.pdf.errors import PdfError
+from app.pdf.errors import PdfError, PdfStampError
 from app.pdf.http import pdf_filename
 from app.pdf.render import render_invoice_pdf
+from app.pdf.stamp import stamp_voided
 from app.pdf.values import build_template_data
 from app.schemas.company import BankAddress
 from app.schemas.invoice import (
@@ -1314,9 +1315,49 @@ async def void(
         return None
     if invoice.status != "issued":
         raise InvoiceNotIssuedError()
+
+    # The PDF that was sent is marked, not made again: read it and stamp it before anything
+    # changes, so a PDF that cannot be marked leaves the invoice issued. An invoice issued
+    # before PDFs were kept has none and is simply voided.
+    stamped: bytes | None = None
+    # Read before any rollback, which expires the row's attributes.
+    number = invoice.number
+    if invoice.pdf_file_id is not None:
+        try:
+            original = await stored_pdf(db, invoice)
+        except (OSError, file_storage_service.StoragePathError) as err:
+            await db.rollback()
+            raise PdfStampError("The issued PDF cannot be read") from err
+        if original is None:
+            await db.rollback()
+            raise PdfStampError("The issued PDF is missing")
+        try:
+            stamped = await asyncio.to_thread(stamp_voided, original)
+        except PdfStampError:
+            await db.rollback()
+            logger.exception("Could not mark the PDF of invoice %s as void", number)
+            raise
+
     invoice.status = "void"
     invoice.voided_at = datetime.now(UTC)
     invoice.voided_by = user_id
     invoice.void_reason = reason or None
-    await db.commit()
+    stored: file_storage_service.StoredGeneratedFile | None = None
+    try:
+        if stamped is not None:
+            # A second file: the issued original stays in storage, no longer referenced.
+            stored = await file_storage_service.store_generated_file(
+                db,
+                content=stamped,
+                display_name=pdf_filename(number or "invoice"),
+                kind="invoice",
+                uploaded_by=user_id,
+            )
+            invoice.pdf_file_id = stored.file.id
+        await db.commit()
+    except BaseException:
+        await db.rollback()
+        if stored is not None:
+            await file_storage_service.discard_generated_file(stored)
+        raise
     return invoice
