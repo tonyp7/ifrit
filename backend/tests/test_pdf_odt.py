@@ -317,3 +317,59 @@ def test_the_bundled_template_uses_only_catalogue_placeholders() -> None:
 def test_the_bundled_template_fills_without_leftover_placeholders() -> None:
     out = fill_template(bundled_template(), _bundled_data())
     assert "{{" not in read_part(out) and "{{" not in read_part(out, "styles.xml")
+
+
+STYLE = "{urn:oasis:names:tc:opendocument:xmlns:style:1.0}"
+FO = "{urn:oasis:names:tc:opendocument:xmlns:xsl-fo-compatible:1.0}"
+
+
+def _paragraph_style_of_cells(row: ET.Element) -> list[str]:
+    return [
+        cell.find(f"{TEXT}p").get(f"{TEXT}style-name")  # type: ignore[union-attr]
+        for cell in row.findall(f"{TABLE}table-cell")
+    ]
+
+
+def _style_element(xml: str, name: str) -> ET.Element:
+    root = ET.fromstring(xml.encode())
+    return next(s for s in root.iter(f"{STYLE}style") if s.get(f"{STYLE}name") == name)
+
+
+def _total_row_currency_style(xml: str) -> tuple[str, list[str]]:
+    rows = list(_table(xml).iter(f"{TABLE}table-row"))
+    names = _paragraph_style_of_cells(rows[-1])
+    return names[1], names
+
+
+def test_the_total_rows_currency_is_aligned_like_the_rest_of_the_column() -> None:
+    xml = read_part(fill_template(make_odt(), _data(lines=_lines())))
+    rows = list(_table(xml).iter(f"{TABLE}table-row"))
+    currency, names = _total_row_currency_style(xml)
+    # The Total label and amount keep the Total style; the line, Subtotal and tax rows are as before.
+    assert names[0] == names[2] == "InvoiceLinesTotal"
+    assert _paragraph_style_of_cells(rows[1])[4] == "InvoiceLinesCell"
+    assert _paragraph_style_of_cells(rows[2])[1] == "InvoiceLinesCell"
+    assert _paragraph_style_of_cells(rows[3])[1] == "InvoiceLinesCell"
+    # The built-in look: the currency cell is bold like the Total row but starts at the cell's edge.
+    assert currency != "InvoiceLinesTotal"
+    style = _style_element(xml, currency)
+    assert style.find(f"{STYLE}paragraph-properties").get(f"{FO}text-align") == "start"  # type: ignore[union-attr]
+    assert style.find(f"{STYLE}text-properties").get(f"{FO}font-weight") == "bold"  # type: ignore[union-attr]
+
+
+def test_the_total_rows_currency_inherits_a_template_defined_total_style() -> None:
+    defined = (
+        '<style:style style:name="InvoiceLinesTotal" style:family="paragraph">'
+        '<style:paragraph-properties fo:text-align="end"/>'
+        '<style:text-properties fo:font-weight="bold" fo:font-size="12pt"/>'
+        "</style:style>"
+    )
+    xml = read_part(
+        fill_template(make_odt(styles_extra=defined), _data(lines=_lines()))
+    )
+    currency, _ = _total_row_currency_style(xml)
+    style = _style_element(xml, currency)
+    assert style.get(f"{STYLE}parent-style-name") == "InvoiceLinesTotal"
+    assert style.find(f"{STYLE}paragraph-properties").get(f"{FO}text-align") == "start"  # type: ignore[union-attr]
+    # Only the alignment is overridden: the weight and size come from the parent.
+    assert style.find(f"{STYLE}text-properties") is None

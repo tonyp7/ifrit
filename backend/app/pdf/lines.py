@@ -48,6 +48,9 @@ _RULE = "#52606d"
 _LIGHT = "#cbd2d9"
 
 _PREFIX = "IvLn"
+# The Total row's currency code looks like the rest of that row (bold) but, unlike its label
+# and amount, sits at the start of its cell like every other row's code, not at the end.
+_TOTAL_CURRENCY = f"{_PREFIX}TotalCurrency"
 _SPACES = re.compile(r" {2,}")
 
 
@@ -122,6 +125,21 @@ def _fallback_paragraph(name: str, *, bold: bool, align: str) -> ET.Element:
             _q(FO_NS, "font-family"): "'Liberation Sans'",
         },
     )
+
+
+def _total_currency_style(template_defines_total: bool) -> ET.Element:
+    if not template_defines_total:
+        # The built-in Total style is itself an automatic style of this document, which a
+        # style cannot reliably take as its parent, so this one spells out the same look.
+        return _fallback_paragraph(_TOTAL_CURRENCY, bold=True, align="start")
+    # Only the alignment is overridden: the template keeps control of font, size and colour.
+    style = _style(
+        _TOTAL_CURRENCY,
+        "paragraph",
+        paragraph_properties=_fo(text_align="start"),
+    )
+    style.set(_q(STYLE_NS, "parent-style-name"), TOTAL)
+    return style
 
 
 _FALLBACKS: dict[str, tuple[bool, str]] = {
@@ -242,6 +260,7 @@ def build_lines_table(
     for name, options in _FALLBACKS.items():
         if name not in defined_styles:
             styles.append(_fallback_paragraph(name, bold=options[0], align=options[1]))
+    styles.append(_total_currency_style(TOTAL in defined_styles))
     styles.append(
         _style(
             f"{_PREFIX}After",
@@ -298,7 +317,9 @@ def build_lines_table(
             [
                 _cell(cell_style, label_style, label, span=4),
                 _cell(
-                    cell_style, CELL if amount_style == NUMBER else TOTAL, data.currency
+                    cell_style,
+                    CELL if amount_style == NUMBER else _TOTAL_CURRENCY,
+                    data.currency,
                 ),
                 _cell(cell_style, amount_style, amount),
             ]
