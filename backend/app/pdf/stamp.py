@@ -69,7 +69,7 @@ def stamp_voided(pdf: bytes) -> bytes:
             geometry = _Geometry(
                 width=float(box.width),
                 height=float(box.height),
-                rotation=int(page.rotation) % 360,
+                rotation=page.rotation % 360,
             )
             page.merge_translated_page(
                 _overlay(geometry), float(box.left), float(box.bottom), over=True

@@ -13,7 +13,7 @@ import shutil
 import signal
 import tempfile
 import weakref
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator
 from pathlib import Path
 
 from app.pdf.errors import PdfEngineError, PdfEngineNotInstalledError
@@ -59,7 +59,7 @@ def _slot_queue() -> asyncio.Queue[int]:
 
 
 @contextlib.asynccontextmanager
-async def _slot() -> AsyncIterator[Path]:
+async def _slot() -> AsyncGenerator[Path]:
     queue = _slot_queue()
     slot = await queue.get()
     lock_fd: int | None = None
