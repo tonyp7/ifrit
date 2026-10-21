@@ -106,8 +106,9 @@ _OOXML = "application/vnd.openxmlformats-officedocument."
 _ODF = "application/vnd.oasis.opendocument."
 _TEXT = ("text/plain",)
 
-# Detected types were taken from real sample files of each format on libmagic 5.48,
-# the version of the container image.
+# Detected types were taken from real sample files of each format on a recent libmagic. The
+# container image has 5.46, which cannot tell a plain zip from a binary blob (see `_sniff`),
+# so the allowlist must not depend on the zip answer of the installed version.
 PROJECT_DOCUMENT_CONTEXT = UploadContext(
     allowed={
         ".pdf": AllowedType(_types("application/pdf"), ".pdf"),
@@ -271,10 +272,21 @@ def _measure(file: IO[bytes]) -> int:
     return size
 
 
+# The signature that starts every non-empty zip file (its first local file header).
+_ZIP_SIGNATURE = b"PK\x03\x04"
+
+
 def _sniff(file: IO[bytes], sniff_bytes: int) -> str:
     head = file.read(sniff_bytes)
     file.seek(0)
-    return magic.from_buffer(head, mime=True)
+    detected = magic.from_buffer(head, mime=True)
+    # libmagic 5.46, the version in the container image, calls every plain zip a binary blob
+    # where 5.45 and 5.48 say "application/zip", so zips are recognised here instead of being
+    # left to the installed version. Only the generic answer is overridden: when libmagic
+    # names a type it is kept.
+    if detected == "application/octet-stream" and head.startswith(_ZIP_SIGNATURE):
+        return "application/zip"
+    return detected
 
 
 def _has_zip_member(file: IO[bytes], prefix: str) -> bool:

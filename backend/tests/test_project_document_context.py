@@ -229,3 +229,42 @@ async def test_a_disallowed_extension_is_rejected_with_415() -> None:
     with pytest.raises(storage.UnsupportedFileTypeError) as caught:
         await _prepare(b"MZ\x90\x00", "setup.exe")
     assert caught.value.status_code == 415
+
+
+# --- zip detection that does not depend on the libmagic version ---------------------------
+# libmagic 5.46 (the container image) answers "application/octet-stream" for every plain zip
+# where 5.45 and 5.48 answer "application/zip".
+
+_ZIP_HEAD = b"PK\x03\x04" + bytes(range(60))
+
+
+def _libmagic_says(monkeypatch: pytest.MonkeyPatch, answer: str) -> None:
+    def from_buffer(buffer: bytes, mime: bool = False) -> str:
+        return answer
+
+    monkeypatch.setattr(storage.magic, "from_buffer", from_buffer)
+
+
+@pytest.mark.parametrize("head", [_ZIP_HEAD, _ZIP_HEAD[:4]])
+def test_a_zip_libmagic_calls_a_binary_blob_is_still_a_zip(
+    head: bytes, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _libmagic_says(monkeypatch, "application/octet-stream")
+    assert storage._sniff(BytesIO(head), 64) == "application/zip"
+
+
+@pytest.mark.parametrize(
+    "head", [random.Random(1).randbytes(64), b"PK\x05\x06" + bytes(18), b"PK", b""]
+)
+def test_other_bytes_libmagic_calls_a_binary_blob_stay_a_binary_blob(
+    head: bytes, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _libmagic_says(monkeypatch, "application/octet-stream")
+    assert storage._sniff(BytesIO(head), 64) == "application/octet-stream"
+
+
+def test_what_libmagic_names_is_never_overridden(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _libmagic_says(monkeypatch, "application/x-tar")
+    assert storage._sniff(BytesIO(_ZIP_HEAD), 64) == "application/x-tar"
