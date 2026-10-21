@@ -19,7 +19,7 @@ from fpdf.util import Padding
 from openpyxl.styles import PatternFill
 from openpyxl.utils import get_column_letter
 from openpyxl.worksheet.worksheet import Worksheet
-from PIL import Image, UnidentifiedImageError
+from PIL import Image
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.project import Project
@@ -682,7 +682,6 @@ async def _load_logo(db: AsyncSession, height_mm: float) -> _PreparedLogo | None
         ValueError,
         SyntaxError,  # Pillow's error for some corrupt PNGs
         Image.DecompressionBombError,
-        UnidentifiedImageError,
         file_storage_service.StoragePathError,
     ) as err:
         # The error type only: no file name or content, and the message of an OSError can

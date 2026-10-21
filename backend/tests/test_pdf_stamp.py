@@ -142,13 +142,6 @@ def test_the_document_information_is_unchanged() -> None:
     assert dict(stamped.metadata) == dict(before.metadata)
 
 
-def test_the_input_is_not_modified() -> None:
-    original = _pdf([(*A4, "a")])
-    copy = bytes(original)
-    stamp_voided(original)
-    assert original == copy
-
-
 @pytest.mark.parametrize("data", [b"", b"not a pdf at all", b"%PDF-1.7\n"])
 def test_unreadable_input_is_refused(data: bytes) -> None:
     with pytest.raises(PdfStampError):

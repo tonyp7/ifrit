@@ -111,7 +111,11 @@ async def test_an_undecodable_logo_still_exports_with_a_warning(
 
     assert response.status_code == 200
     assert _images(response.content) == 0
-    assert "Organization logo left out of the PDF export" in caplog.text
+    # The type of error is named, and never the content or a path. Pillow's
+    # UnidentifiedImageError is caught through OSError, which it subclasses.
+    assert [m for m in caplog.messages if "Organization logo" in m] == [
+        "Organization logo left out of the PDF export: UnidentifiedImageError"
+    ]
 
 
 async def test_excel_and_csv_exports_ignore_the_logo(client, db_session) -> None:
