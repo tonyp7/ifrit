@@ -161,3 +161,151 @@ def test_a_pdf_file_name_is_one_name() -> None:
     assert pdf_filename("2026/0043") == "2026-0043.pdf"
     assert pdf_filename('a\\b:c"d') == "a-b-c-d.pdf"
     assert pdf_filename("  ") == "invoice.pdf"
+
+
+# --- the payment block sits at the foot of the page that ends the table -----------------------
+
+_WORD = re.compile(
+    r'<word xMin="[\d.]+" yMin="([\d.]+)" xMax="[\d.]+" yMax="([\d.]+)">([^<]*)</word>'
+)
+# The payment block is anchored to the bottom of the page's text area: its heading starts
+# well below the middle of an A4 page (842 pt high) whatever the invoice.
+_LOWER_PART = 600.0
+_FOOTER_TOP = 790.0
+
+
+def _words_by_page(pdf: bytes) -> list[list[tuple[float, float, str]]]:
+    """(top, bottom, text) of every word, for each page."""
+    out = subprocess.run(
+        ["pdftotext", "-bbox", "-", "-"], input=pdf, capture_output=True, check=True
+    ).stdout.decode()
+    return [
+        [(float(y0), float(y1), text) for y0, y1, text in _WORD.findall(page)]
+        for page in out.split("<page ")[1:]
+    ]
+
+
+def _heading_and_total(
+    pages: list[list[tuple[float, float, str]]],
+) -> tuple[tuple[int, float], tuple[int, float]]:
+    """(page, top) of the "Payment" heading and of the last "Total" of the table."""
+    heading = next(
+        (n, top)
+        for n, words in enumerate(pages)
+        for top, _, text in words
+        if text == "Payment"
+    )
+    total = max(
+        (n, top)
+        for n, words in enumerate(pages)
+        for top, _, text in words
+        if text == "Total"
+    )
+    return heading, total
+
+
+needs_pdftotext = pytest.mark.skipif(
+    shutil.which("pdftotext") is None, reason="pdftotext is not installed"
+)
+
+
+@pytest.mark.libreoffice
+@needs_libreoffice
+@needs_pdftotext
+async def test_a_short_invoice_has_its_payment_block_at_the_foot_of_the_page() -> None:
+    pages = _words_by_page(await render_invoice_pdf(_data()))
+    assert len(pages) == 1
+    (_, heading), (_, total) = _heading_and_total(pages)
+    assert heading > _LOWER_PART
+    assert heading > total + 12
+
+
+@pytest.mark.libreoffice
+@needs_libreoffice
+@needs_pdftotext
+async def test_a_long_invoice_has_its_payment_block_on_the_last_page_under_the_table() -> (
+    None
+):
+    short = _words_by_page(await render_invoice_pdf(_data()))
+    pages = _words_by_page(await render_invoice_pdf(_data(lines=_many_lines(40))))
+    assert len(pages) == 2
+    (heading_page, heading), (total_page, total) = _heading_and_total(pages)
+    assert heading_page == total_page == 1
+    assert heading > total + 12
+    # The same place on the page as on a one-page invoice.
+    assert abs(heading - _heading_and_total(short)[0][1]) < 1.0
+
+
+@pytest.mark.libreoffice
+@needs_libreoffice
+@needs_pdftotext
+async def test_a_table_ending_low_on_its_page_never_has_the_block_over_it() -> None:
+    for count in range(18, 30):
+        pages = _words_by_page(
+            await render_invoice_pdf(_data(lines=_many_lines(count)))
+        )
+        (heading_page, heading), (total_page, total) = _heading_and_total(pages)
+        assert heading_page >= total_page, count
+        if heading_page == total_page:
+            assert heading > total + 12, count
+        assert heading > _LOWER_PART, count
+
+
+@pytest.mark.libreoffice
+@needs_libreoffice
+@needs_pdftotext
+async def test_a_full_payment_block_fits_above_the_page_edge() -> None:
+    pages = _words_by_page(
+        await render_invoice_pdf(
+            _data(
+                payee_payment_means_code="58",
+                payee_account_scheme="iban",
+                payee_account_identifier="SG1234567890123456",
+                payee_account_name="Ifrit",
+                payee_currency_code="USD",
+                payee_bic="EXMPSGSG",
+                payee_bank_name="Example Bank",
+                payee_bank_line1="1 Sample Blvd",
+                payee_bank_city="Singapore",
+                payee_bank_country_code="SG",
+            )
+        )
+    )
+    assert len(pages) == 1
+    (_, heading), _ = _heading_and_total(pages)
+    assert heading > _LOWER_PART
+    tops = {text: top for top, _, text in pages[0]}
+    # The last lines of the right-hand column are under the heading and above the footer.
+    for word in ("EXMPSGSG", "Currency:"):
+        assert heading < tops[word] < _FOOTER_TOP, word
+
+
+@pytest.mark.libreoffice
+@needs_libreoffice
+@needs_pdftotext
+async def test_a_longer_payment_block_grows_upwards_and_stays_on_the_page() -> None:
+    async def render(bank_name: str) -> list[list[tuple[float, float, str]]]:
+        return _words_by_page(
+            await render_invoice_pdf(
+                _data(
+                    payee_payment_means_code="58",
+                    payee_account_scheme="iban",
+                    payee_account_identifier="SG1234567890123456",
+                    payee_currency_code="USD",
+                    payee_bic="EXMPSGSG",
+                    payee_bank_name=bank_name,
+                    payee_bank_line1="1 Sample Blvd",
+                    payee_bank_city="Singapore",
+                    payee_bank_country_code="SG",
+                )
+            )
+        )
+
+    short = await render("Example Bank")
+    long = await render("An equally long bank name " * 10)
+    assert len(short) == len(long) == 1
+    (_, short_top), _ = _heading_and_total(short)
+    (_, long_top), _ = _heading_and_total(long)
+    # The block grew upwards, and its last line is still above the footer.
+    assert long_top < short_top - 20
+    assert any(text == "EXMPSGSG" and top < _FOOTER_TOP for top, _, text in long[0])

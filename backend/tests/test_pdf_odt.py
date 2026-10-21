@@ -310,7 +310,7 @@ def _bundled_data() -> TemplateData:
 def test_the_bundled_template_uses_only_catalogue_placeholders() -> None:
     names = list(placeholders_in(bundled_template()))
     assert "invoice_lines" in names and "draft_watermark" in names
-    assert len(names) == 18
+    assert len(names) == 19
     assert set(names) <= set(TOKENS)
 
 
@@ -373,3 +373,19 @@ def test_the_total_rows_currency_inherits_a_template_defined_total_style() -> No
     assert style.find(f"{STYLE}paragraph-properties").get(f"{FO}text-align") == "start"  # type: ignore[union-attr]
     # Only the alignment is overridden: the weight and size come from the parent.
     assert style.find(f"{STYLE}text-properties") is None
+
+
+def test_the_bundled_footer_names_the_issuer_centred_above_the_page_number() -> None:
+    styles = read_part(fill_template(bundled_template(), _bundled_data()), "styles.xml")
+    root = ET.fromstring(styles.encode())
+    footers = list(root.iter(f"{STYLE}footer"))
+    assert footers
+    for footer in footers:
+        paragraphs = footer.findall(f"{TEXT}p")
+        assert (
+            "".join(paragraphs[0].itertext()) == "<bill_from_name>, <bill_from_address>"
+        )
+        assert paragraphs[0].get(f"{TEXT}style-name") == "InvFooterText"
+        assert "/" in "".join(paragraphs[-1].itertext())
+    style = _style_element(styles, "InvFooterText")
+    assert style.find(f"{STYLE}paragraph-properties").get(f"{FO}text-align") == "center"  # type: ignore[union-attr]
