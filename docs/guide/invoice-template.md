@@ -65,6 +65,20 @@ and a plain built-in look is used.
 | `InvoiceLinesLabel` | The Subtotal and tax labels |
 | `InvoiceLinesTotal` | The Total row |
 
+### The payment block
+
+In the default template, the **Payment details** and **Bank Account Information** boxes sit at the bottom of the
+page that ends the invoice, whatever the invoice's length, with the table of lines and the total
+above them. When the table ends too low on a page for the boxes to fit under it, they go to the
+bottom of the next page instead.
+
+This is not done by the application but by the template: the boxes are in a **frame** that is
+anchored to an empty paragraph after `{{invoice_lines}}` and positioned at the bottom of the page's
+text area. To do the same in your own template, choose **Insert > Frame**, put the boxes in it, then
+in **Format > Frame and Object > Properties** set the anchor to **To paragraph**, the vertical
+position to **Bottom** relative to the **Page text area**, and the wrap to **None**. To have the
+boxes follow the table instead, keep them in the normal text, outside any frame.
+
 ### The DRAFT mark
 
 The default template carries a large gray **DRAFT** behind the text of every page. It is a shape
