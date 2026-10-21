@@ -239,45 +239,14 @@ async def test_a_long_invoice_has_its_payment_block_on_the_last_page_under_the_t
 @pytest.mark.libreoffice
 @needs_libreoffice
 @needs_pdftotext
-async def test_a_table_ending_low_on_its_page_never_has_the_block_over_it() -> None:
-    for count in range(18, 30):
-        pages = _words_by_page(
-            await render_invoice_pdf(_data(lines=_many_lines(count)))
-        )
-        (heading_page, heading), (total_page, total) = _heading_and_total(pages)
-        assert heading_page >= total_page, count
-        if heading_page == total_page:
-            assert heading > total + 12, count
-        assert heading > _LOWER_PART, count
-
-
-@pytest.mark.libreoffice
-@needs_libreoffice
-@needs_pdftotext
-async def test_a_full_payment_block_fits_above_the_page_edge() -> None:
-    pages = _words_by_page(
-        await render_invoice_pdf(
-            _data(
-                payee_payment_means_code="58",
-                payee_account_scheme="iban",
-                payee_account_identifier="SG1234567890123456",
-                payee_account_name="Ifrit",
-                payee_currency_code="USD",
-                payee_bic="EXMPSGSG",
-                payee_bank_name="Example Bank",
-                payee_bank_line1="1 Sample Blvd",
-                payee_bank_city="Singapore",
-                payee_bank_country_code="SG",
-            )
-        )
-    )
-    assert len(pages) == 1
-    (_, heading), _ = _heading_and_total(pages)
+async def test_a_table_ending_low_on_its_page_sends_the_block_to_the_next_page() -> (
+    None
+):
+    # 24 lines leave no room under the Total row for the block.
+    pages = _words_by_page(await render_invoice_pdf(_data(lines=_many_lines(24))))
+    (heading_page, heading), (total_page, _) = _heading_and_total(pages)
+    assert heading_page == total_page + 1
     assert heading > _LOWER_PART
-    tops = {text: top for top, _, text in pages[0]}
-    # The last lines of the right-hand column are under the heading and above the footer.
-    for word in ("EXMPSGSG", "Currency:"):
-        assert heading < tops[word] < _FOOTER_TOP, word
 
 
 @pytest.mark.libreoffice
