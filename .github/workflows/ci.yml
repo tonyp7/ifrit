@@ -59,7 +59,7 @@ jobs:
       # Shared library behind python-magic, which sniffs an upload's real content type.
       # LibreOffice Writer (and the Liberation fonts it lays text out in) for the tests that
       # render an invoice PDF; they skip themselves when it is missing.
-      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libmagic1 libreoffice-writer fonts-liberation
+      - run: sudo apt-get update && sudo apt-get install -y libmagic1 libreoffice-writer fonts-liberation
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           # Without this uv uses whatever Python the runner image ships. Keep it in step with
@@ -72,10 +72,9 @@ jobs:
       - run: uv run ruff format --check .
       - run: uv run ruff check .
       - run: uv run pyrefly check
-      # One worker per vCPU; each builds its schema once and empties it after every test. A worker
-      # that runs out of tests takes some from a busy one (worksteal) instead of idling, and the
+      # One worker per vCPU; each builds its schema once and empties it after every test. The
       # slowest tests are listed at the end of the log.
-      - run: uv run pytest -q -n auto --dist worksteal --durations=15
+      - run: uv run pytest -q -n auto --durations=15
 
   frontend:
     runs-on: ubuntu-latest
