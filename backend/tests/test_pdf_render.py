@@ -119,6 +119,35 @@ async def test_the_draft_mark_is_drawn_for_a_draft_only() -> None:
         assert "INV-1" in _text(issued)
 
 
+def _currency_words(pdf: bytes) -> list[tuple[float, float, float]]:
+    """(left edge, top, width) of every `USD` word the PDF prints, top to bottom."""
+    out = subprocess.run(
+        ["pdftotext", "-bbox", "-", "-"], input=pdf, capture_output=True, check=True
+    ).stdout.decode()
+    words = re.findall(
+        r'<word xMin="([\d.]+)" yMin="([\d.]+)" xMax="([\d.]+)" yMax="[\d.]+">USD</word>',
+        out,
+    )
+    return sorted(
+        ((float(x0), float(y0), float(x1) - float(x0)) for x0, y0, x1 in words),
+        key=lambda w: w[1],
+    )
+
+
+@pytest.mark.libreoffice
+@needs_libreoffice
+@pytest.mark.skipif(
+    shutil.which("pdftotext") is None, reason="pdftotext is not installed"
+)
+async def test_the_currency_code_lines_up_on_every_row_of_the_table() -> None:
+    words = _currency_words(await render_invoice_pdf(_data()))
+    # Line, Subtotal, tax and Total rows (the header row says "Currency", not the code).
+    assert len(words) >= 4
+    table = words[-4:]
+    lefts = [left for left, _, _ in table]
+    assert max(lefts) - min(lefts) < 0.5, lefts
+
+
 def _text(pdf: bytes) -> str:
     return subprocess.run(
         ["pdftotext", "-", "-"], input=pdf, capture_output=True, check=True
