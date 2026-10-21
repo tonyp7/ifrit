@@ -1,9 +1,12 @@
 import io
+import math
+import re
 from typing import Any
 
 import pytest
 from fpdf import FPDF
 from pypdf import PageObject, PdfReader, PdfWriter
+from pypdf.generic import NameObject, NumberObject
 
 from app.pdf.errors import PdfStampError
 from app.pdf.stamp import stamp_voided
@@ -96,25 +99,40 @@ def test_a_rotated_page_is_marked_and_stays_rotated() -> None:
     assert _without_mark(stamped.pages[0].extract_text()) == "turned"
 
 
+def _mark_angle(pdf: bytes) -> int:
+    """The angle, in degrees counter-clockwise, the mark is drawn at on the first page: read
+    from the last `cm` matrix of its content, which is cos/sin of that angle."""
+    data = _drawn(PdfReader(io.BytesIO(pdf)).pages[0]).decode("latin-1")
+    a, b = (
+        float(x)
+        for x in re.findall(
+            r"([-\d.]+) ([-\d.]+) [-\d.]+ [-\d.]+ [-\d.]+ [-\d.]+ cm", data
+        )[-1][:2]
+    )
+    return round(math.degrees(math.atan2(b, a))) % 360
+
+
+def _rotate_minus_90(writer: PdfWriter) -> None:
+    # Written as the raw key: `PageObject.rotate()` would normalise the value.
+    writer.pages[0][NameObject("/Rotate")] = NumberObject(-90)
+
+
 def test_the_mark_is_drawn_at_the_page_rotation_plus_45_degrees() -> None:
-    # Content rotated by r degrees counter-clockwise shows its matrix as cos/sin of r.
-    def angle_of(pdf: bytes) -> float:
-        import math
-        import re
-
-        data = _drawn(PdfReader(io.BytesIO(pdf)).pages[0]).decode("latin-1")
-        a, b = (
-            float(x)
-            for x in re.findall(
-                r"([-\d.]+) ([-\d.]+) [-\d.]+ [-\d.]+ [-\d.]+ [-\d.]+ cm", data
-            )[-1][:2]
-        )
-        return round(math.degrees(math.atan2(b, a))) % 360
-
     upright = stamp_voided(_pdf([(*A4, "x")]))
     turned = stamp_voided(_rewrite(_pdf([(*A4, "x")]), _rotate_90))
-    assert angle_of(upright) == 45
-    assert angle_of(turned) == 135
+    assert _mark_angle(upright) == 45
+    assert _mark_angle(turned) == 135
+
+
+def test_a_page_with_a_negative_rotation_is_marked_at_the_matching_angle() -> None:
+    source = _rewrite(_pdf([(*A4, "x")]), _rotate_minus_90)
+    assert PdfReader(io.BytesIO(source)).pages[0].rotation == -90
+
+    stamped = stamp_voided(source)
+
+    # The page is turned -90 degrees, so the mark is drawn at 45 + (-90) = -45, that is 315.
+    assert _mark_angle(stamped) == 315
+    assert PdfReader(io.BytesIO(stamped)).pages[0].rotation == -90
 
 
 def test_a_page_with_a_crop_box_is_marked_inside_it() -> None:
