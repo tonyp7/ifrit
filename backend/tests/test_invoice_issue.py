@@ -371,6 +371,21 @@ async def test_issue_preview_warns_when_there_will_be_no_due_date(db_session) ->
     ).blocking == []
 
 
+async def test_the_issue_preview_and_the_draft_pdf_project_the_same_values(
+    db_session,
+) -> None:
+    user = await _user(db_session)
+    project = await make_project(db_session)
+    draft = await _draft(db_session, project, user.id, payment_terms="net_30")
+
+    preview = await invoice_service.issue_preview(db_session, draft, OCT_14)
+    projected = await invoice_service.projected_issue(db_session, draft, OCT_14)
+
+    assert projected.number == preview.number
+    assert projected.invoice_date == preview.invoice_date == OCT_14
+    assert projected.due_date == preview.due_date == date(2026, 11, 13)
+
+
 async def test_issue_preview_lists_what_blocks(db_session) -> None:
     user = await _user(db_session)
     project = await make_project(db_session)

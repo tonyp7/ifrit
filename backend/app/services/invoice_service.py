@@ -30,7 +30,7 @@ from app.pdf.errors import PdfError, PdfStampError
 from app.pdf.http import pdf_filename
 from app.pdf.render import render_invoice_pdf
 from app.pdf.stamp import stamp_voided
-from app.pdf.values import build_template_data
+from app.pdf.values import ProjectedIssue, build_template_data
 from app.schemas.company import BankAddress
 from app.schemas.invoice import (
     BillingContext,
@@ -706,6 +706,7 @@ class DraftPdfInput:
     document_name: str
     vendor_identifiers: list[dict[str, Any]]
     client_identifiers: list[dict[str, Any]]
+    projected: ProjectedIssue
 
 
 async def draft_pdf_input(db: AsyncSession, data: InvoiceWrite) -> DraftPdfInput:
@@ -744,6 +745,7 @@ async def _draft_pdf_input(
         document_name=document_name,
         vendor_identifiers=await _identifiers(db, project.vendor_company_id, today),
         client_identifiers=await _identifiers(db, project.client_company_id, today),
+        projected=await projected_issue(db, invoice, today),
     )
 
 
@@ -1161,6 +1163,21 @@ async def _identifiers(
     ]
 
 
+async def projected_issue(
+    db: AsyncSession, invoice: Invoice, day: date
+) -> ProjectedIssue:
+    """The number, date and due date issuing `invoice` on `day` would give it. The number is
+    only looked at, never taken: it is the next value of the counter, and may differ once the
+    invoice is really issued."""
+    fmt = await invoice_numbering_service.get_format(db)
+    value = await invoice_numbering_service.peek_next(db, fmt, day)
+    return ProjectedIssue(
+        number=invoice_numbering_service.render(fmt, value, day),
+        invoice_date=day,
+        due_date=_due_date(invoice, day),
+    )
+
+
 async def issue_preview(
     db: AsyncSession, invoice: Invoice, day: date | None = None
 ) -> IssuePreview:
@@ -1168,9 +1185,8 @@ async def issue_preview(
     if invoice.status != "draft":
         raise InvoiceNotDraftError()
     today = day or server_today()
-    due = _due_date(invoice, today)
-    fmt = await invoice_numbering_service.get_format(db)
-    value = await invoice_numbering_service.peek_next(db, fmt, today)
+    projected = await projected_issue(db, invoice, today)
+    due = projected.due_date
     warnings = await invoice_warnings(db, invoice)
     if due is not None and due < today:
         warnings.append(InvoiceWarning(code="due_before_invoice_date"))
@@ -1183,7 +1199,7 @@ async def issue_preview(
         invoice_date=today,
         due_date=due,
         payment_terms=invoice.payment_terms,
-        number=invoice_numbering_service.render(fmt, value, today),
+        number=projected.number,
         warnings=warnings,
         blocking=blocking,
     )

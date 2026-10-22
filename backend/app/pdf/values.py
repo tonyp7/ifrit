@@ -4,6 +4,7 @@ It takes an `Invoice` (a saved one, or a transient one built from a form) and do
 access, so a draft preview and an issued invoice produce their values the same way."""
 
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
@@ -15,6 +16,19 @@ from app.pdf.lines import LineRow, LinesData, TaxRow
 from app.pdf.odt import TemplateData
 from app.pdf.tokens import REFERENCE_KINDS
 
+
+@dataclass(frozen=True)
+class ProjectedIssue:
+    """What issuing a draft today would give it. Worked out by the caller (it needs the
+    numbering counter, which this module never reads) and shown on the draft's PDF so the page
+    looks like the issued one; nothing here is assigned or reserved."""
+
+    number: str
+    invoice_date: date
+    due_date: date | None
+
+
+# What a draft prints when it has no projected values to show.
 NOT_ASSIGNED = "Assigned when issued"
 NOT_CALCULATED = "Calculated when issued"
 
@@ -137,25 +151,37 @@ def build_template_data(
     vendor_identifiers: Sequence[dict[str, Any]],
     client_identifiers: Sequence[dict[str, Any]],
     now: datetime,
+    projected: ProjectedIssue | None = None,
 ) -> TemplateData:
     """Everything the template can ask for. `invoice.status` decides what is assigned: a
-    draft has no number, no date and possibly no due date yet, and carries the DRAFT mark."""
+    draft has no number, no date and possibly no due date yet, and carries the DRAFT mark.
+    A draft prints `projected`, what issuing it today would give, when it is supplied, and
+    otherwise says those values come when it is issued."""
     draft = invoice.status == "draft"
     values: dict[str, str] = {}
     blocks: dict[str, list[str]] = {}
 
     values["document_name"] = document_name
-    values["invoice_number"] = NOT_ASSIGNED if draft else invoice.number or ""
-    if draft:
-        values["invoice_date"] = NOT_ASSIGNED
-    else:
-        values["invoice_date"] = (
-            fmt.date_text(invoice.invoice_date) if invoice.invoice_date else ""
+    if draft and projected is not None:
+        values["invoice_number"] = projected.number
+        values["invoice_date"] = fmt.date_text(projected.invoice_date)
+        values["due_date"] = (
+            fmt.date_text(projected.due_date) if projected.due_date else ""
         )
-    if draft and invoice.payment_terms:
-        values["due_date"] = NOT_CALCULATED
     else:
-        values["due_date"] = fmt.date_text(invoice.due_date) if invoice.due_date else ""
+        values["invoice_number"] = NOT_ASSIGNED if draft else invoice.number or ""
+        if draft:
+            values["invoice_date"] = NOT_ASSIGNED
+        else:
+            values["invoice_date"] = (
+                fmt.date_text(invoice.invoice_date) if invoice.invoice_date else ""
+            )
+        if draft and invoice.payment_terms:
+            values["due_date"] = NOT_CALCULATED
+        else:
+            values["due_date"] = (
+                fmt.date_text(invoice.due_date) if invoice.due_date else ""
+            )
     values["payment_terms"] = _PAYMENT_TERMS.get(invoice.payment_terms or "", "")
     values["payment_terms_code"] = invoice.payment_terms or ""
     start: date | None = invoice.period_start

@@ -176,6 +176,7 @@ async def preview_pdf(
         vendor_identifiers=source.vendor_identifiers,
         client_identifiers=source.client_identifiers,
         now=datetime.now(UTC),
+        projected=source.projected,
     )
     try:
         template = await resolve_template(db)
@@ -212,6 +213,7 @@ async def download_pdf(
             vendor_identifiers=source.vendor_identifiers,
             client_identifiers=source.client_identifiers,
             now=datetime.now(UTC),
+            projected=source.projected,
         )
         try:
             pdf = await render_invoice_pdf(data, (await resolve_template(db)).content)
