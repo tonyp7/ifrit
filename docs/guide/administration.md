@@ -135,7 +135,7 @@ it only matters for the companies that send invoices.
 
 | Field | Notes |
 |---|---|
-| **Payment means** | *Credit transfer*, *Payment to bank account* or *SEPA credit transfer*. |
+| **Payment means** | *Wire transfer* (an international payment over SWIFT), *Bank transfer* (a payment over local rails such as ACH or Faster Payments) or *SEPA credit transfer*. The invoice shows the same words. |
 | **Scheme** | *IBAN*, or *Other* for a national account number. A SEPA credit transfer always uses an IBAN. |
 | **IBAN** / **Account number** | Required. An IBAN can be typed with or without spaces; it is checked (a single wrong digit is caught) and shown in groups of four. A national account number is kept exactly as typed. |
 | **Account name** | Optional. The account holder, if it differs from the company's name. |

@@ -21,8 +21,10 @@ IdentifierType = Literal[
 ]
 AddressType = Literal["registered", "bill_to", "ship_to", "postal"]
 # UNCL4461 payment means that pay into a bank account: 30 Credit transfer, 42 Payment to
-# bank account, 58 SEPA credit transfer. Direct debit and card codes carry the buyer's
-# account or card instead, so they have no place on the payee's side.
+# bank account, 58 SEPA credit transfer. The application calls them Wire transfer, Bank
+# transfer and SEPA credit transfer (the standard has no code of its own for a wire, and 30
+# is the one that covers it). Direct debit and card codes carry the buyer's account or card
+# instead, so they have no place on the payee's side.
 PaymentMeansCode = Literal["30", "42", "58"]
 AccountScheme = Literal["iban", "other"]
 

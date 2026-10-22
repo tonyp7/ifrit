@@ -213,6 +213,22 @@ def test_payee_values_and_iban_grouping() -> None:
     assert values["payee_bank_address"] == "1 Sample Blvd, Singapore, Singapore"
 
 
+def test_payment_means_are_named_in_words() -> None:
+    def means(code: str) -> str:
+        scheme = "iban" if code == "58" else "other"
+        invoice = _invoice(
+            payee_payment_means_code=code,
+            payee_account_scheme=scheme,
+            payee_account_identifier="SG1234567890123456",
+            payee_currency_code="USD",
+        )
+        return _data(invoice).values["payment_means"]
+
+    assert means("30") == "Wire transfer"
+    assert means("42") == "Bank transfer"
+    assert means("58") == "SEPA credit transfer"
+
+
 def test_a_non_iban_account_is_not_regrouped() -> None:
     invoice = _invoice(
         payee_payment_means_code="42",

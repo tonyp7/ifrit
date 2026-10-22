@@ -32,7 +32,7 @@ _PAYMENT_TERMS = {
     "eom_90": "End of month + 90",
 }
 _PAYMENT_MEANS = {
-    "30": "Credit transfer",
+    "30": "Wire transfer",
     "42": "Bank transfer",
     "58": "SEPA credit transfer",
 }
