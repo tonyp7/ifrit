@@ -15,10 +15,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { RowButton } from "@/components/data-table/RowControl";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -77,6 +79,15 @@ export function AddressesTable({
   const [deleteTarget, setDeleteTarget] = useState<Address | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  function openEdit(address: Address) {
+    if (!companyId) return;
+    setDialogState({
+      companyId,
+      addressId: address.id,
+      initialValues: toFormValues(address),
+    });
+  }
+
   async function handleAddClick() {
     const id = companyId ?? (await ensureSaved());
     if (!id) return;
@@ -132,8 +143,12 @@ export function AddressesTable({
               </TableRow>
             ) : (
               addresses.map((address) => (
-                <TableRow key={address.id}>
-                  <TableCell>{t(ADDRESS_TYPE_LABELS[address.address_type])}</TableCell>
+                <TableRow key={address.id} className="relative">
+                  <TableCell>
+                    <RowButton onClick={() => openEdit(address)}>
+                      {t(ADDRESS_TYPE_LABELS[address.address_type])}
+                    </RowButton>
+                  </TableCell>
                   <TableCell>{address.line1}</TableCell>
                   <TableCell>{address.city}</TableCell>
                   <TableCell>{address.country_code}</TableCell>
@@ -143,7 +158,7 @@ export function AddressesTable({
                       : t("No", { ns: "common" })}
                   </TableCell>
                   <TableCell>
-                    <div className="flex justify-end">
+                    <div className="relative z-10 flex justify-end">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -152,16 +167,7 @@ export function AddressesTable({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() =>
-                              companyId &&
-                              setDialogState({
-                                companyId,
-                                addressId: address.id,
-                                initialValues: toFormValues(address),
-                              })
-                            }
-                          >
+                          <DropdownMenuItem onClick={() => openEdit(address)}>
                             {t("Edit", { ns: "common" })}
                           </DropdownMenuItem>
                           <DropdownMenuItem
@@ -175,6 +181,7 @@ export function AddressesTable({
                           >
                             {t("Duplicate", { ns: "common" })}
                           </DropdownMenuItem>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive"
                             onClick={() => setDeleteTarget(address)}

@@ -16,7 +16,8 @@ it (consultants) and the people who oversee it (project managers).
 ## The project list
 
 The list shows active projects, 50 per page, with **Previous** and **Next** controls and the columns
-Name, Status, Client, Project Type and Creation Date. Use **New** to create a project, and each row's
+Name, Status, Client, Project Type and Creation Date. Use **New** to create a project. Click anywhere on a row to open the
+project (or Tab to its name and press Enter; Ctrl-click opens it in a new tab), and use the row's
 **Actions** menu to edit, duplicate or delete it.
 
 The **Only see my projects** switch next to the search box is **on** every time you open the
@@ -56,8 +57,8 @@ every project type.
   **value**. For the type **Custom**, give the reference a name of your own as well.
 - The table lists each reference by its **Reference Name** (the type, or the name you gave a
   custom one) and its **Value**.
-- Each row's **Actions** menu lets you **edit**, **duplicate** (the copy is added at the end) or
-  **delete** a reference. Deleting asks for confirmation and removes the reference for good.
+- Click a row to edit it, or use its **Actions** menu to **edit**, **duplicate** (the copy is added
+  at the end) or **delete** a reference. Deleting asks for confirmation and removes the reference for good.
 - **Reorder** references by dragging the handle at the start of a row. On a phone, press and hold
   the handle first. With a keyboard, focus the handle, press Space, move with the arrow keys and
   press Space again. The order is saved immediately.
@@ -101,7 +102,8 @@ A service line is a unit of work on a project. Each has:
   more in the project's currency,
 - the **consultants** assigned to it.
 
-The table shows each line's value as quantity times unit price, and the project's total.
+The table shows each line's value as quantity times unit price, and the project's total. Click a
+line to edit it, as with the **Actions** menu's **Edit**.
 
 **Assignment** decides who can log hours: a consultant sees and can add a service line on their
 timesheet only when they are assigned to it and its project is Active. Removing a consultant from a
@@ -147,8 +149,8 @@ never stops you saving.
 - **Add** opens a dialog. Type either a **%**, and the value is worked out from the contract value
   and rounded to the currency (for example to whole yen), or a **value**, and the % follows. The %
   field is unavailable while the project has no service lines.
-- Each row's **Actions** menu lets you **edit**, **duplicate** (the copy is added at the end) or
-  **delete** a milestone. Deleting asks for confirmation and removes the milestone for good.
+- Click a row to edit it, or use its **Actions** menu to **edit**, **duplicate** (the copy is added
+  at the end) or **delete** a milestone. Deleting asks for confirmation and removes the milestone for good.
 - **Reorder** milestones by dragging the handle at the start of a row. On a phone, press and hold
   the handle first. With a keyboard, focus the handle, press Space, move with the arrow keys and
   press Space again. The order is saved immediately.

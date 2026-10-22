@@ -118,7 +118,8 @@ can create or change companies.
 
 A company can also hold several **identifiers** (such as a tax or registration number),
 **addresses** and **payee accounts**. Add, edit, duplicate and delete them from the company's
-form. These are removed for good rather than deactivated.
+form: click a row to edit it, or use its **Actions** menu. These are removed for good rather than
+deactivated.
 
 Wherever a company form asks for a country (the country of registration, an address, a bank
 address), pick it from a list showing each country's flag and name: type part of the name, or its
@@ -149,6 +150,8 @@ payee accounts too.
 
 ### Actions
 
+- Click anywhere on a company's row to open it (or Tab to its name and press Enter; Ctrl-click
+  opens it in a new tab). The same goes for a user in the users list.
 - **New**, **Edit** and **Duplicate** use the same form. Duplicate starts a new company from an
   existing one.
 - **Delete** asks for confirmation and deactivates the company. Projects that already refer to it

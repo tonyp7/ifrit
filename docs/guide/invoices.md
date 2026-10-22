@@ -37,8 +37,10 @@ project name, the client (Bill To) name and the description of any line, ignorin
 case, and shows the invoices that contain what you typed. It does not search dates, totals or
 statuses. The search works together with the **Status** and **Project** filters.
 
-Click a column header to sort, and use **Project** to show one project's invoices. Click a row to
-open the invoice. The row menu offers **Open**, **Duplicate** and, for a draft, **Delete**.
+Click a column header to sort, and use **Project** to show one project's invoices. Click anywhere on a
+row to open the invoice (or Tab to its number and press Enter; Ctrl-click opens it in a new tab).
+The row menu offers **Edit** on a draft and **View** on an issued or void invoice, **Duplicate**
+and, for a draft, **Delete**.
 
 ## Creating an invoice
 

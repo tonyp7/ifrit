@@ -38,6 +38,7 @@ import { DataTable } from "@/components/data-table/DataTable";
 import { DataTableColumnHeader } from "@/components/data-table/DataTableColumnHeader";
 import { DataTablePagination } from "@/components/data-table/DataTablePagination";
 import { features } from "@/components/data-table/features";
+import { RowLink } from "@/components/data-table/RowControl";
 import { toSortParams } from "@/components/data-table/sorting";
 import { ApiError } from "@/api/client";
 import { deactivateProject, duplicateProject, listProjects } from "@/api/projects";
@@ -56,6 +57,11 @@ const STATUS_BADGE_VARIANT: Record<ProjectListItem["status"], BadgeProps["varian
 const HIDEABLE_COLUMN_LABELS: Record<string, string> = {
   vendor_company_name: "Vendor",
 };
+
+/** The project's name, as the link that opens its form from anywhere on the row. */
+export function ProjectNameCell({ id, name }: { id: string; name: string }) {
+  return <RowLink to={`/projects/${id}`}>{name}</RowLink>;
+}
 
 export function ProjectsTable() {
   const navigate = useNavigate();
@@ -154,6 +160,7 @@ export function ProjectsTable() {
       accessorKey: "name",
       header: ({ column }) => <DataTableColumnHeader column={column} title={t("Name")} />,
       enableHiding: false,
+      cell: ({ row }) => <ProjectNameCell id={row.original.id} name={row.original.name} />,
     },
     {
       accessorKey: "status",
@@ -199,7 +206,7 @@ export function ProjectsTable() {
       enableHiding: false,
       enableSorting: false,
       cell: ({ row }) => (
-        <div className="flex justify-end">
+        <div className="relative z-10 flex justify-end">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
