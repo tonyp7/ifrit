@@ -750,6 +750,16 @@ async def test_other_scheme_identifier_is_kept_as_typed(client, db_session) -> N
     assert response.json()["account_identifier"] == "123-456789-0"
 
 
+async def test_a_wire_transfer_account_needs_no_bic(client, db_session) -> None:
+    url = await _admin_with_company(client, db_session)
+
+    response = await client.post(url, json=_payee_payload(payment_means_code="30"))
+
+    assert response.status_code == 201
+    assert response.json()["payment_means_code"] == "30"
+    assert response.json()["bic"] is None
+
+
 async def test_payee_account_rejects_an_unsupported_payment_means_code(
     client, db_session
 ) -> None:

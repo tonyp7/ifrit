@@ -62,8 +62,10 @@ describe("PayeeAccountsTable", () => {
       }),
     ]);
     expect(html).toContain("SEPA credit transfer");
-    expect(html).toContain("Credit transfer");
-    expect(html).toContain("Payment to bank account");
+    expect(html).toContain("Wire transfer");
+    expect(html).toContain("Bank transfer");
+    expect(html).not.toContain("Credit transfer");
+    expect(html).not.toContain("Payment to bank account");
     expect(html).toContain("BE71 0961 2345 6769");
     expect(html).toContain("026009593 1234567890");
     // Bank: the bank's name, else its BIC, else a dash.

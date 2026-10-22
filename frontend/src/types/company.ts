@@ -27,8 +27,8 @@ export const ADDRESS_TYPE_LABELS: Record<AddressType, string> = {
 };
 
 export const PAYMENT_MEANS_LABELS: Record<PaymentMeansCode, string> = {
-  "30": "Credit transfer",
-  "42": "Payment to bank account",
+  "30": "Wire transfer",
+  "42": "Bank transfer",
   "58": "SEPA credit transfer",
 };
 
