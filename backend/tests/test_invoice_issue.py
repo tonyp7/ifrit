@@ -355,6 +355,22 @@ async def test_issue_preview(db_session) -> None:
     assert preview.blocking == []
 
 
+async def test_issue_preview_warns_when_there_will_be_no_due_date(db_session) -> None:
+    user = await _user(db_session)
+    project = await make_project(db_session)
+    neither = await _draft(db_session, project, user.id)
+    preset = await _draft(db_session, project, user.id, payment_terms="net_30")
+    fixed = await _draft(db_session, project, user.id, due_date="2026-12-01")
+
+    for draft, expected in ((neither, True), (preset, False), (fixed, False)):
+        preview = await invoice_service.issue_preview(db_session, draft, OCT_14)
+        assert ("no_due_date" in {w.code for w in preview.warnings}) is expected
+    # Issuing is still allowed: the warning never blocks.
+    assert (
+        await invoice_service.issue_preview(db_session, neither, OCT_14)
+    ).blocking == []
+
+
 async def test_issue_preview_lists_what_blocks(db_session) -> None:
     user = await _user(db_session)
     project = await make_project(db_session)

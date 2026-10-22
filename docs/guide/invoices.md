@@ -198,6 +198,8 @@ Warnings never stop you from saving:
 - **Zero-quantity line**: a line has quantity 0.
 - **No payee account**: the invoice does not say which account to pay into.
 - **Payee account currency**: the payee account is not in the invoice currency.
+- **No due date**: the invoice has neither payment terms nor a fixed due date, so it would print
+  no due date. A new invoice shows it until you choose one of them.
 - **Inactive company**: the project's vendor or client has been deactivated.
 - **Tax rate cannot be derived**: a tax amount is set by hand while the subtotal it applies to is
   zero, so it has no rate (shown as `—`).

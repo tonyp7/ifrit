@@ -68,6 +68,16 @@ describe("IssueInvoiceDialog", () => {
     expect(html).toMatch(/<button>Issue<\/button>/);
   });
 
+  it("warns when there will be no due date, without blocking", () => {
+    const html = renderIssue({
+      due_date: null,
+      payment_terms: null,
+      warnings: [{ code: "no_due_date", service_lines: [], companies: [] }],
+    });
+    expect(html).toContain("No due date");
+    expect(html).toMatch(/<button>Issue<\/button>/);
+  });
+
   it("disables Issue and says why when something blocks it", () => {
     const html = renderIssue({ blocking: ["project_not_active"] });
     expect(html).toContain("This invoice cannot be issued because its project is not Active.");

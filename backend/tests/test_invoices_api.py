@@ -730,6 +730,21 @@ async def test_saved_draft_warnings(client, db_session) -> None:
     assert "no_payee_account" not in _codes(usd_payee)
 
 
+async def test_a_draft_with_neither_payment_terms_nor_a_due_date_has_a_warning(
+    client, db_session
+) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+
+    neither = await _create(client, project)
+    preset = await _create(client, project, payment_terms="net_30")
+    fixed = await _create(client, project, due_date="2026-12-01")
+
+    assert "no_due_date" in _codes(neither)
+    assert "no_due_date" not in _codes(preset)
+    assert "no_due_date" not in _codes(fixed)
+
+
 async def test_unlocked_hours_on_a_saved_draft_cover_every_project_line(
     client, db_session
 ) -> None:

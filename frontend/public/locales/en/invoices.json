@@ -141,6 +141,7 @@
   "Last week": "Last week",
   "Number": "Number",
   "Due date before the invoice date: the invoice would be overdue when issued.": "Due date before the invoice date: the invoice would be overdue when issued.",
+  "No due date: the invoice has neither payment terms nor a fixed due date.": "No due date: the invoice has neither payment terms nor a fixed due date.",
   "Failed to prepare the invoice for issuing.": "Failed to prepare the invoice for issuing.",
   "Invoice {{number}} issued": "Invoice {{number}} issued",
   "Failed to issue the invoice.": "Failed to issue the invoice.",
