@@ -9,7 +9,12 @@ from app.models.project import Uom
 from app.pdf import format as fmt
 from app.pdf.odt import TemplateData
 from app.pdf.tokens import TOKENS
-from app.pdf.values import NOT_ASSIGNED, NOT_CALCULATED, build_template_data
+from app.pdf.values import (
+    NOT_ASSIGNED,
+    NOT_CALCULATED,
+    ProjectedIssue,
+    build_template_data,
+)
 
 NOW = datetime(2026, 9, 3, 14, 5, tzinfo=UTC)
 VENDOR_IDS = [
@@ -92,7 +97,51 @@ def test_every_catalogue_placeholder_is_supplied() -> None:
             assert name in data.blocks, name
 
 
-def test_draft_values_are_not_yet_assigned() -> None:
+def _projected_data(invoice: Invoice, projected: ProjectedIssue) -> TemplateData:
+    return build_template_data(
+        invoice,
+        minor_unit=2,
+        document_name="Invoice",
+        vendor_identifiers=[],
+        client_identifiers=[],
+        now=NOW,
+        projected=projected,
+    )
+
+
+def test_a_draft_shows_the_values_issuing_it_today_would_give() -> None:
+    data = _projected_data(
+        _invoice(payment_terms="net_30"),
+        ProjectedIssue("INV-2026-0044", date(2026, 10, 14), date(2026, 11, 13)),
+    )
+    assert data.values["invoice_number"] == "INV-2026-0044"
+    assert data.values["invoice_date"] == "14 October 2026"
+    assert data.values["due_date"] == "13 November 2026"
+    # Still a draft: only the DRAFT mark says so, and nothing says it was issued.
+    assert data.values["status"] == "Draft"
+    assert data.values["issued_at"] == ""
+    assert data.values["draft_watermark"] == "DRAFT"
+
+
+def test_a_projected_draft_with_no_due_date_prints_none() -> None:
+    data = _projected_data(
+        _invoice(), ProjectedIssue("INV-2026-0044", date(2026, 10, 14), None)
+    )
+    assert data.values["due_date"] == ""
+
+
+def test_projected_values_never_change_an_issued_invoice() -> None:
+    invoice = _invoice(
+        status="issued", number="INV-1", invoice_date=date(2026, 9, 3), issued_at=NOW
+    )
+    data = _projected_data(
+        invoice, ProjectedIssue("INV-9", date(2026, 10, 14), date(2026, 11, 13))
+    )
+    assert data.values["invoice_number"] == "INV-1"
+    assert data.values["invoice_date"] == "3 September 2026"
+
+
+def test_a_draft_built_without_projected_values_says_they_come_later() -> None:
     data = _data(_invoice(payment_terms="net_30"))
     assert data.values["invoice_number"] == NOT_ASSIGNED
     assert data.values["invoice_date"] == NOT_ASSIGNED

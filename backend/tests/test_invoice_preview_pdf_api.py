@@ -4,10 +4,14 @@ from typing import Any
 import pytest
 from sqlalchemy import func, select
 
+from app.core.clock import server_today
 from app.models.file import StoredFile
 from app.models.invoice import Invoice, InvoiceLine
+from app.pdf import format as fmt
 from app.pdf.errors import PdfEngineError, TemplateError
 from app.pdf.odt import TemplateData
+from app.services import invoice_numbering_service
+from app.services.payment_terms import apply_payment_terms
 from tests.invoice_helpers import ensure_currency, login, make_project
 
 URL = "/api/invoices/preview-pdf"
@@ -89,7 +93,7 @@ async def test_preview_fills_a_draft_with_the_amounts_a_save_computes(
     assert data.values["tax_total"] == "2.10"
     assert data.values["total"] == "32.10"
     assert data.values["total_with_currency"] == "EUR 32.10"
-    assert data.values["invoice_number"] == "Assigned when issued"
+    assert data.values["invoice_number"] != "Assigned when issued"
     assert data.values["draft_watermark"] == "DRAFT"
     assert data.lines.taxes[0].label == "GST (7 %)"
     # The same body saved gives the same figures.
@@ -200,3 +204,63 @@ async def test_the_application_starts_without_the_converter(
         response = await client.get("/api/health")
     assert response.status_code == 200 and response.json() == {"status": "ok"}
     assert "not installed" in caplog.text
+
+
+# --- the values issuing today would give ------------------------------------------
+
+
+async def _likely_number(db_session) -> str:
+    today = server_today()
+    fmt_ = await invoice_numbering_service.get_format(db_session)
+    value = await invoice_numbering_service.peek_next(db_session, fmt_, today)
+    return invoice_numbering_service.render(fmt_, value, today)
+
+
+async def test_the_preview_shows_the_number_date_and_due_date_issuing_would_give(
+    client, db_session, rendered
+) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    today = server_today()
+    expected_number = await _likely_number(db_session)
+
+    await client.post(URL, json=_body(project, payment_terms="net_30"))
+
+    values = rendered[0].values
+    assert values["invoice_number"] == expected_number
+    assert values["invoice_date"] == fmt.date_text(today)
+    assert values["due_date"] == fmt.date_text(apply_payment_terms("net_30", today))
+    assert values["status"] == "Draft" and values["draft_watermark"] == "DRAFT"
+
+
+async def test_the_preview_keeps_a_fixed_due_date_and_shows_none_without_one(
+    client, db_session, rendered
+) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+
+    fixed, neither = _body(project, due_date="2030-09-30"), _body(project)
+
+    await client.post(URL, json=fixed)
+    await client.post(URL, json=neither)
+
+    assert rendered[0].values["due_date"] == "30 September 2030"
+    assert rendered[1].values["due_date"] == ""
+
+
+async def test_previewing_does_not_use_the_number(client, db_session, rendered) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    before = await _likely_number(db_session)
+    body = _body(project)
+
+    await client.post(URL, json=body)
+    await client.post(URL, json=body)
+
+    assert rendered[0].values["invoice_number"] == before
+    assert rendered[1].values["invoice_number"] == before
+    assert await _likely_number(db_session) == before
+    # The number is still the next one to be issued.
+    created = await client.post("/api/invoices", json=body)
+    issued = await client.post(f"/api/invoices/{created.json()['id']}/issue")
+    assert issued.json()["number"] == before

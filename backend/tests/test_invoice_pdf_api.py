@@ -6,9 +6,12 @@ import pytest
 from pypdf import PdfReader
 from sqlalchemy import select
 
+from app.core.clock import server_today
 from app.models.file import File, StoredFile
+from app.pdf import format as fmt
 from app.pdf.errors import PdfEngineError
 from app.pdf.odt import TemplateData
+from app.services import invoice_numbering_service
 from tests.invoice_helpers import login, make_issued_invoice, make_project
 from tests.pdf_helpers import fake_invoice_pdf
 from tests.test_pdf_render import _text as pdf_text
@@ -101,12 +104,18 @@ async def test_a_saved_draft_is_rendered_with_nothing_stored(
     await login(client, db_session)
     project = await make_project(db_session)
     invoice_id = await _draft_id(client, project)
+    fmt_ = await invoice_numbering_service.get_format(db_session)
+    value = await invoice_numbering_service.peek_next(db_session, fmt_, server_today())
+    expected_number = invoice_numbering_service.render(fmt_, value, server_today())
 
     response = await client.get(f"{URL}/{invoice_id}/pdf")
 
     assert response.status_code == 200 and response.content == FAKE
     assert seen[0].values["draft_watermark"] == "DRAFT"
-    assert seen[0].values["invoice_number"] == "Assigned when issued"
+    # What issuing today would give, not the placeholder words.
+    assert seen[0].values["invoice_number"] != "Assigned when issued"
+    assert seen[0].values["invoice_date"] == fmt.date_text(server_today())
+    assert seen[0].values["invoice_number"] == expected_number
     assert response.headers["content-disposition"] == (
         f'inline; filename="draft-{invoice_id[:8]}.pdf"'
     )
