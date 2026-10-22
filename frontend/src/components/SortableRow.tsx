@@ -53,7 +53,7 @@ export function SortableRow({
             size="sm"
             // touch-action: none hands touch gestures on the handle to the drag sensor; the
             // rest of the row still scrolls the page.
-            className="text-muted-foreground h-8 w-8 cursor-grab touch-none p-0"
+            className="text-muted-foreground relative z-10 h-8 w-8 cursor-grab touch-none p-0"
             aria-label={t("Drag to reorder {{name}}", { name: description })}
             {...attributes}
             {...listeners}

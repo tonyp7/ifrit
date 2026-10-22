@@ -37,12 +37,18 @@ import { DataTable } from "@/components/data-table/DataTable";
 import { DataTableColumnHeader } from "@/components/data-table/DataTableColumnHeader";
 import { DataTablePagination } from "@/components/data-table/DataTablePagination";
 import { features } from "@/components/data-table/features";
+import { RowLink } from "@/components/data-table/RowControl";
 import { toSortParams } from "@/components/data-table/sorting";
 import { useAuth } from "@/hooks/useAuth";
 import { ROLE_LABELS, type User } from "@/types/user";
 import { ResetPasswordDialog } from "@/components/users/ResetPasswordDialog";
 
 const SEARCH_DEBOUNCE_MS = 300;
+
+/** The user's full name, as the link that opens their form from anywhere on the row. */
+export function UserNameCell({ id, fullName }: { id: string; fullName: string }) {
+  return <RowLink to={`/configuration/users/${id}`}>{fullName}</RowLink>;
+}
 
 export function UsersTable() {
   const navigate = useNavigate();
@@ -139,6 +145,9 @@ export function UsersTable() {
         <DataTableColumnHeader column={column} title={t("Name", { ns: "common" })} />
       ),
       enableHiding: false,
+      cell: ({ row }) => (
+        <UserNameCell id={row.original.id} fullName={row.original.full_name} />
+      ),
     },
     {
       accessorKey: "name_id",
@@ -180,7 +189,7 @@ export function UsersTable() {
       cell: ({ row }) => {
         const isSelf = row.original.id === currentUser?.id;
         return (
-          <div className="flex justify-end">
+          <div className="relative z-10 flex justify-end">
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0">

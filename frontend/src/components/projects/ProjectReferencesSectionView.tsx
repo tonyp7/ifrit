@@ -21,10 +21,12 @@ import { useTranslation } from "react-i18next";
 
 import { SortableRow } from "@/components/SortableRow";
 import { Button } from "@/components/ui/button";
+import { RowButton } from "@/components/data-table/RowControl";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -161,11 +163,17 @@ export function ProjectReferencesSectionView({
                         description={name}
                         sortable={sortable}
                       >
-                        <TableCell>{name}</TableCell>
+                        <TableCell>
+                          {readOnly ? (
+                            name
+                          ) : (
+                            <RowButton onClick={() => onEdit(reference)}>{name}</RowButton>
+                          )}
+                        </TableCell>
                         <TableCell className="break-words">{reference.value}</TableCell>
                         {!readOnly && (
                           <TableCell>
-                            <div className="flex justify-end">
+                            <div className="relative z-10 flex justify-end">
                               <DropdownMenu>
                                 <DropdownMenuTrigger asChild>
                                   <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -182,6 +190,7 @@ export function ProjectReferencesSectionView({
                                   <DropdownMenuItem onClick={() => onDuplicate(reference)}>
                                     {t("Duplicate", { ns: "common" })}
                                   </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
                                   <DropdownMenuItem
                                     className="text-destructive focus:text-destructive"
                                     onClick={() => onDeleteRequest(reference)}

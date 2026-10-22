@@ -68,7 +68,12 @@ function render(items: InvoiceListItem[], columnVisibility = DEFAULT_VISIBILITY)
     onDownload: vi.fn(),
     onDelete: vi.fn(),
   };
-  return renderToStaticMarkup(<InvoicesTableView {...props} />);
+  // The rows hold links, which need a router.
+  return renderToStaticMarkup(
+    <MemoryRouter>
+      <InvoicesTableView {...props} />
+    </MemoryRouter>,
+  );
 }
 
 describe("InvoicesTableView", () => {

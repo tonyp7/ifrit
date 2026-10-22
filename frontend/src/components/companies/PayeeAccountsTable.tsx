@@ -15,10 +15,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { RowButton } from "@/components/data-table/RowControl";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -64,6 +66,15 @@ export function PayeeAccountsTable({
   } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PayeeAccount | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  function openEdit(account: PayeeAccount) {
+    if (!companyId) return;
+    setDialogState({
+      companyId,
+      accountId: account.id,
+      initialValues: toPayeeAccountFormValues(account),
+    });
+  }
 
   async function handleAddClick() {
     const id = companyId ?? (await ensureSaved());
@@ -120,8 +131,12 @@ export function PayeeAccountsTable({
               </TableRow>
             ) : (
               accounts.map((account) => (
-                <TableRow key={account.id}>
-                  <TableCell>{t(PAYMENT_MEANS_LABELS[account.payment_means_code])}</TableCell>
+                <TableRow key={account.id} className="relative">
+                  <TableCell>
+                    <RowButton onClick={() => openEdit(account)}>
+                      {t(PAYMENT_MEANS_LABELS[account.payment_means_code])}
+                    </RowButton>
+                  </TableCell>
                   <TableCell className="whitespace-nowrap">
                     {formatAccountIdentifier(
                       account.account_scheme,
@@ -136,7 +151,7 @@ export function PayeeAccountsTable({
                       : t("No", { ns: "common" })}
                   </TableCell>
                   <TableCell>
-                    <div className="flex justify-end">
+                    <div className="relative z-10 flex justify-end">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -145,16 +160,7 @@ export function PayeeAccountsTable({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() =>
-                              companyId &&
-                              setDialogState({
-                                companyId,
-                                accountId: account.id,
-                                initialValues: toPayeeAccountFormValues(account),
-                              })
-                            }
-                          >
+                          <DropdownMenuItem onClick={() => openEdit(account)}>
                             {t("Edit", { ns: "common" })}
                           </DropdownMenuItem>
                           <DropdownMenuItem
@@ -168,6 +174,7 @@ export function PayeeAccountsTable({
                           >
                             {t("Duplicate", { ns: "common" })}
                           </DropdownMenuItem>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive"
                             onClick={() => setDeleteTarget(account)}

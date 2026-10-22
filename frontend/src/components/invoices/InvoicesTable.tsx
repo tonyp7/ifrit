@@ -23,6 +23,7 @@ import { DataTable } from "@/components/data-table/DataTable";
 import { DataTableColumnHeader } from "@/components/data-table/DataTableColumnHeader";
 import { DataTablePagination } from "@/components/data-table/DataTablePagination";
 import { features } from "@/components/data-table/features";
+import { RowLink } from "@/components/data-table/RowControl";
 import { toSortParams } from "@/components/data-table/sorting";
 import {
   ReportFilterDropdown,
@@ -174,7 +175,21 @@ export function InvoicesTableView({
       enableHiding: false,
       accessorKey: "number",
       header: ({ column }) => <DataTableColumnHeader column={column} title={t("Number")} />,
-      cell: ({ row }) => <span className="font-mono">{row.original.number ?? ""}</span>,
+      // A draft has no number yet: its cell stays empty, and the link that covers the row is
+      // named for assistive technology instead.
+      cell: ({ row }) =>
+        row.original.number ? (
+          <RowLink to={`/invoices/${row.original.id}`} className="font-mono">
+            {row.original.number}
+          </RowLink>
+        ) : (
+          <RowLink
+            to={`/invoices/${row.original.id}`}
+            aria-label={t("Edit invoice for {{project}}", {
+              project: row.original.project_name,
+            })}
+          />
+        ),
     },
     {
       id: "status",
@@ -244,8 +259,8 @@ export function InvoicesTableView({
       header: "",
       enableSorting: false,
       cell: ({ row }) => (
-        // The row opens the invoice on click; the menu must not do that as well.
-        <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+        // Above the link that covers the row, so the menu opens instead of the invoice.
+        <div className="relative z-10 flex justify-end">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -255,7 +270,9 @@ export function InvoicesTableView({
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
               <DropdownMenuItem onClick={() => onOpen(row.original)}>
-                {t("Open", { ns: "common" })}
+                {row.original.status === "draft"
+                  ? t("Edit", { ns: "common" })
+                  : t("View", { ns: "common" })}
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => onDuplicate(row.original)}>
                 {t("Duplicate", { ns: "common" })}
@@ -301,7 +318,6 @@ export function InvoicesTableView({
       table={table}
       columnCount={table.getVisibleLeafColumns().length}
       emptyMessage={t("No invoices yet")}
-      onRowClick={onOpen}
     />
   );
 }

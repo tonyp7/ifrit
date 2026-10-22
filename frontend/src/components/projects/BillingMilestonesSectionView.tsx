@@ -20,10 +20,12 @@ import { MoreHorizontal, Plus, TriangleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Button } from "@/components/ui/button";
+import { RowButton } from "@/components/data-table/RowControl";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -173,7 +175,15 @@ export function BillingMilestonesSectionView({
                       description={milestone.description}
                       sortable={sortable}
                     >
-                      <TableCell>{milestone.description}</TableCell>
+                      <TableCell>
+                        {readOnly ? (
+                          milestone.description
+                        ) : (
+                          <RowButton onClick={() => onEdit(milestone)}>
+                            {milestone.description}
+                          </RowButton>
+                        )}
+                      </TableCell>
                       <TableCell>
                         {milestone.due_date ? formatDueDate(milestone.due_date) : ""}
                       </TableCell>
@@ -185,7 +195,7 @@ export function BillingMilestonesSectionView({
                       </TableCell>
                       {!readOnly && (
                         <TableCell>
-                          <div className="flex justify-end">
+                          <div className="relative z-10 flex justify-end">
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -202,6 +212,7 @@ export function BillingMilestonesSectionView({
                                 <DropdownMenuItem onClick={() => onDuplicate(milestone)}>
                                   {t("Duplicate", { ns: "common" })}
                                 </DropdownMenuItem>
+                                <DropdownMenuSeparator />
                                 <DropdownMenuItem
                                   className="text-destructive focus:text-destructive"
                                   onClick={() => onDeleteRequest(milestone)}

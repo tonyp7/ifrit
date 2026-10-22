@@ -34,12 +34,18 @@ import { DataTable } from "@/components/data-table/DataTable";
 import { DataTableColumnHeader } from "@/components/data-table/DataTableColumnHeader";
 import { DataTablePagination } from "@/components/data-table/DataTablePagination";
 import { features } from "@/components/data-table/features";
+import { RowLink } from "@/components/data-table/RowControl";
 import { toSortParams } from "@/components/data-table/sorting";
 import { ApiError } from "@/api/client";
 import { deactivateCompany, duplicateCompany, listCompanies } from "@/api/companies";
 import type { CompanyListItem } from "@/types/company";
 
 const SEARCH_DEBOUNCE_MS = 300;
+
+/** The company's legal name, as the link that opens its form from anywhere on the row. */
+export function CompanyNameCell({ id, legalName }: { id: string; legalName: string }) {
+  return <RowLink to={`/configuration/companies/${id}`}>{legalName}</RowLink>;
+}
 
 export function CompaniesTable() {
   const navigate = useNavigate();
@@ -131,6 +137,9 @@ export function CompaniesTable() {
         <DataTableColumnHeader column={column} title={t("Legal name")} />
       ),
       enableHiding: false,
+      cell: ({ row }) => (
+        <CompanyNameCell id={row.original.id} legalName={row.original.legal_name} />
+      ),
     },
     {
       accessorKey: "trading_name",
@@ -151,7 +160,7 @@ export function CompaniesTable() {
       enableHiding: false,
       enableSorting: false,
       cell: ({ row }) => (
-        <div className="flex justify-end">
+        <div className="relative z-10 flex justify-end">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="sm" className="h-8 w-8 p-0">

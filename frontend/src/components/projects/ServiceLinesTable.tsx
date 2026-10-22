@@ -16,10 +16,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { RowButton } from "@/components/data-table/RowControl";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -82,6 +84,16 @@ export function ServiceLinesTable({
   const [deleteTarget, setDeleteTarget] = useState<ServiceLine | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  function openEdit(line: ServiceLine) {
+    if (!projectId) return;
+    setDialogState({
+      projectId,
+      serviceLineId: line.id,
+      initialValues: serviceLineToFormValues(line),
+      initialConsultants: line.users,
+    });
+  }
+
   async function handleAddClick() {
     const id = projectId ?? (await ensureSaved());
     if (!id) return;
@@ -140,8 +152,21 @@ export function ServiceLinesTable({
               </TableRow>
             ) : (
               serviceLines.map((line) => (
-                <TableRow key={line.id}>
-                  <TableCell>{line.name || "—"}</TableCell>
+                <TableRow key={line.id} className="relative">
+                  <TableCell>
+                    {readOnly ? (
+                      line.name || "—"
+                    ) : (
+                      // A line's name is optional: with none the dash is the control, named
+                      // so assistive technology says what it opens.
+                      <RowButton
+                        onClick={() => openEdit(line)}
+                        aria-label={line.name ? undefined : t("Edit service line")}
+                      >
+                        {line.name || "—"}
+                      </RowButton>
+                    )}
+                  </TableCell>
                   <TableCell>{formatQuantity(line.quantity)}</TableCell>
                   <TableCell>{t(UOM_LABELS[line.uom])}</TableCell>
                   <TableCell>{formatMoney(line.unit_price, minorUnit)}</TableCell>
@@ -157,7 +182,7 @@ export function ServiceLinesTable({
                   </TableCell>
                   {!readOnly && (
                     <TableCell>
-                      <div className="flex justify-end">
+                      <div className="relative z-10 flex justify-end">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
                             <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -166,17 +191,7 @@ export function ServiceLinesTable({
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onClick={() =>
-                                projectId &&
-                                setDialogState({
-                                  projectId,
-                                  serviceLineId: line.id,
-                                  initialValues: serviceLineToFormValues(line),
-                                  initialConsultants: line.users,
-                                })
-                              }
-                            >
+                            <DropdownMenuItem onClick={() => openEdit(line)}>
                               {t("Edit", { ns: "common" })}
                             </DropdownMenuItem>
                             <DropdownMenuItem
@@ -191,6 +206,7 @@ export function ServiceLinesTable({
                             >
                               {t("Duplicate", { ns: "common" })}
                             </DropdownMenuItem>
+                            <DropdownMenuSeparator />
                             <DropdownMenuItem
                               className="text-destructive focus:text-destructive"
                               onClick={() => setDeleteTarget(line)}

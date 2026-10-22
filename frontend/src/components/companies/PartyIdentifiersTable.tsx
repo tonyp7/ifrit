@@ -15,10 +15,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { RowButton } from "@/components/data-table/RowControl";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
@@ -70,6 +72,15 @@ export function PartyIdentifiersTable({
   } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PartyIdentifier | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  function openEdit(identifier: PartyIdentifier) {
+    if (!companyId) return;
+    setDialogState({
+      companyId,
+      identifierId: identifier.id,
+      initialValues: toFormValues(identifier),
+    });
+  }
 
   async function handleAddClick() {
     const id = companyId ?? (await ensureSaved());
@@ -125,8 +136,12 @@ export function PartyIdentifiersTable({
               </TableRow>
             ) : (
               identifiers.map((identifier) => (
-                <TableRow key={identifier.id}>
-                  <TableCell>{t(ID_TYPE_LABELS[identifier.id_type])}</TableCell>
+                <TableRow key={identifier.id} className="relative">
+                  <TableCell>
+                    <RowButton onClick={() => openEdit(identifier)}>
+                      {t(ID_TYPE_LABELS[identifier.id_type])}
+                    </RowButton>
+                  </TableCell>
                   <TableCell>{identifier.scheme_id ?? "—"}</TableCell>
                   <TableCell>{identifier.id_value}</TableCell>
                   <TableCell>
@@ -135,7 +150,7 @@ export function PartyIdentifiersTable({
                       : t("No", { ns: "common" })}
                   </TableCell>
                   <TableCell>
-                    <div className="flex justify-end">
+                    <div className="relative z-10 flex justify-end">
                       <DropdownMenu>
                         <DropdownMenuTrigger asChild>
                           <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
@@ -144,16 +159,7 @@ export function PartyIdentifiersTable({
                           </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
-                          <DropdownMenuItem
-                            onClick={() =>
-                              companyId &&
-                              setDialogState({
-                                companyId,
-                                identifierId: identifier.id,
-                                initialValues: toFormValues(identifier),
-                              })
-                            }
-                          >
+                          <DropdownMenuItem onClick={() => openEdit(identifier)}>
                             {t("Edit", { ns: "common" })}
                           </DropdownMenuItem>
                           <DropdownMenuItem
@@ -167,6 +173,7 @@ export function PartyIdentifiersTable({
                           >
                             {t("Duplicate", { ns: "common" })}
                           </DropdownMenuItem>
+                          <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-destructive focus:text-destructive"
                             onClick={() => setDeleteTarget(identifier)}
