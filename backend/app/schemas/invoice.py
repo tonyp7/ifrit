@@ -248,6 +248,7 @@ WarningCode = Literal[
     "payee_currency",
     "inactive_company",
     "due_before_invoice_date",
+    "no_due_date",
     "tax_rate_not_derivable",
     "negative_subtotal",
 ]

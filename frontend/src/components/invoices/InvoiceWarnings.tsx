@@ -48,6 +48,8 @@ export function InvoiceWarnings({ warnings, omitted, minorUnit }: InvoiceWarning
         return t(
           "Due date before the invoice date: the invoice would be overdue when issued.",
         );
+      case "no_due_date":
+        return t("No due date: the invoice has neither payment terms nor a fixed due date.");
       case "tax_rate_not_derivable":
         return t("Tax rate cannot be derived: a tax amount is set by hand on a zero base.");
       case "negative_subtotal":

@@ -8,12 +8,17 @@ const FORM_CODES: InvoiceWarningCode[] = [
   "payee_currency",
   "tax_rate_not_derivable",
   "negative_subtotal",
+  "no_due_date",
 ];
 
 export function formWarnings(input: {
   quantities: string[];
   payeeCurrency: string | null;
   invoiceCurrency: string | null;
+  /** The payment terms preset and the fixed due date: with neither, the invoice prints no due
+   * date. Required, so a caller cannot forget them and silently lose the warning. */
+  paymentTerms: string | null;
+  dueDate: string | null;
   subtotal?: string;
   /** Each tax row as computed: a hand-set row whose rate came out null has a zero base. */
   taxes?: { amount_set_by_hand: boolean; rate: string | null; amount: string | null }[];
@@ -37,6 +42,9 @@ export function formWarnings(input: {
     warnings.push({ code: "no_payee_account", ...blank });
   } else if (input.invoiceCurrency && input.payeeCurrency !== input.invoiceCurrency) {
     warnings.push({ code: "payee_currency", ...blank });
+  }
+  if (!input.paymentTerms && !input.dueDate) {
+    warnings.push({ code: "no_due_date", ...blank });
   }
   return warnings;
 }

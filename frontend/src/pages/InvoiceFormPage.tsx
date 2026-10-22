@@ -486,6 +486,8 @@ export function InvoiceFormPage() {
       quantities: lines.map((line) => line.quantity),
       payeeCurrency: payee ? payee.currency_code || null : null,
       invoiceCurrency: context?.currency_code ?? null,
+      paymentTerms: paymentTerms ?? null,
+      dueDate: dueDate ?? null,
       subtotal: liveSubtotal,
       taxes: computeTaxes(liveSubtotal, taxes, context?.currency_minor_unit ?? null).map(
         (tax, index) => ({ ...tax, amount_set_by_hand: taxes[index].amount_set_by_hand }),

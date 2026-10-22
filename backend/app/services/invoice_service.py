@@ -911,6 +911,9 @@ async def invoice_warnings(db: AsyncSession, invoice: Invoice) -> list[InvoiceWa
         warnings.append(InvoiceWarning(code="no_payee_account"))
     elif invoice.payee_currency_code != invoice.currency_code:
         warnings.append(InvoiceWarning(code="payee_currency"))
+    # Neither a preset nor a fixed date means the issued invoice prints no due date at all.
+    if not invoice.payment_terms and invoice.due_date is None:
+        warnings.append(InvoiceWarning(code="no_due_date"))
     if project is not None:
         inactive: list[Any] = []
         if project.vendor_company is not None and not project.vendor_company.is_active:
