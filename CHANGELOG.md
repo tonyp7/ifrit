@@ -4,6 +4,44 @@ All notable changes to Ifrit Timesheet Tracker are documented here. The format f
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org).
 
+## [2.1.0] - 22 Oct 2026
+
+### Upgrading
+
+Back up the database and the storage volume first, as with any upgrade. This release has **no
+database migration and no new setting**. Two changes you may notice:
+
+- **Payee accounts of type "Credit transfer" now read "Wire transfer".** The payment means are now
+  named Wire transfer, Bank transfer and SEPA credit transfer, the same words in the payee account
+  form and on the invoice. Nothing is stored differently; if an account was really a local transfer,
+  choose **Bank transfer** for it.
+- **The default invoice template has a new layout.** The payment details now sit at the foot of the
+  page that ends the invoice, and the footer names the issuer. It applies to invoices issued after the
+  upgrade: PDFs that were already issued do not change, and neither does a template you uploaded.
+
+### Added
+- A **No due date** warning on an invoice draft that has neither payment terms nor a fixed due date, in
+  the form and in the issue confirmation. It never blocks saving or issuing.
+- The PDF preview of a draft now shows what issuing it today would give: the number the invoice would
+  get next, today's date, and the due date worked out from the payment terms, in place of "Assigned
+  when issued". The number is not reserved, so it can differ if another invoice is issued first, and the
+  DRAFT mark is still what tells the preview from an issued invoice.
+- In the default invoice template, the payment details sit at the foot of the page that ends the
+  invoice, and the footer names the issuer above the page number.
+
+### Changed
+- The payment means of a payee account are named **Wire transfer**, **Bank transfer** and **SEPA credit
+  transfer**, in the form and on the invoice (the form used to say "Payment to bank account" where the
+  invoice said "Bank transfer").
+- In the default invoice template, the bank box reads "Bank Account Information", with a "Recipient"
+  line, and there is a little more room above the references and the table.
+- Dependency updates, including Pillow 13.
+
+### Fixed
+- Uploading a plain `.zip` or `.key` project document no longer fails with "The file content does not
+  match its extension" in the container image.
+- On the invoice PDF, the currency code on the Total row lines up with the rest of the Currency column.
+
 ## [2.0.0] - 20 Oct 2026
 
 ### Upgrading
