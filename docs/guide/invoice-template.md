@@ -89,9 +89,10 @@ mark from the application, not from the template.
 
 ### Fonts
 
-The application ships the Liberation fonts (Sans, Serif, Mono). A template that uses another font
-is accepted, with a warning, and the PDF uses a substitute. Text in a script the fonts do not cover
-(Chinese, Japanese, Arabic, Thai and others) will not print correctly.
+The application ships the Liberation fonts (Sans, Serif, Mono) and Noto CJK. A template that uses
+another font is accepted, with a warning, and the PDF uses a substitute. Chinese, Japanese and
+Korean text prints, in Noto CJK, whatever font the template names. Text in a script none of these
+fonts cover (Arabic, Thai and others) will not print correctly.
 
 ## What is refused
 

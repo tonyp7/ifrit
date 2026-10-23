@@ -80,13 +80,16 @@ FROM python:3.14-slim-trixie AS final
 # no TTY) before landing on Noninteractive anyway.
 # fonts-liberation: the Reporting screen's PDF export (fpdf2) renders in
 # Liberation Sans — this slim base image has no fonts installed at all otherwise.
+# fonts-noto-cjk: Chinese, Japanese and Korean glyphs, which Liberation lacks. LibreOffice falls
+# back to it on its own for the invoice PDF; the report export (fpdf2) loads its Sans files as a
+# per-glyph fallback behind Liberation Sans.
 # libmagic1: the shared library behind python-magic, which sniffs an upload's real
 # content type from its bytes.
 # libreoffice-writer (+ libreoffice-java-common): the headless converter that turns the filled
 # invoice template (an ODT file) into the invoice PDF. Installed without recommends, so no
 # language packs, help or GUI extras.
 RUN DEBIAN_FRONTEND=noninteractive apt-get update \
-    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends nginx fonts-liberation libmagic1 libreoffice-writer libreoffice-java-common \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends nginx fonts-liberation fonts-noto-cjk libmagic1 libreoffice-writer libreoffice-java-common \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app

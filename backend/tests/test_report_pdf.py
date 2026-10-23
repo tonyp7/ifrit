@@ -1,5 +1,7 @@
 import io
 import re
+import shutil
+import subprocess
 import uuid
 from datetime import date, timedelta
 from decimal import Decimal
@@ -674,3 +676,80 @@ def test_a_logo_no_taller_than_the_title_block_changes_nothing_else(
     assert plain["table_y"] == plain_state["table_y"] == [pytest.approx(33)]
     assert plain["rect"] == plain_state["rect"]
     assert plain["cell"] == plain_state["cell"]
+
+
+# --- CJK text ---------------------------------------------------------------------
+
+_CJK_NAMES = {
+    "project": "東京プロジェクト",
+    "service_line": "设计冲刺",
+    "consultant": "김민준",
+}
+
+
+def _pdf_text(pdf: bytes) -> str:
+    result = subprocess.run(
+        ["pdftotext", "-", "-"], input=pdf, capture_output=True, check=True
+    )
+    return result.stdout.decode()
+
+
+def _pdf_fonts(pdf: bytes) -> str:
+    return subprocess.run(
+        ["pdffonts", "-"], input=pdf, capture_output=True, check=True
+    ).stdout.decode()
+
+
+needs_cjk_font = pytest.mark.skipif(
+    svc._noto_cjk_font_paths() is None
+    or shutil.which("pdftotext") is None
+    or shutil.which("pdffonts") is None,
+    reason="needs the Noto Sans CJK fonts (fonts-noto-cjk) and poppler-utils",
+)
+
+
+@needs_cjk_font
+def test_cjk_names_are_readable_in_the_pdf():
+    rows = [
+        _row(
+            project=_CJK_NAMES["project"],
+            service_line=_CJK_NAMES["service_line"],
+            consultant=_CJK_NAMES["consultant"],
+            hours={WEEK[0]: "8"},
+        )
+    ]
+
+    text = _pdf_text(svc._build_pdf(rows, WEEK, "2026 Week 36"))
+
+    for name in _CJK_NAMES.values():
+        assert name in text
+
+
+@needs_cjk_font
+def test_bold_cjk_text_is_drawn_in_the_bold_face():
+    # The project name is the bold line of a data row.
+    rows = [_row(project=_CJK_NAMES["project"], hours={WEEK[0]: "8"})]
+
+    pdf = svc._build_pdf(rows, WEEK, "2026 Week 36")
+
+    assert _CJK_NAMES["project"] in _pdf_text(pdf)
+    assert "NotoSansCJKJPBold" in _pdf_fonts(pdf)
+
+
+@needs_cjk_font
+def test_a_latin_only_report_does_not_embed_the_cjk_font():
+    pdf = svc._build_pdf([_row(hours={WEEK[0]: "8"})], WEEK, "2026 Week 36")
+
+    assert "NotoSansCJK" not in _pdf_fonts(pdf)
+
+
+def test_the_export_still_builds_without_the_cjk_font(monkeypatch):
+    monkeypatch.setattr(svc, "_noto_cjk_font_paths", lambda: None)
+
+    pdf = svc._build_pdf(
+        [_row(project=_CJK_NAMES["project"], hours={WEEK[0]: "8"})],
+        WEEK,
+        "2026 Week 36",
+    )
+
+    assert pdf.startswith(b"%PDF")
