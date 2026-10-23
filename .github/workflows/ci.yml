@@ -60,8 +60,9 @@ jobs:
       # LibreOffice Writer (and the Liberation fonts it lays text out in) for the tests that
       # render an invoice PDF; they skip themselves when it is missing. poppler-utils gives them
       # pdftotext, to read where the text lands on the page; they skip without it too, which is
-      # silent, so check the skipped count in the log when changing this line.
-      - run: sudo apt-get update && sudo apt-get install -y libmagic1 libreoffice-writer fonts-liberation poppler-utils
+      # silent, so check the skipped count in the log when changing this line. fonts-noto-cjk is
+      # the CJK fallback the report PDF tests look for; they skip without it too.
+      - run: sudo apt-get update && sudo apt-get install -y libmagic1 libreoffice-writer fonts-liberation fonts-noto-cjk poppler-utils
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           # Without this uv uses whatever Python the runner image ships. Keep it in step with

@@ -18,6 +18,7 @@ port 5173 and forwards `/api` requests to the backend on port 8000.
 | PostgreSQL 18 | Either an instance you already have or a throwaway container, see below. |
 | `libmagic` | System library used to check the real type of uploaded files. On Debian and Ubuntu it is the `libmagic1` package, on macOS `brew install libmagic`. |
 | Liberation Sans fonts | Only needed for PDF export. On Debian and Ubuntu it is the `fonts-liberation` package. Without it, a PDF export fails with an error naming the missing package. |
+| Noto Sans CJK fonts | Optional, for Chinese, Japanese and Korean text in the PDF export. On Debian and Ubuntu it is the `fonts-noto-cjk` package. Without it the export still works, and those characters print as empty boxes. |
 | LibreOffice (Writer) | Only needed to preview invoices as PDF. On Debian and Ubuntu it is the `libreoffice-writer` package, on macOS `brew install --cask libreoffice`. Without it, Preview answers that the PDF engine is not available, and the tests that render an invoice are skipped. |
 
 ## Get the code

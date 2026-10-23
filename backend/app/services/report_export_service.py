@@ -107,6 +107,27 @@ def _liberation_font_path(filename: str) -> str:
     )
 
 
+# Noto Sans CJK, the per-glyph fallback for Chinese, Japanese and Korean text, which Liberation
+# lacks. Debian/Ubuntu (the container) and Arch (local dev machines) install it in different
+# places. Unlike Liberation it is optional: without it only the CJK glyphs are lost, so the
+# export still succeeds rather than failing for hosts that never had the font.
+_NOTO_CJK_DIRS = [
+    "/usr/share/fonts/opentype/noto",
+    "/usr/share/fonts/noto-cjk",
+]
+
+
+def _noto_cjk_font_paths() -> tuple[str, str] | None:
+    """The regular and bold Noto Sans CJK files, or None unless both are installed (a
+    fallback with no bold face would draw bold text in the regular weight)."""
+    for directory in _NOTO_CJK_DIRS:
+        regular = os.path.join(directory, "NotoSansCJK-Regular.ttc")
+        bold = os.path.join(directory, "NotoSansCJK-Bold.ttc")
+        if os.path.exists(regular) and os.path.exists(bold):
+            return regular, bold
+    return None
+
+
 # PDF palette: slate for text and surfaces, one indigo accent (title bar and the hours heatmap).
 _COLOR_TEXT = (0x0F, 0x17, 0x2A)  # primary text, title, and the strong table rules
 _COLOR_TEXT_LABEL = (
@@ -309,6 +330,12 @@ def _build_pdf(
     pdf.add_font(
         "LiberationSans", "B", _liberation_font_path("LiberationSans-Bold.ttf")
     )
+    noto_cjk = _noto_cjk_font_paths()
+    if noto_cjk is not None:
+        pdf.add_font("NotoSansCJK", "", noto_cjk[0])
+        pdf.add_font("NotoSansCJK", "B", noto_cjk[1])
+        # Consulted only for characters Liberation lacks, so text it covers is drawn as before.
+        pdf.set_fallback_fonts(["NotoSansCJK"])
     pdf.add_page()
 
     page_top = pdf.get_y()
