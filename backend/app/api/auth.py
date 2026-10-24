@@ -13,7 +13,7 @@ from app.auth.security import (
 )
 from app.core.config import settings
 from app.core.db import get_db
-from app.core.rate_limit import limiter
+from app.core.rate_limit import login_rate_limit
 from app.models.user import User
 from app.schemas.auth import LoginRequest
 from app.schemas.user import UserOut
@@ -57,10 +57,13 @@ def _set_auth_cookies(response: Response, user: User) -> None:
     )
 
 
-@router.post("/login", response_model=UserOut)
-# Applied before the password check on purpose: a rejected request never reaches Argon2,
-# so this also bounds how much hashing work an unauthenticated client can force.
-@limiter.limit("5/minute")
+@router.post(
+    "/login",
+    response_model=UserOut,
+    # Runs before get_db and the password check on purpose: a rejected request never opens
+    # a session or reaches Argon2.
+    dependencies=[Depends(login_rate_limit)],
+)
 async def login(
     request: Request,
     credentials: LoginRequest,

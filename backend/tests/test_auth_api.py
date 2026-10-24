@@ -1,5 +1,7 @@
 import logging
+import time
 
+from app.api import auth as auth_api
 from tests.factories import create_user
 
 
@@ -173,11 +175,15 @@ async def test_login_is_rate_limited(client, db_session) -> None:
     )
     bad_login = {"email": "jane@example.com", "password": "wrong"}
 
-    for _ in range(5):
+    for _ in range(10):
         assert (await client.post("/api/auth/login", json=bad_login)).status_code == 401
 
     blocked = await client.post("/api/auth/login", json=bad_login)
     assert blocked.status_code == 429
+    # The SPA only reads `detail`, so a different body shape would show users a bare
+    # "Request failed with status 429".
+    assert "login attempts" in blocked.json()["detail"]
+    assert 1 <= int(blocked.headers["Retry-After"]) <= 60
 
     # The limit applies to the client, not to the outcome: a correct password is refused
     # too, otherwise a guesser could keep trying and only "win" once it finds the password.
@@ -186,6 +192,51 @@ async def test_login_is_rate_limited(client, db_session) -> None:
     )
     assert correct.status_code == 429
     assert "access_token" not in correct.cookies
+
+
+async def test_blocked_login_never_checks_the_password(
+    client, db_session, monkeypatch
+) -> None:
+    checked = 0
+    original = auth_api.authenticate_local_user
+
+    async def counting(*args, **kwargs):
+        nonlocal checked
+        checked += 1
+        return await original(*args, **kwargs)
+
+    monkeypatch.setattr(auth_api, "authenticate_local_user", counting)
+    bad_login = {"email": "nobody@example.com", "password": "wrong"}
+
+    for _ in range(10):
+        await client.post("/api/auth/login", json=bad_login)
+    assert checked == 10
+
+    assert (await client.post("/api/auth/login", json=bad_login)).status_code == 429
+    assert checked == 10
+
+
+async def test_login_is_allowed_again_after_the_window(
+    client, db_session, monkeypatch
+) -> None:
+    await create_user(
+        db_session,
+        name_id="jane@example.com",
+        password="s3cret-pass",
+        role_name="consultant",
+    )
+    bad_login = {"email": "jane@example.com", "password": "wrong"}
+    for _ in range(11):
+        await client.post("/api/auth/login", json=bad_login)
+    assert (await client.post("/api/auth/login", json=bad_login)).status_code == 429
+
+    real_time = time.time
+    monkeypatch.setattr(time, "time", lambda: real_time() + 61)
+
+    ok = await client.post(
+        "/api/auth/login", json={"email": "jane@example.com", "password": "s3cret-pass"}
+    )
+    assert ok.status_code == 200
 
 
 async def test_failed_login_is_logged(client, db_session, caplog) -> None:

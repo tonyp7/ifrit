@@ -3,13 +3,10 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from slowapi import _rate_limit_exceeded_handler
-from slowapi.errors import RateLimitExceeded
 
 from app.api.router import api_router
 from app.core.body_limit import RequestBodyLimitMiddleware
 from app.core.config import settings
-from app.core.rate_limit import limiter
 from app.pdf.runner import check_engine
 
 
@@ -21,10 +18,6 @@ async def lifespan(_: FastAPI) -> AsyncGenerator[None]:
 
 
 app = FastAPI(title="Ifrit API", lifespan=lifespan)
-app.state.limiter = limiter
-# slowapi types the handler for RateLimitExceeded only; Starlette expects Exception.
-# pyrefly: ignore [bad-argument-type]
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(RequestBodyLimitMiddleware)
 app.add_middleware(
