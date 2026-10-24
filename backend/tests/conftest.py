@@ -19,7 +19,7 @@ from sqlalchemy.ext.asyncio import (
 
 from app.core.config import settings
 from app.core.db import Base, get_db
-from app.core.rate_limit import limiter
+from app.core.rate_limit import login_storage
 from app.main import app
 from app.models.file import FILE_TAGS_SEED_STATEMENT
 from app.pdf.odt import TemplateData
@@ -98,11 +98,11 @@ def _fake_invoice_pdf(
 
 
 @pytest.fixture(autouse=True)
-def _reset_rate_limiter() -> None:
+async def _reset_rate_limiter() -> None:
     # The limiter's counters are process-global and every test client shares one source
     # address, so without this the suite's many logins would trip the login limit and
     # tests would depend on run order.
-    limiter.reset()
+    await login_storage.reset()
 
 
 async def reset_database(conn: AsyncConnection) -> None:
