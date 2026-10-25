@@ -42,7 +42,7 @@ README.)
 - **Nothing is published to the internet by Docker.** The containers only listen on `127.0.0.1`;
   all outside traffic goes through the host nginx.
 - **Pin the version.** The examples use the `:latest` tags for simplicity. In production, pin
-  `ghcr.io/tonyp7/ifrit` to a release such as `:2.1.0`, and do the same for pgAdmin.
+  `ghcr.io/tonyp7/ifrit` to a release such as `:2.2.0`, and do the same for pgAdmin.
 - **One stack per host.** Both examples set the Compose project name to `ifrit`, so they, and the
   root `docker-compose.yml` when run from a folder named `ifrit`, share the same volumes. Run only
   one of them on a given machine, or change `name:` in the file.
