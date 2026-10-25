@@ -12,6 +12,8 @@ The period selector works as on the [timesheet](timesheet.md): Week or Month, wi
 Below it are the filters, the **Only see my projects** switch and the **Export** button, then
 the grid.
 
+[![Reporting for September 2026: the period selector, the filters, the Only see my projects switch, the Export button and the grid](../static/img/timesheet/reporting-overview.png){ .media }](../static/img/timesheet/reporting-overview.png)
+
 Each row is one consultant on one service line, labelled with project, service line and consultant
 name. Rows are ordered by consultant name, then project, then service line.
 
@@ -28,6 +30,16 @@ Four filters narrow the grid:
 
 Filters combine (a row must match all of them), an unchecked filter means "no restriction", and
 your selections stay when you change period.
+
+[![The Projects filter: a searchable list of checkboxes](../static/img/timesheet/reporting-filter-projects.png){ .media }](../static/img/timesheet/reporting-filter-projects.png)
+
+[![The Project Status filter](../static/img/timesheet/reporting-filter-status.png){ .media }](../static/img/timesheet/reporting-filter-status.png)
+
+<video class="media" controls muted loop playsinline preload="metadata" width="100%">
+  <source src="../../static/img/timesheet/reporting-filters.mp4" type="video/mp4">
+</video>
+
+*Picking a month, then narrowing the grid with the filters.*
 
 ## Only see my projects
 
@@ -68,6 +80,14 @@ Things to know:
 - The lock button always refers to the period in view: a locked week shows the closed lock ("click
   to lock") again after you switch to the month, because the rest of the month is not locked.
 
+[![A locked row: hatched cells and an open lock](../static/img/timesheet/reporting-locked.png){ .media }](../static/img/timesheet/reporting-locked.png)
+
+<video class="media" controls muted loop playsinline preload="metadata" width="100%">
+  <source src="../../static/img/timesheet/reporting-lock.mp4" type="video/mp4">
+</video>
+
+*Locking and unlocking a row.*
+
 ## Export
 
 **Export** offers three formats. The file reflects the current period, filters and **Only see my
@@ -82,3 +102,32 @@ projects** switch, and is built from the saved data, so finish any edit before e
 File names are built from the period and, when a single project or consultant is selected, their
 names: for example `august-2026_meridian-web-app_john-wayne.pdf`, or `2026-week-36.xlsx` with no
 filter.
+
+[![The Export menu with PDF, Excel and CSV](../static/img/timesheet/reporting-export-menu.png){ .media }](../static/img/timesheet/reporting-export-menu.png)
+
+[![The PDF report for September 2026 and the Armor Construction ERP Rollout project](../static/img/timesheet/reporting-pdf.png){ .media }](../static/img/timesheet/reporting-pdf.png)
+
+<video class="media" controls muted loop playsinline preload="metadata" width="100%">
+  <source src="../../static/img/timesheet/reporting-export.mp4" type="video/mp4">
+</video>
+
+*Exporting the filtered period as a PDF.*
+
+## On a phone
+
+Below tablet width the grid becomes a strip of day chips, as on the [timesheet](timesheet.md):
+select a day to see each consultant's service line for it. The period selector, filters, the
+**Only see my projects** switch and **Export** sit above the strip, and the lock button on a row
+locks the period in view.
+
+<p>
+  <a href="../../static/img/timesheet/reporting-phone-overview.png"><img class="media" alt="Reporting on a phone" src="../../static/img/timesheet/reporting-phone-overview.png" width="32%"></a>
+  <a href="../../static/img/timesheet/reporting-phone-filter.png"><img class="media" alt="Filtering to one project on a phone" src="../../static/img/timesheet/reporting-phone-filter.png" width="32%"></a>
+  <a href="../../static/img/timesheet/reporting-phone-locked.png"><img class="media" alt="A locked row on a phone" src="../../static/img/timesheet/reporting-phone-locked.png" width="32%"></a>
+</p>
+
+<video class="media" controls muted loop playsinline preload="metadata" width="280">
+  <source src="../../static/img/timesheet/reporting-phone.mp4" type="video/mp4">
+</video>
+
+*Filtering, locking and exporting on a phone.*
