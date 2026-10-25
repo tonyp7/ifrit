@@ -1,0 +1,7 @@
+/* Screenshots and videos in the guide: a thin border keeps them apart from the page background,
+   which is nearly the same off-white as the app's own. Opt-in by class so the logo and the
+   theme's icons are untouched. */
+.rst-content img.media,
+.rst-content video.media {
+  border: 1px solid #c9ccd1;
+}

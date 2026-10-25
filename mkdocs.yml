@@ -18,6 +18,10 @@ exclude_docs: |
   pyproject.toml
   uv.lock
 
+# Border for the screenshots and videos in the guide (opt-in through the "media" class).
+extra_css:
+  - static/css/extra.css
+
 # Both ship with Python-Markdown (the library MkDocs is built on); no extra package is needed.
 # admonition: the "!!! note" call-outs. attr_list: sizing the logo image on the home page.
 markdown_extensions:

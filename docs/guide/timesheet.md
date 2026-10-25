@@ -3,9 +3,9 @@
 The timesheet is the first screen after you sign in, and every user has one. It shows your own
 hours, one row per service line and one column per day.
 
-![The timesheet in month view on a desktop](../static/img/timesheet/desktop-month.png)
+[![The timesheet in month view on a desktop](../static/img/timesheet/desktop-month.png){ .media }](../static/img/timesheet/desktop-month.png)
 
-<video controls muted loop playsinline preload="metadata" width="100%">
+<video class="media" controls muted loop playsinline preload="metadata" width="100%">
   <source src="../../static/img/timesheet/desktop-enter-hours.mp4" type="video/mp4">
 </video>
 
@@ -17,9 +17,9 @@ Use the **Week / Month** switch and the previous and next arrows to move around.
 Monday. A phone opens on the week view and a larger screen on the month view. Dates and "today"
 follow your browser's time zone.
 
-![The timesheet in week view](../static/img/timesheet/desktop-week.png)
+[![The timesheet in week view](../static/img/timesheet/desktop-week.png){ .media }](../static/img/timesheet/desktop-week.png)
 
-<video controls muted loop playsinline preload="metadata" width="100%">
+<video class="media" controls muted loop playsinline preload="metadata" width="100%">
   <source src="../../static/img/timesheet/desktop-periods.mp4" type="video/mp4">
 </video>
 
@@ -42,7 +42,7 @@ Choose **Add service line** and pick one from the list. Only service lines that 
 on projects that are **Active**, are offered. If a line you expect is missing, ask a manager to
 assign you to it, or to set its project to Active.
 
-![The list of service lines you can add](../static/img/timesheet/desktop-add-service-line.png)
+[![The list of service lines you can add](../static/img/timesheet/desktop-add-service-line.png){ .media }](../static/img/timesheet/desktop-add-service-line.png)
 
 ### Remove a service line
 
@@ -50,9 +50,9 @@ Use the remove control on a row. A row with no hours in the period simply disapp
 hours asks for confirmation and then clears the hours it holds in that period. If any day of the
 period is locked, the row cannot be removed.
 
-![The confirmation shown when removing a row that holds hours](../static/img/timesheet/desktop-remove-service-line.png)
+[![The confirmation shown when removing a row that holds hours](../static/img/timesheet/desktop-remove-service-line.png){ .media }](../static/img/timesheet/desktop-remove-service-line.png)
 
-<video controls muted loop playsinline preload="metadata" width="100%">
+<video class="media" controls muted loop playsinline preload="metadata" width="100%">
   <source src="../../static/img/timesheet/desktop-remove-service-line.mp4" type="video/mp4">
 </video>
 
@@ -77,9 +77,9 @@ or not on a half hour is corrected automatically to a valid value when you leave
 
 A locked cell takes precedence over an unassigned one.
 
-![A locked row (hatched) and an unassigned row (greyed out) next to open cells](../static/img/timesheet/desktop-cell-states.png)
+[![A locked row (hatched) and an unassigned row (greyed out) next to open cells](../static/img/timesheet/desktop-cell-states.png){ .media }](../static/img/timesheet/desktop-cell-states.png)
 
-<video controls muted loop playsinline preload="metadata" width="100%">
+<video class="media" controls muted loop playsinline preload="metadata" width="100%">
   <source src="../../static/img/timesheet/desktop-locked-and-unassigned.mp4" type="video/mp4">
 </video>
 
@@ -94,12 +94,12 @@ Below tablet width, the grid becomes a strip of day chips. Select a day to see i
 and enter hours for it. Both layouts read and write the same data.
 
 <p>
-  <img alt="The timesheet on a phone: a strip of day chips and the lines of the selected day" src="../../static/img/timesheet/phone-week.png" width="32%">
-  <img alt="A locked day on a phone" src="../../static/img/timesheet/phone-locked.png" width="32%">
-  <img alt="Adding a service line on a phone" src="../../static/img/timesheet/phone-add-service-line.png" width="32%">
+  <a href="../../static/img/timesheet/phone-week.png"><img class="media" alt="The timesheet on a phone: a strip of day chips and the lines of the selected day" src="../../static/img/timesheet/phone-week.png" width="32%"></a>
+  <a href="../../static/img/timesheet/phone-locked.png"><img class="media" alt="A locked day on a phone" src="../../static/img/timesheet/phone-locked.png" width="32%"></a>
+  <a href="../../static/img/timesheet/phone-add-service-line.png"><img class="media" alt="Adding a service line on a phone" src="../../static/img/timesheet/phone-add-service-line.png" width="32%"></a>
 </p>
 
-<video controls muted loop playsinline preload="metadata" width="280">
+<video class="media" controls muted loop playsinline preload="metadata" width="280">
   <source src="../../static/img/timesheet/phone-enter-hours.mp4" type="video/mp4">
 </video>
 
