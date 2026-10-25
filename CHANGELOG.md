@@ -4,6 +4,41 @@ All notable changes to Ifrit Timesheet Tracker are documented here. The format f
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org).
 
+## [2.2.0] - 25 Oct 2026
+
+### Upgrading
+
+Back up the database and the storage volume first, as with any upgrade. This release has **no
+database migration and no new setting**. Two changes you may notice:
+
+- **The image is bigger.** It now includes the Noto CJK fonts, so that Chinese, Japanese and Korean
+  text prints in PDFs: about 1.24 GB instead of about 1.07 GB. Leave room for it when you pull the
+  image. If you build your own image, add the `fonts-noto-cjk` package to keep that text printing.
+- **The sign-in limit is now 10 attempts per minute per address, up from 5.** A refused sign-in says
+  "Too many login attempts. Try again in a minute." and carries a `Retry-After` header, where it used
+  to show "Request failed with status 429". If you script against the sign-in endpoint, the body of
+  that refusal is now `{"detail": ...}` instead of `{"error": ...}`.
+
+### Added
+- Clicking anywhere on a row opens it in the **Invoices**, **Projects**, **Users** and **Companies**
+  lists. Each row holds a real link, so it can be reached with the keyboard, read by a screen reader and
+  opened in a new tab. The rows of the tables inside a project or a company (service lines, party
+  identifiers, addresses, payee accounts, project references and billing milestones) open their dialog
+  the same way, from a real button.
+
+### Changed
+- On the invoices list the row menu says **Edit** on a draft and **View** on an issued or void invoice,
+  where it said "Open". The menus of the six tables inside a project or a company put a separator before
+  **Delete**, as the main lists do.
+- The sign-in limit is 10 attempts per minute per address instead of 5, and a refused sign-in explains
+  itself on the login page.
+- Dependency updates, including pypdf 6.21.2.
+
+### Fixed
+- Chinese, Japanese and Korean text now prints in the PDF export of the **Reporting** screen and on
+  invoice PDFs, where project, service line and consultant names in those scripts showed as empty
+  boxes. Characters that Chinese and Japanese share are drawn in the Japanese form.
+
 ## [2.1.0] - 22 Oct 2026
 
 ### Upgrading

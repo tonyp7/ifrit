@@ -16,7 +16,7 @@ name: ifrit-local
 services:
   app:
     # `latest` is the current state of main, which is fine for a trial. Pin a release such as
-    # ghcr.io/tonyp7/ifrit:2.1.0 for anything you intend to keep.
+    # ghcr.io/tonyp7/ifrit:2.2.0 for anything you intend to keep.
     image: ghcr.io/tonyp7/ifrit:latest
     restart: unless-stopped
     ports:
