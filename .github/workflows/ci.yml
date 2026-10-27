@@ -1,6 +1,9 @@
 # Runs the test suites, linters and the production build on every pull request (Dependabot's
-# included) and on pushes to main. Read-only and secret-free on purpose: it uses `pull_request`,
-# never `pull_request_target`, so code from a PR never runs with elevated rights.
+# included) and on pushes to main. Secret-free on purpose, and no job that runs a pull request's
+# code has a write token: it uses `pull_request`, never `pull_request_target`, so code from a PR
+# never runs with elevated rights. The one job that can write, `coverage-main`, runs only on
+# pushes to main, so only on code that was already merged. The coverage comment on a pull request
+# is posted by a separate workflow, coverage-comment.yml, which never checks out code.
 #
 # The backend job fails on code `ruff format` would change (fix: `uv run ruff format .` in
 # backend/), and the frontend job on code Prettier would change (fix: `pnpm format` in frontend/).
@@ -76,8 +79,79 @@ jobs:
       - run: uv run ruff check .
       - run: uv run pyrefly check
       # One worker per vCPU; each builds its schema once and empties it after every test. The
-      # slowest tests are listed at the end of the log.
-      - run: uv run pytest -q -n auto --durations=15
+      # slowest tests are listed at the end of the log. `--cov` measures the `app` package
+      # (settings in pyproject.toml) and the workers' data is combined into backend/.coverage.
+      - run: uv run pytest -q -n auto --durations=15 --cov --cov-report=term:skip-covered
+      # The coverage jobs below read this file. It is hidden, which the upload action skips
+      # unless told otherwise, and a missing file must fail the run, not pass it without coverage.
+      - uses: actions/upload-artifact@v7
+        with:
+          name: coverage-data
+          path: backend/.coverage
+          include-hidden-files: true
+          if-no-files-found: error
+          retention-days: 7
+
+  # Turns the backend job's coverage data into a comment for the pull request and a job summary.
+  # It holds only the top-level read token, so it cannot write to the repository or to the pull
+  # request: it writes the comment text to an artifact, and coverage-comment.yml (a separate
+  # workflow that never checks out code) posts it. That is also what makes it work for Dependabot
+  # and fork pull requests, whose tokens are read-only.
+  coverage-pr:
+    if: github.event_name == 'pull_request'
+    needs: backend
+    runs-on: ubuntu-latest
+    steps:
+      # The action reads the sources to count statements and to see which lines the PR changed.
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: coverage-data
+          path: backend
+      # Pinned by commit SHA rather than a tag: it is the one third-party action here that is
+      # given a write token (in coverage-main and coverage-comment.yml).
+      - id: coverage_comment
+        uses: py-cov-action/python-coverage-comment-action@e5fb2218463c3377f3504b0c5b5646ed53da7a2f # v4.5
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          # The tests run in backend/, so that is the folder the paths in .coverage are relative to.
+          COVERAGE_PATH: backend
+          # Badge colours only; nothing fails on a low figure.
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 75
+      - uses: actions/upload-artifact@v7
+        if: steps.coverage_comment.outputs.COMMENT_FILE_WRITTEN == 'true'
+        with:
+          name: python-coverage-comment-action
+          path: python-coverage-comment-action.txt
+
+  # Saves the coverage data, badge and HTML report of main on the branch
+  # python-coverage-comment-action-data, which the action creates on its first run and which the
+  # README badge and later pull request comparisons read. It is the only job with a write token
+  # and runs only on pushes to main, so never on a pull request's code.
+  coverage-main:
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: backend
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v8
+        with:
+          name: coverage-data
+          path: backend
+      - uses: py-cov-action/python-coverage-comment-action@e5fb2218463c3377f3504b0c5b5646ed53da7a2f # v4.5
+        with:
+          GITHUB_TOKEN: ${{ github.token }}
+          COVERAGE_PATH: backend
+          ACTIVITY: save_coverage_data_files
+          MINIMUM_GREEN: 90
+          MINIMUM_ORANGE: 75
 
   frontend:
     runs-on: ubuntu-latest

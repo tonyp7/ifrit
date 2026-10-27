@@ -1,0 +1,42 @@
+# Posts (and later updates) the coverage comment on a pull request, from the text that the
+# `coverage-pr` job of ci.yml wrote to an artifact.
+#
+# It is a separate workflow because the CI jobs that run a pull request's code get a read-only
+# token, and always do for Dependabot and fork pull requests. A `workflow_run` workflow runs from
+# the default branch with its own token, so it can write the comment. That trigger is dangerous
+# when the workflow checks out or runs code from the pull request, so this one never does: it has
+# no checkout step and no `run:` step, and the only thing it takes from the pull request's run is
+# an artifact holding the text of the comment, which the action posts.
+#
+# Like every `workflow_run` workflow it only runs once it is on the default branch, so it does
+# nothing on the pull request that adds it.
+name: Coverage comment
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+
+# `github.ref` is always the default branch here, so group by the pull request's branch instead:
+# runs for different pull requests must not cancel each other.
+concurrency:
+  group: coverage-comment-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  comment:
+    if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write # post the comment, and edit it on later pushes
+      actions: read # download the comment artifact from the CI run that triggered this one
+      contents: read
+    steps:
+      # DO NOT add a checkout step here: see the header.
+      # Pinned by commit SHA, as in ci.yml, because it is given a write token.
+      - uses: py-cov-action/python-coverage-comment-action@e5fb2218463c3377f3504b0c5b5646ed53da7a2f # v4.5
+        with:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_PR_RUN_ID: ${{ github.event.workflow_run.id }}

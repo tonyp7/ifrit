@@ -32,6 +32,7 @@ dev = [
     "pandas-stubs>=3.0.5.260914",
     "types-openpyxl>=3.1.5.20260827",
     "pytest-xdist>=3.8.0",
+    "pytest-cov>=7.1.0",
 ]
 
 [tool.ruff]
@@ -46,6 +47,17 @@ asyncio_mode = "auto"
 markers = [
     "libreoffice: renders a PDF with the real LibreOffice, and is skipped when it is not installed",
 ]
+
+# Off by default; `uv run pytest -n auto --cov` turns it on, and CI always does.
+[tool.coverage.run]
+source = ["app"]
+branch = true
+# The data file is read by other CI jobs, on other machines, so it must record paths relative to
+# this folder (`app/main.py`) rather than absolute ones that only exist where the tests ran.
+relative_files = true
+
+[tool.coverage.report]
+skip_covered = true
 
 [build-system]
 requires = ["hatchling"]

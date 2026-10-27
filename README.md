@@ -10,6 +10,7 @@
 
 <p align="center">
   <a href="https://github.com/tonyp7/ifrit/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/tonyp7/ifrit/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://htmlpreview.github.io/?https://github.com/tonyp7/ifrit/blob/python-coverage-comment-action-data/htmlcov/index.html"><img alt="Backend test coverage" src="https://img.shields.io/endpoint?url=https%3A%2F%2Fraw.githubusercontent.com%2Ftonyp7%2Fifrit%2Fpython-coverage-comment-action-data%2Fendpoint.json"></a>
   <a href="https://github.com/tonyp7/ifrit/releases/latest"><img alt="Latest release" src="https://img.shields.io/github/v/release/tonyp7/ifrit"></a>
   <a href="LICENSE"><img alt="License: Apache 2.0" src="https://img.shields.io/github/license/tonyp7/ifrit"></a>
   <a href="https://github.com/tonyp7/ifrit/pkgs/container/ifrit"><img alt="Container image" src="https://img.shields.io/badge/ghcr.io-tonyp7%2Fifrit-blue?logo=docker&logoColor=white"></a>
