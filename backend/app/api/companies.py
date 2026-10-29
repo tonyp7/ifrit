@@ -272,9 +272,8 @@ async def delete_address(
     await company_service.delete_address(db, address)
 
 
-_DUPLICATE_ACCOUNT_DETAIL = (
-    "An account with this identifier already exists for this company"
-)
+def _primary_exists_detail(currency_code: str) -> str:
+    return f"A primary account in {currency_code} already exists for this company"
 
 
 async def _check_payee_account(
@@ -284,20 +283,13 @@ async def _check_payee_account(
     exclude_account_id: uuid.UUID | None = None,
 ) -> None:
     """Refuse up front what the database would refuse anyway, so each refusal carries a
-    message naming its own reason rather than a raw constraint violation."""
+    message naming its own reason rather than a raw constraint violation. An account
+    identifier is deliberately not checked: one number can carry several currencies, and one
+    number and currency can be offered as a wire transfer and as a SEPA transfer."""
     if await currency_service.get_enabled_currency(db, payload.currency_code) is None:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="currency_code must reference an enabled currency",
-        )
-    if await company_service.get_payee_account_by_identifier(
-        db,
-        company_id,
-        payload.account_identifier,
-        exclude_account_id=exclude_account_id,
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=_DUPLICATE_ACCOUNT_DETAIL
         )
     if (
         payload.is_primary
@@ -307,8 +299,7 @@ async def _check_payee_account(
     ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail=f"A primary account in {payload.currency_code} already exists for this "
-            "company",
+            detail=_primary_exists_detail(payload.currency_code),
         )
 
 
@@ -328,10 +319,12 @@ async def add_payee_account(
     try:
         account = await company_service.add_payee_account(db, company, payload)
     except IntegrityError as err:
-        # Only reachable when a concurrent request wins the race past the checks above.
+        # Only reachable when a concurrent request wins the race past the checks above, and
+        # the one constraint such a race can trip is the primary account of a currency.
         await db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=_DUPLICATE_ACCOUNT_DETAIL
+            status_code=status.HTTP_409_CONFLICT,
+            detail=_primary_exists_detail(payload.currency_code),
         ) from err
     return company_service.to_payee_account_out(account)
 
@@ -359,7 +352,8 @@ async def update_payee_account(
     except IntegrityError as err:
         await db.rollback()
         raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT, detail=_DUPLICATE_ACCOUNT_DETAIL
+            status_code=status.HTTP_409_CONFLICT,
+            detail=_primary_exists_detail(payload.currency_code),
         ) from err
     return company_service.to_payee_account_out(account)
 

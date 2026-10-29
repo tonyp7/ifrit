@@ -1,8 +1,9 @@
 import importlib.util
 from pathlib import Path
-from typing import get_args
+from typing import Any, get_args
 
 from sqlalchemy import CheckConstraint, Table
+from sqlalchemy.exc import IntegrityError
 
 from app.models.company import (
     BANK_ADDRESS_CHECK,
@@ -826,17 +827,184 @@ async def test_payee_account_with_a_bank_address(client, db_session) -> None:
     }
 
 
-async def test_duplicate_payee_account_identifier_conflicts(client, db_session) -> None:
+async def _payee_accounts(client, url: str) -> list[dict[str, Any]]:
+    company = (await client.get(url.removesuffix("/payee-accounts"))).json()
+    return company["payee_accounts"]
+
+
+async def test_the_same_payee_account_can_be_added_twice(client, db_session) -> None:
+    # What tells two accounts apart (currency, payment means, BIC, bank address, name) is
+    # open ended, so the identifier alone is never refused as a duplicate.
     url = await _admin_with_company(client, db_session)
     assert (await client.post(url, json=_payee_payload())).status_code == 201
 
     response = await client.post(
         url, json=_payee_payload(account_identifier="be71 0961 2345 6769")
     )
+
+    assert response.status_code == 201
+    accounts = await _payee_accounts(client, url)
+    assert len(accounts) == 2
+    assert {a["account_identifier"] for a in accounts} == {_IBAN}
+
+
+async def test_the_same_account_identifier_in_two_currencies(
+    client, db_session
+) -> None:
+    url = await _admin_with_company(client, db_session)
+    await create_currency(db_session)  # USD
+
+    first = await client.post(url, json=_payee_payload())
+    second = await client.post(url, json=_payee_payload(currency_code="USD"))
+
+    assert (first.status_code, second.status_code) == (201, 201)
+    accounts = await _payee_accounts(client, url)
+    assert sorted(a["currency_code"] for a in accounts) == ["EUR", "USD"]
+
+
+async def test_the_same_account_and_currency_in_two_payment_means(
+    client, db_session
+) -> None:
+    url = await _admin_with_company(client, db_session)
+
+    wire = await client.post(
+        url, json=_payee_payload(payment_means_code="30", bic="REVOGB21")
+    )
+    sepa = await client.post(
+        url, json=_payee_payload(payment_means_code="58", bic="REVOLT21")
+    )
+
+    assert (wire.status_code, sepa.status_code) == (201, 201)
+    accounts = {a["payment_means_code"]: a for a in await _payee_accounts(client, url)}
+    assert accounts["30"]["bic"] == "REVOGB21"
+    assert accounts["58"]["bic"] == "REVOLT21"
+    assert {a["account_identifier"] for a in accounts.values()} == {_IBAN}
+
+
+async def test_a_payee_account_row_duplicated_unchanged_is_accepted(
+    client, db_session
+) -> None:
+    # The row menu's Duplicate opens the add dialog with every field filled in; saving it
+    # as it is must work, since that is how a sibling account is started.
+    url = await _admin_with_company(client, db_session)
+    original = _payee_payload(
+        account_name="Acme",
+        bic="GEBABEBB",
+        bank_name="BNP Paribas Fortis",
+        bank_address=_BANK_ADDRESS,
+    )
+    assert (await client.post(url, json=original)).status_code == 201
+
+    assert (await client.post(url, json=original)).status_code == 201
+    assert len(await _payee_accounts(client, url)) == 2
+
+
+async def test_payee_accounts_sharing_an_identifier_are_each_primary_of_a_currency(
+    client, db_session
+) -> None:
+    url = await _admin_with_company(client, db_session)
+    await create_currency(db_session)  # USD
+
+    eur = await client.post(url, json=_payee_payload(is_primary=True))
+    usd = await client.post(
+        url, json=_payee_payload(currency_code="USD", is_primary=True)
+    )
+
+    assert (eur.status_code, usd.status_code) == (201, 201)
+    accounts = await _payee_accounts(client, url)
+    assert [a["is_primary"] for a in accounts] == [True, True]
+
+
+async def test_a_second_primary_in_a_currency_conflicts_even_with_the_same_identifier(
+    client, db_session
+) -> None:
+    url = await _admin_with_company(client, db_session)
+    assert (
+        await client.post(url, json=_payee_payload(is_primary=True))
+    ).status_code == 201
+
+    response = await client.post(
+        url, json=_payee_payload(payment_means_code="30", is_primary=True)
+    )
+
     assert response.status_code == 409
     assert response.json()["detail"] == (
-        "An account with this identifier already exists for this company"
+        "A primary account in EUR already exists for this company"
     )
+    assert len(await _payee_accounts(client, url)) == 1
+
+
+async def test_a_payee_account_edited_to_match_another_is_accepted(
+    client, db_session
+) -> None:
+    url = await _admin_with_company(client, db_session)
+    await create_currency(db_session)  # USD
+    assert (await client.post(url, json=_payee_payload())).status_code == 201
+    usd = (await client.post(url, json=_payee_payload(currency_code="USD"))).json()
+
+    response = await client.patch(f"{url}/{usd['id']}", json=_payee_payload())
+
+    assert response.status_code == 200
+    assert len(await _payee_accounts(client, url)) == 2
+
+
+async def test_a_primary_race_on_add_is_reported_as_a_primary_conflict(
+    client, db_session, monkeypatch
+) -> None:
+    # Two concurrent requests can both pass the up-front check; the database's one primary
+    # per currency index then refuses the second, and the message must say so.
+    url = await _admin_with_company(client, db_session)
+
+    async def lose_the_race(*_args: object, **_kwargs: object) -> None:
+        raise IntegrityError("INSERT", {}, Exception("uq_payee_accounts_primary"))
+
+    monkeypatch.setattr("app.services.company_service.add_payee_account", lose_the_race)
+
+    response = await client.post(url, json=_payee_payload(is_primary=True))
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "A primary account in EUR already exists for this company"
+    )
+
+
+async def test_a_primary_race_on_update_is_reported_as_a_primary_conflict(
+    client, db_session, monkeypatch
+) -> None:
+    url = await _admin_with_company(client, db_session)
+    created = (await client.post(url, json=_payee_payload())).json()
+
+    async def lose_the_race(*_args: object, **_kwargs: object) -> None:
+        raise IntegrityError("UPDATE", {}, Exception("uq_payee_accounts_primary"))
+
+    monkeypatch.setattr(
+        "app.services.company_service.update_payee_account", lose_the_race
+    )
+
+    response = await client.patch(
+        f"{url}/{created['id']}", json=_payee_payload(is_primary=True)
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"] == (
+        "A primary account in EUR already exists for this company"
+    )
+
+
+async def test_duplicating_a_company_copies_accounts_that_share_an_identifier(
+    client, db_session
+) -> None:
+    url = await _admin_with_company(client, db_session)
+    await client.post(url, json=_payee_payload(payment_means_code="30"))
+    await client.post(url, json=_payee_payload(payment_means_code="58"))
+    company_url = url.removesuffix("/payee-accounts")
+
+    response = await client.post(f"{company_url}/duplicate")
+
+    assert response.status_code == 200
+    copied = response.json()["payee_accounts"]
+    assert sorted(a["payment_means_code"] for a in copied) == ["30", "58"]
+    assert {a["account_identifier"] for a in copied} == {_IBAN}
 
 
 async def test_second_primary_payee_account_in_a_currency_conflicts(

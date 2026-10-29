@@ -16,12 +16,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { orderPayeeAccounts, payeeFormFromAccount } from "@/lib/invoicePayee";
 import {
-  BLANK_PAYEE_ACCOUNT_VALUES,
-  formatAccountIdentifier,
-  schemeForPaymentMeans,
-} from "@/lib/payeeAccounts";
+  orderPayeeAccounts,
+  payeeAccountOptionLabel,
+  payeeFormFromAccount,
+} from "@/lib/invoicePayee";
+import { BLANK_PAYEE_ACCOUNT_VALUES, schemeForPaymentMeans } from "@/lib/payeeAccounts";
 import {
   ACCOUNT_SCHEME_LABELS,
   PAYMENT_MEANS_LABELS,
@@ -101,9 +101,12 @@ export function PayeeAccountFields({
             <SelectContent>
               {ordered.map((account) => (
                 <SelectItem key={account.id} value={account.id}>
-                  {formatAccountIdentifier(account.account_scheme, account.account_identifier)}{" "}
-                  ({account.currency_code}
-                  {account.is_primary ? `, ${t("primary")}` : ""})
+                  {payeeAccountOptionLabel(account, {
+                    means: t(PAYMENT_MEANS_LABELS[account.payment_means_code], {
+                      ns: "company",
+                    }),
+                    primary: t("primary"),
+                  })}
                 </SelectItem>
               ))}
             </SelectContent>

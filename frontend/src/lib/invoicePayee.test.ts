@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   orderPayeeAccounts,
+  payeeAccountOptionLabel,
   payeeFormFromAccount,
   preselectPayee,
   toInvoicePayee,
@@ -21,6 +22,14 @@ function account(id: string, currency: string, primary = false): ContextPayeeAcc
     bank_name: null,
     bank_address: null,
   };
+}
+
+// The same number and currency offered two ways, as a company paid through Revolut might.
+function wireAndSepa(): [ContextPayeeAccount, ContextPayeeAccount] {
+  return [
+    { ...account("1", "EUR"), payment_means_code: "30", bic: "REVOGB21" },
+    { ...account("2", "EUR"), payment_means_code: "58", bic: "REVOLT21" },
+  ];
 }
 
 describe("preselectPayee", () => {
@@ -96,6 +105,64 @@ describe("orderPayeeAccounts", () => {
       "EUR",
     );
     expect(ordered.map((a) => a.id)).toEqual(["2", "1", "3"]);
+  });
+});
+
+describe("accounts that share an identifier", () => {
+  const words = (account: ContextPayeeAccount) => ({
+    means: account.payment_means_code === "30" ? "Wire transfer" : "SEPA credit transfer",
+    primary: "primary",
+  });
+
+  it("are listed with their payment means, so they can be told apart", () => {
+    const [wire, sepa] = wireAndSepa();
+    const labels = [wire, sepa].map((a) => payeeAccountOptionLabel(a, words(a)));
+    expect(labels).toEqual([
+      "BE71 0961 2345 6769, Wire transfer (EUR)",
+      "BE71 0961 2345 6769, SEPA credit transfer (EUR)",
+    ]);
+    expect(new Set(labels).size).toBe(2);
+  });
+
+  it("show whether one is the primary of its currency", () => {
+    const [wire] = wireAndSepa();
+    expect(payeeAccountOptionLabel({ ...wire, is_primary: true }, words(wire))).toBe(
+      "BE71 0961 2345 6769, Wire transfer (EUR, primary)",
+    );
+  });
+
+  it("keep an identifier that is not an IBAN as it was typed", () => {
+    const other = {
+      ...account("3", "USD"),
+      account_scheme: "other" as const,
+      account_identifier: "026009593 1234567890",
+      payment_means_code: "42" as const,
+    };
+    expect(
+      payeeAccountOptionLabel(other, { means: "Bank transfer", primary: "primary" }),
+    ).toBe("026009593 1234567890, Bank transfer (USD)");
+  });
+
+  it("each copy their own payment means and BIC when picked", () => {
+    const [wire, sepa] = wireAndSepa();
+    const picked = [wire, sepa].map((a) => toInvoicePayee(payeeFormFromAccount(a)));
+    expect(picked.map((p) => [p.payment_means_code, p.bic])).toEqual([
+      ["30", "REVOGB21"],
+      ["58", "REVOLT21"],
+    ]);
+    expect(new Set(picked.map((p) => p.account_identifier))).toEqual(
+      new Set(["BE71096123456769"]),
+    );
+  });
+
+  it("are preselected by the lowest id when none is primary", () => {
+    const [wire, sepa] = wireAndSepa();
+    expect(preselectPayee([sepa, wire], "EUR")?.id).toBe("1");
+  });
+
+  it("are preselected by the primary flag when one is", () => {
+    const [wire, sepa] = wireAndSepa();
+    expect(preselectPayee([wire, { ...sepa, is_primary: true }], "EUR")?.id).toBe("2");
   });
 });
 

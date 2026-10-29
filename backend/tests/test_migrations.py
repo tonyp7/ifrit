@@ -480,3 +480,62 @@ def test_the_template_slot_holds_one_file(scratch_database) -> None:
     asyncio.run(_fetch(attach.format(id=ids[0])))
     with pytest.raises(asyncpg.UniqueViolationError):
         asyncio.run(_fetch(attach.format(id=ids[1])))
+
+
+# One company with three accounts that share an identifier: the same number in two payment
+# means in EUR, and in a second currency.
+_SHARED_IDENTIFIER_ACCOUNTS = """
+    WITH c AS (
+        INSERT INTO companies (id, legal_name, country_of_registration, is_vendor)
+        VALUES (gen_random_uuid(), 'C', 'BE', true) RETURNING id
+    )
+    INSERT INTO payee_accounts (id, company_id, payment_means_code, account_scheme,
+        account_identifier, currency_code, is_primary)
+    SELECT gen_random_uuid(), c.id, v.code, 'iban', 'BE71096123456769', v.currency, false
+    FROM c, (VALUES ('30', 'EUR'), ('58', 'EUR'), ('58', 'USD')) AS v(code, currency)
+    RETURNING id
+"""
+
+
+def _payee_account_indexes() -> set[str]:
+    rows = asyncio.run(
+        _fetch("SELECT indexname FROM pg_indexes WHERE tablename = 'payee_accounts'")
+    )
+    return {row["indexname"] for row in rows}
+
+
+def test_payee_accounts_may_share_an_identifier_after_the_upgrade(
+    scratch_database,
+) -> None:
+    command.upgrade(scratch_database, "head")
+
+    inserted = asyncio.run(_fetch(_SHARED_IDENTIFIER_ACCOUNTS))
+
+    assert len(inserted) == 3
+    indexes = _payee_account_indexes()
+    assert "uq_payee_accounts_identifier" not in indexes
+    # What picks an invoice's default account stays: one primary per currency.
+    assert "uq_payee_accounts_primary_per_currency" in indexes
+
+
+def test_downgrading_is_refused_while_accounts_share_an_identifier(
+    scratch_database,
+) -> None:
+    command.upgrade(scratch_database, "head")
+    asyncio.run(_fetch(_SHARED_IDENTIFIER_ACCOUNTS))
+
+    with pytest.raises(RuntimeError, match="more than one payee account"):
+        command.downgrade(scratch_database, "0003")
+
+    # Nothing was deleted or merged to make the old index fit.
+    remaining = asyncio.run(_fetch("SELECT id FROM payee_accounts"))
+    assert len(remaining) == 3
+    assert "uq_payee_accounts_identifier" not in _payee_account_indexes()
+
+
+def test_downgrading_restores_the_unique_identifier_index(scratch_database) -> None:
+    command.upgrade(scratch_database, "head")
+
+    command.downgrade(scratch_database, "0003")
+
+    assert "uq_payee_accounts_identifier" in _payee_account_indexes()

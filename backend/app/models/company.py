@@ -194,9 +194,10 @@ class PayeeAccount(Base):
         String(3), nullable=False
     )
     account_scheme: Mapped[AccountScheme] = mapped_column(String(10), nullable=False)
-    # Stored normalized (an IBAN compact and upper case) so the unique index below compares
-    # what the user meant, not how it was typed. 64 leaves room for national formats; an
-    # IBAN is at most 34.
+    # Stored normalized (an IBAN compact and upper case) so it reads the same wherever it is
+    # shown or copied, not as it was typed. 64 leaves room for national formats; an IBAN is
+    # at most 34. Not unique: one number can carry several currencies, and one number and
+    # currency can be offered as a wire transfer and as a SEPA transfer.
     account_identifier: Mapped[str] = mapped_column(String(64), nullable=False)
     account_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     currency_code: Mapped[str] = mapped_column(
@@ -236,12 +237,6 @@ class PayeeAccount(Base):
             name="ck_payee_accounts_sepa_iban",
         ),
         CheckConstraint(BANK_ADDRESS_CHECK, name="ck_payee_accounts_bank_address"),
-        Index(
-            "uq_payee_accounts_identifier",
-            "company_id",
-            "account_identifier",
-            unique=True,
-        ),
         # At most one primary account per currency: it is the one an invoice in that
         # currency would default to. The API checks first for a clear message; this is the
         # backstop for two concurrent requests.
