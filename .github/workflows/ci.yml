@@ -65,7 +65,10 @@ jobs:
       # pdftotext, to read where the text lands on the page; they skip without it too, which is
       # silent, so check the skipped count in the log when changing this line. fonts-noto-cjk is
       # the CJK fallback the report PDF tests look for; they skip without it too.
-      - run: sudo apt-get update && sudo apt-get install -y libmagic1 libreoffice-writer fonts-liberation fonts-noto-cjk poppler-utils
+      # Installed without recommends, as the Dockerfile does: the recommended packages (GUI
+      # libraries, language packs, help) were most of the install and nothing here uses them.
+      # libreoffice-java-common mirrors the image's package set.
+      - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libmagic1 libreoffice-writer libreoffice-java-common fonts-liberation fonts-noto-cjk poppler-utils
       - uses: astral-sh/setup-uv@v10.3.0
         with:
           # Without this uv uses whatever Python the runner image ships. Keep it in step with

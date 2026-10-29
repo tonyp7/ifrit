@@ -3,8 +3,10 @@ from datetime import UTC, datetime, timedelta
 
 import jwt
 import pytest
+from argon2 import Type
 from pydantic import ValidationError
 
+from app.auth import security
 from app.auth.security import (
     InvalidTokenError,
     create_access_token,
@@ -14,6 +16,7 @@ from app.auth.security import (
     verify_password,
 )
 from app.core.config import Settings, settings
+from tests.conftest import PRODUCTION_PASSWORD_HASHER
 
 
 def _claims(**overrides: object) -> dict[str, object]:
@@ -40,6 +43,25 @@ def test_password_hash_roundtrip() -> None:
     assert hashed != "correct-horse-battery-staple"
     assert verify_password("correct-horse-battery-staple", hashed)
     assert not verify_password("wrong-password", hashed)
+
+
+def test_production_password_hasher_keeps_its_strength() -> None:
+    # The suite swaps in a cheap hasher for speed (see conftest); this fails if the app's own
+    # parameters weaken, or if that swap ever leaks into the code that ships.
+    hasher = PRODUCTION_PASSWORD_HASHER
+    assert hasher is not security._password_hasher
+    assert hasher.type == Type.ID
+    assert hasher._parameters.time_cost == 3
+    assert hasher._parameters.memory_cost == 65536
+    assert hasher._parameters.parallelism == 4
+
+
+def test_hashes_verify_across_hasher_parameters() -> None:
+    # A hash records its own parameters, so users hashed in production stay valid under the
+    # cheap hasher and the other way round.
+    strong = PRODUCTION_PASSWORD_HASHER.hash("pw")
+    assert verify_password("pw", strong)
+    assert PRODUCTION_PASSWORD_HASHER.verify(hash_password("pw"), "pw")
 
 
 def test_access_token_roundtrip() -> None:

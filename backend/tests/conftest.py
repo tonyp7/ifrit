@@ -6,6 +6,7 @@ from pathlib import Path
 import asyncpg
 import pytest
 import pytest_asyncio
+from argon2 import PasswordHasher
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import text
 from sqlalchemy.engine import make_url
@@ -17,13 +18,19 @@ from sqlalchemy.ext.asyncio import (
     create_async_engine,
 )
 
+from app.auth import security
 from app.core.config import settings
 from app.core.db import Base, get_db
 from app.core.rate_limit import login_storage
 from app.main import app
 from app.models.file import FILE_TAGS_SEED_STATEMENT
 from app.pdf.odt import TemplateData
+from app.services import user_service
 from tests.pdf_helpers import fake_invoice_pdf
+
+# The app's own hasher, taken at import time, before the session fixture below swaps it.
+# A test that needs the real parameters uses this object, not `security._password_hasher`.
+PRODUCTION_PASSWORD_HASHER = security._password_hasher
 
 
 def _test_database_url() -> str:
@@ -70,6 +77,26 @@ async def _ensure_test_database_exists() -> None:
 
 # Small enough that size-limit tests stay cheap, large enough for any test image.
 TEST_MAX_UPLOAD_BYTES = 100_000
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _cheap_password_hashing() -> Iterator[None]:
+    """The suite creates and signs in users constantly, and the app's Argon2 parameters are
+    deliberately slow (about 20 ms a hash), which was over a quarter of the suite's run time.
+    Nothing a test asserts depends on that cost, and a hash records its own parameters, so
+    one made by either hasher verifies under the other. Only the tests' copy of the hasher
+    is replaced, and put back at the end of the session; the app's code is untouched."""
+    cheap = PasswordHasher(time_cost=1, memory_cost=8, parallelism=1)
+    with pytest.MonkeyPatch.context() as patch:
+        patch.setattr(security, "_password_hasher", cheap)
+        # Built at import time with the strong hasher: a login for an unknown account
+        # verifies against it, so without this each such test would still pay full price.
+        patch.setattr(
+            user_service,
+            "_DUMMY_HASH",
+            security.hash_password("timing-equalizer-not-a-credential"),
+        )
+        yield
 
 
 @pytest.fixture(autouse=True)
