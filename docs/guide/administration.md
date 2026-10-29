@@ -145,8 +145,13 @@ it only matters for the companies that send invoices.
 | **Bank name** and **Bank address** | Optional. If you start the address, line 1, city and country are required. |
 | **Primary for this currency** | At most one account per currency can be primary. To make another account primary, untick the current one first. |
 
-The same account number can't be entered twice on one company. Duplicating a company copies its
-payee accounts too.
+The same account number can be entered on more than one account of a company. That is how to
+record an account that is paid in several currencies, or one that is offered both as a wire
+transfer and as a SEPA credit transfer, each with its own BIC. Use **Duplicate** in a row's menu
+to start the second account from the first, then change what differs (a duplicate of a primary
+account is still marked primary, so untick that, or make it the primary instead). When you pick one of these
+accounts on an invoice, the list shows each account's payment means and currency so you can tell
+them apart. Duplicating a company copies its payee accounts too.
 
 ### Actions
 

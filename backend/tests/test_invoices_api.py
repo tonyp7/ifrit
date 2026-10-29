@@ -200,6 +200,45 @@ async def test_billing_context(client, db_session) -> None:
     assert body["milestones"] == []
 
 
+async def test_billing_context_lists_accounts_that_share_an_identifier(
+    client, db_session
+) -> None:
+    # One number offered as a wire transfer and as a SEPA transfer: both reach the invoice
+    # form, each with what tells it apart, so the dropdown can show the difference.
+    await login(client, db_session)
+    await ensure_currency(db_session, "EUR")
+    vendor = await create_company(db_session, is_vendor=True)
+    db_session.add_all(
+        [
+            PayeeAccount(
+                company_id=vendor.id,
+                payment_means_code=code,
+                account_scheme="iban",
+                account_identifier="BE71096123456769",
+                currency_code="EUR",
+                bic=bic,
+                is_primary=primary,
+            )
+            for code, bic, primary in (
+                ("30", "REVOGB21", True),
+                ("58", "REVOLT21", False),
+            )
+        ]
+    )
+    await db_session.commit()
+    project = await make_project(db_session, vendor=vendor)
+
+    body = (await client.get(f"{URL}/projects/{project.id}")).json()
+
+    accounts = {a["payment_means_code"]: a for a in body["payee_accounts"]}
+    assert sorted(accounts) == ["30", "58"]
+    assert accounts["30"]["id"] != accounts["58"]["id"]
+    assert {a["account_identifier"] for a in accounts.values()} == {"BE71096123456769"}
+    assert accounts["30"]["bic"] == "REVOGB21"
+    assert accounts["58"]["bic"] == "REVOLT21"
+    assert [a["is_primary"] for a in (accounts["30"], accounts["58"])] == [True, False]
+
+
 async def test_billing_context_lists_fixed_price_milestones_in_order(
     client, db_session
 ) -> None:

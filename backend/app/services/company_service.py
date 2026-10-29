@@ -320,22 +320,6 @@ async def get_conflicting_primary_payee_account(
     return (await db.execute(stmt)).scalar_one_or_none()
 
 
-async def get_payee_account_by_identifier(
-    db: AsyncSession,
-    company_id: uuid.UUID,
-    account_identifier: str,
-    exclude_account_id: uuid.UUID | None = None,
-) -> PayeeAccount | None:
-    """An account of this company already holding this (normalized) identifier, if any."""
-    stmt = select(PayeeAccount).where(
-        PayeeAccount.company_id == company_id,
-        PayeeAccount.account_identifier == account_identifier,
-    )
-    if exclude_account_id is not None:
-        stmt = stmt.where(PayeeAccount.id != exclude_account_id)
-    return (await db.execute(stmt)).scalar_one_or_none()
-
-
 async def add_payee_account(
     db: AsyncSession, company: Company, data: PayeeAccountWrite
 ) -> PayeeAccount:

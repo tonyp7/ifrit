@@ -1,5 +1,6 @@
 import {
   BLANK_PAYEE_ACCOUNT_VALUES,
+  formatAccountIdentifier,
   type PayeeAccountFormValues,
   toPayeeAccountFormValues,
   toPayeeAccountInput,
@@ -44,6 +45,24 @@ export function orderPayeeAccounts(
     ...accounts.filter((account) => account.currency_code === currency),
     ...accounts.filter((account) => account.currency_code !== currency),
   ];
+}
+
+/** How the dropdown lists one of the vendor's accounts: its identifier, its payment means,
+ * then its currency and whether it is primary. The payment means is what tells apart two
+ * accounts that share an identifier and a currency (a wire transfer and a SEPA transfer on
+ * one number). The words are passed in already translated. */
+export function payeeAccountOptionLabel(
+  account: ContextPayeeAccount,
+  words: { means: string; primary: string },
+): string {
+  const identifier = formatAccountIdentifier(
+    account.account_scheme,
+    account.account_identifier,
+  );
+  const currency = account.is_primary
+    ? `${account.currency_code}, ${words.primary}`
+    : account.currency_code;
+  return `${identifier}, ${words.means} (${currency})`;
 }
 
 /** The payee fields of the form, filled from one of the vendor's accounts. A copy: nothing
