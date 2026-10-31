@@ -31,9 +31,9 @@
 | app/services/report\_export\_service.py     |      335 |        3 |       84 |        6 |     98% |84-\>87, 102-\>100, 104, 126-\>123, 128, 728 |
 | app/services/time\_entry\_service.py        |      179 |        4 |       60 |        6 |     96% |240-\>243, 469, 508-\>521, 583, 624, 681 |
 | app/services/user\_service.py               |      104 |        1 |       20 |        1 |     98% |       107 |
-| **TOTAL**                                   | **5055** |  **152** | **1036** |   **82** | **96%** |           |
+| **TOTAL**                                   | **5088** |  **152** | **1036** |   **82** | **96%** |           |
 
-50 files skipped due to complete coverage.
+53 files skipped due to complete coverage.
 
 
 ## Setup coverage badge
