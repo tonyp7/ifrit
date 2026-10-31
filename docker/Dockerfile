@@ -54,7 +54,7 @@ FROM python:3.14-slim-trixie AS backend-build
 WORKDIR /app
 
 # Official, pinned uv distribution image — see https://docs.astral.sh/uv/guides/integration/docker/
-COPY --from=ghcr.io/astral-sh/uv:0.11.28 /uv /uvx /usr/local/bin/
+COPY --from=ghcr.io/astral-sh/uv:0.13.6 /uv /uvx /usr/local/bin/
 
 # Dependencies first, in their own layer (same rationale as the frontend stage
 # above) — `--no-install-project` skips installing the app package itself until
