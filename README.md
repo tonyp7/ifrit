@@ -24,14 +24,14 @@
 | app/schemas/user.py                         |       51 |        5 |       22 |        5 |     86% |50, 52, 83, 85, 87 |
 | app/services/app\_settings.py               |       52 |        1 |        8 |        1 |     97% |        54 |
 | app/services/company\_service.py            |      134 |        2 |       24 |        1 |     98% |     62-63 |
-| app/services/file\_storage\_service.py      |      289 |       13 |       44 |        6 |     94% |325, 331, 333-334, 511-513, 544-\>exit, 595-596, 597-\>562, 635-638 |
+| app/services/file\_storage\_service.py      |      289 |       17 |       44 |        4 |     92% |325, 331, 333-334, 511-513, 544-\>exit, 593-599, 635-638 |
 | app/services/invoice\_numbering\_service.py |       84 |        0 |       22 |        1 |     99% | 59-\>exit |
 | app/services/invoice\_service.py            |      469 |       13 |      144 |       15 |     95% |317, 452, 616, 730, 759, 786, 853, 919-\>927, 922, 1130, 1286, 1320-\>1322, 1336, 1353-1354, 1381-\>1383 |
 | app/services/project\_service.py            |      290 |        5 |       76 |        5 |     97% |279, 329, 359, 408, 433 |
-| app/services/report\_export\_service.py     |      335 |        3 |       84 |        6 |     98% |84-\>87, 102-\>100, 104, 126-\>123, 128, 728 |
+| app/services/report\_export\_service.py     |      388 |        4 |       98 |        7 |     98% |84-\>87, 102-\>100, 104, 126-\>123, 128, 862, 876 |
 | app/services/time\_entry\_service.py        |      179 |        4 |       60 |        6 |     96% |240-\>243, 469, 508-\>521, 583, 624, 681 |
 | app/services/user\_service.py               |      104 |        1 |       20 |        1 |     98% |       107 |
-| **TOTAL**                                   | **5088** |  **148** | **1036** |   **84** | **96%** |           |
+| **TOTAL**                                   | **5141** |  **153** | **1050** |   **83** | **96%** |           |
 
 53 files skipped due to complete coverage.
 
