@@ -8,6 +8,13 @@ from tests.factories import create_user
 URL = "/api/settings"
 GROUP_URL = "/api/settings/pdf-export"
 DEFAULTS = {"export_logo": True, "logo_height_mm": 20}
+BANNER_DEFAULTS = {
+    "show_on_login": False,
+    "show_site_wide": False,
+    "message": "",
+    "icon": "info",
+    "color": "neutral",
+}
 
 
 async def _login(client, db_session, role: str) -> None:
@@ -69,6 +76,7 @@ async def test_reading_returns_defaults_when_nothing_is_stored(
         "pdf-export": DEFAULTS,
         "general": {"standard_workday_seconds": 28800},
         "invoicing": {"document_name": "Invoice"},
+        "information-banner": BANNER_DEFAULTS,
     }
 
 
@@ -293,3 +301,103 @@ async def test_document_name_reset_restores_invoice(client, db_session) -> None:
     await client.patch(INVOICING_URL, json={"document_name": "Tax Invoice"})
     response = await client.delete(f"{INVOICING_URL}/document_name")
     assert response.json() == {"document_name": "Invoice"}
+
+
+# --- information banner ----------------------------------------------------------
+
+BANNER_URL = "/api/settings/information-banner"
+
+
+async def test_banner_defaults_on_a_fresh_installation(client, db_session) -> None:
+    await _login(client, db_session, "administrator")
+    assert (await client.get(BANNER_URL)).json() == BANNER_DEFAULTS
+
+
+async def test_banner_message_is_kept_while_both_switches_are_off(
+    client, db_session
+) -> None:
+    await _login(client, db_session, "administrator")
+    response = await client.patch(
+        BANNER_URL, json={"message": "Maintenance on Saturday"}
+    )
+    assert response.status_code == 200
+    assert response.json() == {**BANNER_DEFAULTS, "message": "Maintenance on Saturday"}
+    assert (await client.get(BANNER_URL)).json()["show_on_login"] is False
+
+
+async def test_banner_message_length_limit_is_200(client, db_session) -> None:
+    await _login(client, db_session, "administrator")
+    assert (
+        await client.patch(BANNER_URL, json={"message": "x" * 200})
+    ).status_code == 200
+    response = await client.patch(BANNER_URL, json={"message": "x" * 201})
+    assert response.status_code == 422
+    assert (await client.get(BANNER_URL)).json()["message"] == "x" * 200
+
+
+async def test_banner_message_keeps_line_breaks(client, db_session) -> None:
+    await _login(client, db_session, "administrator")
+    response = await client.patch(BANNER_URL, json={"message": "First\nSecond"})
+    assert response.json()["message"] == "First\nSecond"
+
+
+async def test_banner_message_is_trimmed(client, db_session) -> None:
+    await _login(client, db_session, "administrator")
+    response = await client.patch(BANNER_URL, json={"message": "  Notice \n"})
+    assert response.json()["message"] == "Notice"
+
+
+async def test_banner_message_of_only_whitespace_is_stored_empty(
+    client, db_session
+) -> None:
+    await _login(client, db_session, "administrator")
+    response = await client.patch(BANNER_URL, json={"message": "  \n \t "})
+    assert response.status_code == 200
+    assert response.json()["message"] == ""
+
+
+@pytest.mark.parametrize(
+    "patch",
+    [
+        {"icon": "star"},
+        {"color": "green"},
+        {"show_on_login": "true"},
+        {"show_site_wide": 1},
+        {"message": 5},
+        {"surprise": True},
+    ],
+)
+async def test_invalid_banner_values_are_422_and_write_nothing(
+    client, db_session, patch
+) -> None:
+    await _login(client, db_session, "administrator")
+    response = await client.patch(BANNER_URL, json=patch)
+    assert response.status_code == 422
+    assert await _rows(db_session) == {}
+
+
+async def test_one_invalid_banner_value_rejects_the_whole_update(
+    client, db_session
+) -> None:
+    await _login(client, db_session, "administrator")
+    response = await client.patch(
+        BANNER_URL, json={"show_on_login": True, "color": "green"}
+    )
+    assert response.status_code == 422
+    assert (await client.get(BANNER_URL)).json()["show_on_login"] is False
+
+
+async def test_banner_message_reset_restores_the_empty_message(
+    client, db_session
+) -> None:
+    await _login(client, db_session, "administrator")
+    await client.patch(BANNER_URL, json={"message": "Hello"})
+    response = await client.delete(f"{BANNER_URL}/message")
+    assert response.status_code == 200
+    assert response.json()["message"] == ""
+
+
+async def test_banner_group_is_administrator_only(client, db_session) -> None:
+    await _login(client, db_session, "manager")
+    assert (await client.get(BANNER_URL)).status_code == 403
+    assert (await client.patch(BANNER_URL, json={"message": "x"})).status_code == 403

@@ -33,11 +33,23 @@ describe("ConfigurationGeneralPage", () => {
     expect(pdfAt).toBeGreaterThan(logoAt);
   });
 
-  it("shows the Standard Workday Length card third", () => {
+  it("shows the Information Banner card second, right below the Organization Logo card", () => {
+    const html = render();
+
+    const logoAt = html.indexOf("Organization Logo");
+    const bannerAt = html.indexOf("Information Banner");
+    expect(bannerAt).toBeGreaterThan(logoAt);
+    expect(bannerAt).toBeLessThan(html.indexOf("PDF Report Export"));
+  });
+
+  it("shows the Standard Workday Length card fourth", () => {
     const html = render();
 
     expect(html.indexOf("Standard Workday Length")).toBeGreaterThan(
       html.indexOf("PDF Report Export"),
+    );
+    expect(html.indexOf("PDF Report Export")).toBeGreaterThan(
+      html.indexOf("Information Banner"),
     );
   });
 });

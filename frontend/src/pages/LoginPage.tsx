@@ -6,6 +6,7 @@ import { useNavigate } from "react-router";
 import { z } from "zod";
 
 import { ApiError } from "@/api/client";
+import { InformationBanner } from "@/components/InformationBanner";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -18,12 +19,14 @@ import { Field, FieldError, FieldGroup, FieldLabel } from "@/components/ui/field
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import { useAuth } from "@/hooks/useAuth";
+import { useInformationBanner } from "@/hooks/useInformationBanner";
 
 export function LoginPage() {
   const { login } = useAuth();
   const navigate = useNavigate();
   const { t } = useTranslation(["auth"]);
   const [formError, setFormError] = useState<string | null>(null);
+  const banner = useInformationBanner()?.login ?? null;
 
   // Built inside the component (not at module scope) so the validation messages can
   // go through t(), which isn't available at module scope.
@@ -57,7 +60,8 @@ export function LoginPage() {
   }
 
   return (
-    <div className="bg-background flex min-h-screen items-center justify-center p-4">
+    <div className="bg-background flex min-h-screen flex-col items-center justify-center gap-4 p-4">
+      {banner && <InformationBanner {...banner} className="max-w-sm" />}
       <Card className="w-full max-w-sm">
         <CardHeader>
           <CardTitle>{t("Sign in to Ifrit")}</CardTitle>
