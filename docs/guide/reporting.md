@@ -99,11 +99,26 @@ projects** switch, and is built from the saved data, so finish any edit before e
 | **Excel** | Two sheets: **Report** (the grid with totals, one column per day) and **Details** (one row per entry: project, service line, consultant, date, hours). |
 | **CSV** | The same one-row-per-entry data as the Details sheet, as UTF-8 comma-separated text. |
 
+Below the formats, **Export as…** chooses the unit: **Hours** (the default) or **Days**. Days
+divides every value by the [Standard Workday Length](administration.md#standard-workday-length) an
+administrator sets under Configuration → General (8 hours unless changed), so with an 8-hour day a 4-hour entry reads 0.5. The choice applies to
+whichever format you pick next, and is not remembered: the menu starts on Hours each time you open
+Reporting.
+
+| Format | In days |
+|---|---|
+| **PDF** | Values show up to three decimals without trailing zeros (1, 0.5, 0.625), the totals end with **d** instead of **h**, and a value too wide for its cell is printed in a smaller font. |
+| **Excel** | Exact values, displayed with up to three decimals. The value column of **Details** is headed **Days**. |
+| **CSV** | The value column is headed **Days** and holds the value rounded to five decimals. |
+
+Totals are worked out from the exact hours and converted last, so a total in the PDF can differ in
+its last digit from the sum of the rounded cells above it.
+
 File names are built from the period and, when a single project or consultant is selected, their
 names: for example `august-2026_meridian-web-app_john-wayne.pdf`, or `2026-week-36.xlsx` with no
 filter.
 
-[![The Export menu with PDF, Excel and CSV](../static/img/timesheet/reporting-export-menu.png){ .media }](../static/img/timesheet/reporting-export-menu.png)
+[![The Export menu with PDF, Excel, CSV and the Hours or Days choice](../static/img/timesheet/reporting-export-menu.png){ .media }](../static/img/timesheet/reporting-export-menu.png)
 
 [![The PDF report for September 2026 and the Armor Construction ERP Rollout project](../static/img/timesheet/reporting-pdf.png){ .media }](../static/img/timesheet/reporting-pdf.png)
 

@@ -157,9 +157,9 @@ def _capture_pdf_logo(monkeypatch) -> list[Any]:
     seen: list[Any] = []
     real = svc._build_pdf
 
-    def build(rows, days, label, logo=None):
+    def build(rows, days, label, logo=None, *rest):
         seen.append(logo)
-        return real(rows, days, label, logo)
+        return real(rows, days, label, logo, *rest)
 
     monkeypatch.setattr(svc, "_build_pdf", build)
     return seen
