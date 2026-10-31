@@ -1,3 +1,4 @@
+import { InformationBannerCard } from "@/components/configuration/InformationBannerCard";
 import { OrganizationLogoCard } from "@/components/configuration/OrganizationLogoCard";
 import { PdfExportCard } from "@/components/configuration/PdfExportCard";
 import { WorkdayLengthCard } from "@/components/configuration/WorkdayLengthCard";
@@ -8,6 +9,7 @@ export function ConfigurationGeneralPage() {
   return (
     <div className="flex flex-col gap-4 p-4">
       <OrganizationLogoCard />
+      <InformationBannerCard />
       <PdfExportCard />
       <WorkdayLengthCard />
     </div>

@@ -14,6 +14,34 @@ but everything recorded against it is kept. Deactivation cannot be undone from t
 Upload a JPEG, PNG or WebP image with **Browse**. Only one logo exists: uploading a new one replaces
 the current one, and a failed upload leaves the current one unchanged. The logo can also be removed.
 
+### Information banner
+
+The **Information Banner** card shows one short message to everyone, in one or both of two places:
+
+- **Display information banner on login page** puts it above the sign-in form.
+- **Display information banner site wide on page top** puts it across the top of every page once
+  someone is signed in. It scrolls away with the page and cannot be closed.
+
+Both places show the same message. Each switch is saved as soon as you change it. Turning a switch
+**on** also saves any message, icon or color you have typed but not yet saved, so what the
+**Preview** shows is what goes live, and that includes the other place when it is already on.
+Turning a switch **off** leaves your unsaved edits in the box.
+
+The message is plain text of up to 200 characters, and line breaks are kept. Links and formatting
+are not supported: anything you type, including web addresses, is shown as written. You can also
+choose an **Icon** (none, info or warning) and a **Color** (neutral, blue, yellow or red); a
+**Preview** shows what people will see.
+
+The message, icon and color are saved together with **Save changes**, or when you turn a switch
+on, and not before, so you can write and review a notice while both switches are off and switch it
+on when it is ready. Nothing is shown anywhere while a switch is off or the message is empty, and
+the text of a notice that is switched off is never sent to anyone's browser.
+
+The message is visible to everyone who can reach the application, including people who are not
+signed in, so do not put anything private in it. A banner is read when a page opens, so your own
+change shows in the strip as soon as you save it, while other people who already have the
+application open see it after they reload the page.
+
 ### PDF report export
 
 The **PDF Report Export** card controls the logo in exported PDF reports:

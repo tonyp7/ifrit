@@ -2,9 +2,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   getGeneralSettings,
+  getInformationBannerSettings,
   getInvoicingSettings,
   getPdfExportSettings,
   patchGeneralSettings,
+  patchInformationBannerSettings,
   patchInvoicingSettings,
   patchPdfExportSettings,
 } from "@/api/settings";
@@ -89,5 +91,24 @@ describe("general and invoicing settings API", () => {
     expect(url).toBe("/api/settings/invoicing");
     expect(init.method).toBe("PATCH");
     expect(JSON.parse(init.body)).toEqual({ document_name: "Tax Invoice" });
+  });
+});
+
+describe("information banner settings API", () => {
+  it("reads the group with GET", async () => {
+    await getInformationBannerSettings();
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/settings/information-banner");
+    expect(init.method).toBe("GET");
+  });
+
+  it("sends only the keys given with PATCH", async () => {
+    await patchInformationBannerSettings({ message: "Hello", color: "blue" });
+
+    const [url, init] = fetchMock.mock.calls[0];
+    expect(url).toBe("/api/settings/information-banner");
+    expect(init.method).toBe("PATCH");
+    expect(JSON.parse(init.body)).toEqual({ message: "Hello", color: "blue" });
   });
 });

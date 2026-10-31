@@ -24,3 +24,31 @@ export interface InvoicingSettings {
 }
 
 export const DOCUMENT_NAME_MAX_LENGTH = 60;
+
+export type BannerIcon = "none" | "info" | "warning";
+export type BannerColor = "neutral" | "blue" | "yellow" | "red";
+
+/** The `information-banner` settings group, exactly as the API returns it. */
+export interface InformationBannerSettings {
+  show_on_login: boolean;
+  show_site_wide: boolean;
+  /** Plain text, stored trimmed, 0 to 200 characters, line breaks allowed. */
+  message: string;
+  icon: BannerIcon;
+  color: BannerColor;
+}
+
+export const BANNER_MESSAGE_MAX_LENGTH = 200;
+
+/** One place a banner is shown, as the public read returns it. */
+export interface BannerPlacement {
+  message: string;
+  icon: BannerIcon;
+  color: BannerColor;
+}
+
+/** What `GET /api/information-banner` returns: null means show nothing there. */
+export interface PublicBanner {
+  login: BannerPlacement | null;
+  site_wide: BannerPlacement | null;
+}

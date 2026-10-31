@@ -1,6 +1,11 @@
 import { apiClient } from "@/api/client";
 import type { StoredFileInfo } from "@/types/file";
-import type { GeneralSettings, InvoicingSettings, PdfExportSettings } from "@/types/settings";
+import type {
+  GeneralSettings,
+  InformationBannerSettings,
+  InvoicingSettings,
+  PdfExportSettings,
+} from "@/types/settings";
 
 export const ORG_LOGO_PATH = "/settings/org-logo";
 
@@ -54,4 +59,15 @@ export function getInvoicingSettings() {
 /** Changes only the settings sent; the response is the whole updated group. */
 export function patchInvoicingSettings(patch: Partial<InvoicingSettings>) {
   return apiClient.patch<InvoicingSettings>(INVOICING_PATH, patch);
+}
+
+const INFORMATION_BANNER_PATH = "/settings/information-banner";
+
+export function getInformationBannerSettings() {
+  return apiClient.get<InformationBannerSettings>(INFORMATION_BANNER_PATH);
+}
+
+/** Changes only the settings sent; the response is the whole updated group. */
+export function patchInformationBannerSettings(patch: Partial<InformationBannerSettings>) {
+  return apiClient.patch<InformationBannerSettings>(INFORMATION_BANNER_PATH, patch);
 }
