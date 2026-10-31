@@ -4,6 +4,44 @@ All notable changes to Ifrit Timesheet Tracker are documented here. The format f
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org).
 
+## [2.3.0] - 31 Oct 2026
+
+### Upgrading
+
+Back up the database and the storage volume first, as with any upgrade. This release has **one
+database migration, `0004`, and no new setting**. The migration only removes a rule (a company can no
+longer be refused for using the same account number twice) and changes no data, so it is safe to apply
+on any installation. Two changes you may notice:
+
+- **A company's payee accounts can share an account number.** Saving a second account with a number
+  that is already on the company is no longer refused with "An account with this identifier already
+  exists for this company". If you need to go back to 2.2.0 after doing this, the downgrade of `0004`
+  refuses to run while one number is on two accounts; make the numbers different first, or restore the
+  backup you took before upgrading.
+- **There is a new Information Banner card** on **Configuration > General**. It is off until an
+  administrator turns it on, and nothing is shown to anyone until then.
+
+### Added
+- An **Information Banner** for notices such as planned maintenance. On **Configuration > General** an
+  administrator writes one short message (up to 200 characters, line breaks kept), picks an icon (none,
+  info or warning) and a color (neutral, blue, yellow or red), and shows it above the sign-in form, as a
+  strip across the top of every page once someone is signed in, or both, with a switch for each. A
+  preview shows what people will see. The message can be written and reviewed while the banner is off,
+  and **Save changes** saves it together with the icon and color. Turning a switch on also saves
+  anything not yet saved, so what the preview shows is what goes live. The strip scrolls away with the
+  page and cannot be closed. The message is plain text and visible to everyone who can reach Ifrit,
+  including people who are not signed in, so keep anything private out of it. The banner is read when a
+  page opens: the administrator sees a change at once, and people who already have Ifrit open see it
+  after they reload the page.
+
+### Changed
+- A company can have several payee accounts with the same account number. That is how to record one
+  number used in several currencies, or an account offered both as a Wire transfer and as a SEPA credit
+  transfer with a different BIC for each. The choice of payee account on an invoice now shows each
+  account's payment means next to its currency, so accounts that share a number can be told apart. A
+  company still has at most one primary account per currency.
+- Dependency updates, including @hookform/resolvers 6.
+
 ## [2.2.0] - 25 Oct 2026
 
 ### Upgrading
