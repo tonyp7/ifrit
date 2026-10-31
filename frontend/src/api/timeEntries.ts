@@ -80,8 +80,12 @@ export function getTimesheetReport(params: TimesheetReportParams) {
 
 export type TimesheetReportExportFormat = "pdf" | "xlsx" | "csv";
 
+export type TimesheetReportExportUnit = "hours" | "days";
+
 export interface TimesheetReportExportParams extends TimesheetReportParams {
   periodType: "week" | "month";
+  // What the file counts in; omitted means hours, as the server defaults to.
+  unit?: TimesheetReportExportUnit;
 }
 
 // Reporting screen's export, deliberately the exact same filter params as
@@ -93,6 +97,11 @@ export function exportTimesheetReport(
   format: TimesheetReportExportFormat,
   params: TimesheetReportExportParams,
 ) {
-  const query = reportQuery(params, { format, period_type: params.periodType });
+  const query = reportQuery(params, {
+    format,
+    period_type: params.periodType,
+    // Sent only for days, so an hours request is exactly what it always was.
+    ...(params.unit === "days" ? { unit: "days" } : {}),
+  });
   return apiClient.getBlob(`/time-entries/report/export?${query.toString()}`);
 }

@@ -46,4 +46,26 @@ describe("report API calls send the 'Only see my projects' switch", () => {
     expect(query.get("period_type")).toBe("month");
     expect(query.get("mine_only")).toBe("true");
   });
+
+  it("asks for days only when days are chosen, so an hours export is unchanged", () => {
+    void exportTimesheetReport("xlsx", { ...period, periodType: "month", mineOnly: false });
+    void exportTimesheetReport("xlsx", {
+      ...period,
+      periodType: "month",
+      mineOnly: false,
+      unit: "hours",
+    });
+    void exportTimesheetReport("xlsx", {
+      ...period,
+      periodType: "month",
+      mineOnly: false,
+      unit: "days",
+    });
+    const [plain, hours, days] = vi
+      .mocked(apiClient.getBlob)
+      .mock.calls.map(([url]) => new URL(url, "http://x").searchParams);
+    expect(plain.has("unit")).toBe(false);
+    expect(hours.has("unit")).toBe(false);
+    expect(days.get("unit")).toBe("days");
+  });
 });

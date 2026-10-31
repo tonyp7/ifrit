@@ -144,6 +144,7 @@ async def export_time_entries_report(
     consultant_ids: list[uuid.UUID] | None = Query(default=None),
     statuses: list[str] | None = Query(default=None),
     mine_only: bool = False,
+    unit: Literal["hours", "days"] = "hours",
     user: User = Depends(require_roles("manager")),  # noqa: B008
     db: AsyncSession = Depends(get_db),
 ) -> Response:
@@ -170,6 +171,7 @@ async def export_time_entries_report(
         consultant_ids=consultant_ids,
         statuses=statuses,
         mine_only=mine_only,
+        unit=unit,
     )
 
     return Response(

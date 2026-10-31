@@ -1,4 +1,4 @@
-import { Download, NotebookTabs, NotebookText, UsersRound } from "lucide-react";
+import { NotebookTabs, NotebookText, UsersRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -9,27 +9,16 @@ import {
   getReportFilters,
   getTimesheetReport,
   type TimesheetReportExportFormat,
+  type TimesheetReportExportUnit,
 } from "@/api/timeEntries";
-import {
-  FiletypeCsvIcon,
-  FiletypePdfIcon,
-  FiletypeXlsxIcon,
-} from "@/components/reporting/ExportFormatIcons";
+import { ExportMenu } from "@/components/reporting/ExportMenu";
 import { MineOnlySwitch } from "@/components/MineOnlySwitch";
 import { ProjectStatusFilterDropdown } from "@/components/reporting/ProjectStatusFilterDropdown";
 import { ReportFilterDropdown } from "@/components/reporting/ReportFilterDropdown";
 import { TimesheetDesktopGrid } from "@/components/timesheet/TimesheetDesktopGrid";
 import { TimesheetHeader } from "@/components/timesheet/TimesheetHeader";
 import { TimesheetMobileView } from "@/components/timesheet/TimesheetMobileView";
-import { Button } from "@/components/ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { Separator } from "@/components/ui/separator";
-import { Spinner } from "@/components/ui/spinner";
 import { useReportGrid } from "@/hooks/useReportGrid";
 import { downloadBlob } from "@/lib/download";
 import { pruneSelection } from "@/lib/reportFilters";
@@ -181,7 +170,10 @@ export function ReportingPage() {
   // Always re-queries fresh server-side with the exact same filters this
   // screen is currently showing, so the export can never diverge from the
   // on-screen view.
-  async function handleExport(format: TimesheetReportExportFormat) {
+  async function handleExport(
+    format: TimesheetReportExportFormat,
+    unit: TimesheetReportExportUnit,
+  ) {
     setExportingFormat(format);
     try {
       const { blob, filename } = await exportTimesheetReport(format, {
@@ -193,6 +185,7 @@ export function ReportingPage() {
         consultantIds,
         statuses,
         mineOnly,
+        unit,
       });
       downloadBlob(blob, filename ?? `timesheet-report.${format}`);
     } catch (err) {
@@ -253,37 +246,10 @@ export function ReportingPage() {
           <MineOnlySwitch checked={requestedMineOnly} onCheckedChange={setRequestedMineOnly} />
         </div>
 
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <Button
-              type="button"
-              variant="outline"
-              className="gap-2"
-              disabled={exportingFormat !== null}
-            >
-              {exportingFormat ? (
-                <Spinner className="h-4 w-4" />
-              ) : (
-                <Download className="h-4 w-4" aria-hidden="true" />
-              )}
-              {exportingFormat ? t("Exporting…") : t("Export")}
-            </Button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="end">
-            <DropdownMenuItem onClick={() => void handleExport("pdf")}>
-              <FiletypePdfIcon className="mr-2 h-4 w-4" />
-              {t("Export as PDF")}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => void handleExport("xlsx")}>
-              <FiletypeXlsxIcon className="mr-2 h-4 w-4" />
-              {t("Export as Excel")}
-            </DropdownMenuItem>
-            <DropdownMenuItem onClick={() => void handleExport("csv")}>
-              <FiletypeCsvIcon className="mr-2 h-4 w-4" />
-              {t("Export as CSV")}
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
+        <ExportMenu
+          exportingFormat={exportingFormat}
+          onExport={(format, unit) => void handleExport(format, unit)}
+        />
       </div>
 
       <Separator />

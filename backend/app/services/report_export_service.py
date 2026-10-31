@@ -9,7 +9,7 @@ import re
 import uuid
 from dataclasses import dataclass
 from datetime import date, timedelta
-from decimal import Decimal
+from decimal import ROUND_HALF_UP, Decimal
 
 import pandas as pd
 from fpdf import FPDF
@@ -27,7 +27,7 @@ from app.models.user import User
 from app.schemas.time_entry import TimesheetReportRowOut
 from app.services import app_settings, file_storage_service
 from app.services.time_entry_service import list_time_entries_report
-from app.settings_registry import PdfExportSettings
+from app.settings_registry import GeneralSettings, PdfExportSettings
 
 logger = logging.getLogger(__name__)
 
@@ -313,11 +313,76 @@ _WEEKEND_INDICES = {
 _CELL_PADDING_MM = 1.8  # top and bottom of every cell, for breathing room between rows
 
 
+@dataclass(frozen=True)
+class _ExportUnit:
+    """What an export counts in: hours as logged, or days of the Standard Workday Length."""
+
+    is_days: bool
+    # How many logged hours make one unit: 1 for hours, the workday length for days.
+    hours_per_unit: Decimal
+    suffix: str  # after the PDF's Total column values
+    header: str  # heads the Details sheet's and the CSV's value column
+
+
+_HOURS = _ExportUnit(False, Decimal(1), "h", "Hours")
+
+
+def _days_unit(workday_hours: Decimal) -> _ExportUnit:
+    return _ExportUnit(True, workday_hours, "d", "Days")
+
+
+# A day value is divided from exact hours and only rounded when it is displayed, so totals
+# never drift from the sum of rounded cells.
+_PDF_DAY_PLACES = Decimal("0.001")
+_CSV_DAY_PLACES = Decimal("0.00001")
+
+
+def _to_unit(hours: Decimal, unit: _ExportUnit) -> Decimal:
+    return hours / unit.hours_per_unit if unit.is_days else hours
+
+
+def _format_days(hours: Decimal, unit: _ExportUnit) -> str:
+    """A PDF cell in days: up to 3 decimals, none that are not needed (1, 0.5, 0.625)."""
+    if hours == 0:
+        return ""
+    rounded = _to_unit(hours, unit).quantize(_PDF_DAY_PLACES, rounding=ROUND_HALF_UP)
+    # normalize() may give exponential notation for a whole number (Decimal("10.000")
+    # becomes 1E+1), so ask for plain notation explicitly.
+    return format(rounded.normalize(), "f")
+
+
+def _format_pdf_value(hours: Decimal, unit: _ExportUnit) -> str:
+    return _format_days(hours, unit) if unit.is_days else _format_hours(hours)
+
+
+# A value drawn in a smaller font must still be legible. A hair of the cell is kept free on
+# top of fpdf2's own left and right cell margin, so text that only just fits never wraps.
+_MIN_FIT_FONT_PT = 4.5
+_FIT_MARGIN_MM = 0.2
+
+
+def _fit_font_size(
+    pdf: FPDF, text: str, *, bold: bool, size_pt: float, width_mm: float
+) -> float:
+    """The largest size up to `size_pt` at which `text` fits a cell `width_mm` wide, never below
+    the legible minimum. A cell keeps `c_margin` free at each side, which is what text may not
+    use; a value wider than that wraps onto a second line."""
+    # fpdf2 annotates the size as `int`, but it takes any number of points.
+    # pyrefly: ignore [bad-argument-type]
+    pdf.set_font("LiberationSans", style="B" if bold else "", size=size_pt)
+    text_width = pdf.get_string_width(text)
+    available = width_mm - 2 * pdf.c_margin - _FIT_MARGIN_MM
+    if text_width <= available:
+        return size_pt
+    return max(_MIN_FIT_FONT_PT, size_pt * available / text_width)
+
+
 def _build_pdf(
     rows: list[TimesheetReportRowOut],
     days: list[date],
     period_label: str,
     logo: _PreparedLogo | None = None,
+    unit: _ExportUnit = _HOURS,
 ) -> bytes:
     pdf = _ReportPdf(orientation="L", unit="mm", format="A4")
     pdf.set_margins(left=8, top=8, right=8)
@@ -412,6 +477,23 @@ def _build_pdf(
             fill_color=fill,
         )
 
+    def fitted_font(
+        text: str,
+        width_mm: float,
+        *,
+        bold: bool = False,
+        fill: tuple[int, int, int] = _COLOR_PAGE,
+    ) -> FontFace:
+        """A 7 pt value cell. Hours always keep that size (they have always fit); a value in
+        days can be longer, so its size shrinks to the cell's width instead of the layout
+        changing."""
+        size_pt = 7.0
+        if unit.is_days:
+            size_pt = _fit_font_size(
+                pdf, text, bold=bold, size_pt=size_pt, width_mm=width_mm
+            )
+        return font(size_pt, bold=bold, fill=fill)
+
     entries_by_row = _entries_by_row(rows)
 
     with pdf.table(
@@ -467,10 +549,8 @@ def _build_pdf(
                     fill = _COLOR_WEEKEND
                 else:
                     fill = _COLOR_PAGE
-                data_row.cell(
-                    _format_hours(hours) if hours is not None else "",
-                    style=font(7, fill=fill),
-                )
+                day_text = _format_pdf_value(hours, unit) if hours is not None else ""
+                data_row.cell(day_text, style=fitted_font(day_text, day_w, fill=fill))
                 if hours is not None:
                     period_total += hours
                     day_totals[day] += hours
@@ -479,19 +559,31 @@ def _build_pdf(
             # the live grid), the Total column always shows a value, "0h"
             # included: same `formatHours(x) || "0"` convention the live grid's
             # own total cells already use.
-            data_row.cell(
-                f"{_format_hours(period_total) or '0'}h", style=font(7, bold=True)
-            )
+            total_text = f"{_format_pdf_value(period_total, unit) or '0'}{unit.suffix}"
+            data_row.cell(total_text, style=fitted_font(total_text, total_w, bold=True))
 
         # Bottom Total row: per-day sums across every row shown, plus a grand
         # total: same as the live grid's own bottom row. Same light fill as the
         # header, on every column, weekend columns included.
-        total_style = font(7, bold=True, fill=_COLOR_SURFACE)
         total_row = table.row()
-        total_row.cell("Total", style=total_style, align="LEFT")
+        total_row.cell(
+            "Total", style=font(7, bold=True, fill=_COLOR_SURFACE), align="LEFT"
+        )
         for day in days:
-            total_row.cell(_format_hours(day_totals[day]) or "0", style=total_style)
-        total_row.cell(f"{_format_hours(grand_total) or '0'}h", style=total_style)
+            day_total_text = _format_pdf_value(day_totals[day], unit) or "0"
+            total_row.cell(
+                day_total_text,
+                style=fitted_font(
+                    day_total_text, day_w, bold=True, fill=_COLOR_SURFACE
+                ),
+            )
+        grand_total_text = f"{_format_pdf_value(grand_total, unit) or '0'}{unit.suffix}"
+        total_row.cell(
+            grand_total_text,
+            style=fitted_font(
+                grand_total_text, total_w, bold=True, fill=_COLOR_SURFACE
+            ),
+        )
 
     return bytes(pdf.output())
 
@@ -544,25 +636,47 @@ def _escape_formula_prefix(text: str) -> str:
 _DETAILS_COLUMNS = ["Project Name", "Service Line", "Consultant", "Date", "Hours"]
 
 
-def _build_details_dataframe(rows: list[TimesheetReportRowOut]) -> pd.DataFrame:
+def _details_columns(unit: _ExportUnit) -> list[str]:
+    return [*_DETAILS_COLUMNS[:-1], unit.header]
+
+
+def _build_details_dataframe(
+    rows: list[TimesheetReportRowOut],
+    unit: _ExportUnit = _HOURS,
+    *,
+    values_as_text: bool = False,
+) -> pd.DataFrame:
     """Flattens each row's `entries` sub-array: a row with no entries in the
-    requested period contributes nothing."""
+    requested period contributes nothing.
+
+    In days the value is the exact quotient (a spreadsheet keeps it unrounded); with
+    `values_as_text` it is instead rounded to the CSV's 5 places and kept as text, so
+    the CSV shows exactly those digits whatever float formatting pandas would pick."""
+
+    def value(hours: Decimal) -> float | str:
+        if not unit.is_days:
+            return float(hours)
+        days = _to_unit(hours, unit)
+        if values_as_text:
+            return format(days.quantize(_CSV_DAY_PLACES, rounding=ROUND_HALF_UP), "f")
+        return float(days)
+
     records = [
         {
             "Project Name": _escape_formula_prefix(row.project_name),
             "Service Line": _escape_formula_prefix(row.service_line_name or ""),
             "Consultant": _escape_formula_prefix(row.full_name),
             "Date": entry.date,
-            "Hours": float(entry.hours),
+            unit.header: value(entry.hours),
         }
         for row in rows
         for entry in row.entries
     ]
-    return pd.DataFrame.from_records(records, columns=_DETAILS_COLUMNS)
+    return pd.DataFrame.from_records(records, columns=_details_columns(unit))
 
 
-def _build_csv(rows: list[TimesheetReportRowOut]) -> bytes:
-    details_df = _build_details_dataframe(rows)
+def _build_csv(rows: list[TimesheetReportRowOut], unit: _ExportUnit = _HOURS) -> bytes:
+    details_df = _build_details_dataframe(rows, unit, values_as_text=True)
     # Plain UTF-8, no BOM: matches this app's other text responses rather than
     # special-casing this one download. No semicolon delimiter either: hours already
     # use `.` as the decimal separator, so there's no comma clash to work around.
@@ -582,7 +696,10 @@ def _fill(hex_color: str) -> PatternFill:
 
 
 def _build_report_dataframe(
-    rows: list[TimesheetReportRowOut], days: list[date], day_headers: list[str]
+    rows: list[TimesheetReportRowOut],
+    days: list[date],
+    day_headers: list[str],
+    unit: _ExportUnit = _HOURS,
 ) -> tuple[pd.DataFrame, list[str]]:
     """A natural Excel layout, separate Project/Service Line/Consultant columns,
     not the PDF's single merged 3-line label column, since Excel has no printed
@@ -608,12 +725,12 @@ def _build_report_dataframe(
             hours = entries.get(day)
             # Blank for a gap or an explicit zero entry, same as the PDF's
             # _format_hours convention, but still counted into the totals below.
-            record[header] = float(hours) if hours else float("nan")
+            record[header] = float(_to_unit(hours, unit)) if hours else float("nan")
             if hours is not None:
                 period_total += hours
                 day_totals[day] += hours
                 grand_total += hours
-        record["Total"] = float(period_total)
+        record["Total"] = float(_to_unit(period_total, unit))
         records.append(record)
 
     total_record: dict[str, object] = {
@@ -622,15 +739,19 @@ def _build_report_dataframe(
         "Consultant": "",
     }
     for day, header in zip(days, day_headers, strict=True):
-        total_record[header] = float(day_totals[day])
-    total_record["Total"] = float(grand_total)
+        total_record[header] = float(_to_unit(day_totals[day], unit))
+    total_record["Total"] = float(_to_unit(grand_total, unit))
     records.append(total_record)
 
     return pd.DataFrame.from_records(records, columns=columns), columns
 
 
 def _style_report_sheet(
-    ws: Worksheet, columns: list[str], num_data_rows: int, days: list[date]
+    ws: Worksheet,
+    columns: list[str],
+    num_data_rows: int,
+    days: list[date],
+    number_format: str = "0.0",
 ) -> None:
     header_row = 1
     total_row = num_data_rows + 2
@@ -653,10 +774,10 @@ def _style_report_sheet(
             )
 
     # One decimal place throughout the day/Total columns, data and Total rows:
-    # matches hours' 0.5-increment convention.
+    # matches hours' 0.5-increment convention. Days show up to three, from exact values.
     for excel_row in [*range(header_row + 1, total_row), total_row]:
         for col_index in range(day_column_start, len(columns) + 1):
-            ws.cell(row=excel_row, column=col_index).number_format = "0.0"
+            ws.cell(row=excel_row, column=col_index).number_format = number_format
 
 
 def _autofit_columns(ws: Worksheet) -> None:
@@ -668,24 +789,37 @@ def _autofit_columns(ws: Worksheet) -> None:
         ws.column_dimensions[get_column_letter(col_index)].width = length + 2
 
 
-def _build_xlsx(rows: list[TimesheetReportRowOut], days: list[date]) -> bytes:
+_XLSX_NUMBER_FORMAT_HOURS = "0.0"
+_XLSX_NUMBER_FORMAT_DAYS = "0.0##"
+
+
+def _build_xlsx(
+    rows: list[TimesheetReportRowOut],
+    days: list[date],
+    unit: _ExportUnit = _HOURS,
+) -> bytes:
     day_headers = [day.strftime("%a %d") for day in days]
-    report_df, report_columns = _build_report_dataframe(rows, days, day_headers)
-    details_df = _build_details_dataframe(rows)
+    report_df, report_columns = _build_report_dataframe(rows, days, day_headers, unit)
+    details_df = _build_details_dataframe(rows, unit)
+    number_format = (
+        _XLSX_NUMBER_FORMAT_DAYS if unit.is_days else _XLSX_NUMBER_FORMAT_HOURS
+    )
 
     buffer = io.BytesIO()
     with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
         report_df.to_excel(writer, sheet_name="Report", index=False)
         details_df.to_excel(writer, sheet_name="Details", index=False)
 
-        _style_report_sheet(writer.sheets["Report"], report_columns, len(rows), days)
+        _style_report_sheet(
+            writer.sheets["Report"], report_columns, len(rows), days, number_format
+        )
         _autofit_columns(writer.sheets["Report"])
 
-        hours_column = _DETAILS_COLUMNS.index("Hours") + 1
+        value_column = len(_DETAILS_COLUMNS)
         for excel_row in range(2, len(details_df) + 2):
             writer.sheets["Details"].cell(
-                row=excel_row, column=hours_column
-            ).number_format = "0.0"
+                row=excel_row, column=value_column
+            ).number_format = number_format
         _autofit_columns(writer.sheets["Details"])
 
     return buffer.getvalue()
@@ -731,6 +865,18 @@ async def _load_pdf_logo(db: AsyncSession) -> _PreparedLogo | None:
     return await _load_logo(db, settings.logo_height_mm)
 
 
+async def _load_unit(db: AsyncSession, unit: str) -> _ExportUnit:
+    """What the export counts in. Hours never touch the settings; days read the Standard
+    Workday Length as the system (any manager can export, administrator or not), where a
+    saved value that is no longer valid has already been replaced by its default."""
+    if unit != "days":
+        return _HOURS
+    settings = await app_settings.get_group(db, "general")
+    if not isinstance(settings, GeneralSettings):
+        raise TypeError("the general group is not registered as GeneralSettings")
+    return _days_unit(Decimal(settings.standard_workday_seconds) / Decimal(3600))
+
+
 async def build_report_export(
     db: AsyncSession,
     caller: User,
@@ -744,6 +890,7 @@ async def build_report_export(
     consultant_ids: list[uuid.UUID] | None,
     statuses: list[str] | None,
     mine_only: bool = False,
+    unit: str = "hours",
 ) -> tuple[bytes, str, str]:
     """Returns (file bytes, filename, content type). Always re-queries the
     database fresh via list_time_entries_report, never a client-supplied
@@ -760,6 +907,7 @@ async def build_report_export(
         statuses,
         mine_only,
     )
+    export_unit = await _load_unit(db, unit)
     day_count = (end_date - start_date).days
     days = [start_date + timedelta(days=i) for i in range(day_count + 1)]
 
@@ -769,9 +917,11 @@ async def build_report_export(
     )
 
     if export_format == "pdf":
-        file_bytes = _build_pdf(rows, days, period_label, await _load_pdf_logo(db))
+        file_bytes = _build_pdf(
+            rows, days, period_label, await _load_pdf_logo(db), export_unit
+        )
     elif export_format == "xlsx":
-        file_bytes = _build_xlsx(rows, days)
+        file_bytes = _build_xlsx(rows, days, export_unit)
     else:
-        file_bytes = _build_csv(rows)
+        file_bytes = _build_csv(rows, export_unit)
     return file_bytes, filename, SUPPORTED_FORMATS[export_format]
