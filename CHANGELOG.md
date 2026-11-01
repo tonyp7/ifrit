@@ -4,6 +4,27 @@ All notable changes to Ifrit Timesheet Tracker are documented here. The format f
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org).
 
+## [2.4.0] - 1 Nov 2026
+
+### Upgrading
+
+Back up the database and the storage volume first, as with any upgrade. This release has **no
+database migration and no new setting**, and nothing needs changing. The one thing you may notice is
+a new choice in the **Export** menu of **Reporting**: **Hours** (the default) or **Days**. Days use
+the **Standard Workday Length** saved in **Configuration > General** (8 hours unless you changed it).
+Exports in hours are exactly as before.
+
+### Added
+- **Reporting** exports can count in days. Below the three formats the **Export** menu now has an
+  "Export as…" choice of **Hours**, selected each time **Reporting** opens, or **Days**. With **Days**
+  the PDF, Excel and CSV files show every value in days, and totals are worked out from the exact hours
+  before they are converted, so they never add up rounded cells. In the PDF, values show at most three
+  decimals and none that are not needed (1, 0.5, 0.625), the Total column and the grand total end in
+  "d" instead of "h", and a value too wide for its cell is drawn in a smaller font so the table keeps
+  its layout. In Excel the cells hold the exact value, shown with up to three decimals, and the
+  **Details** sheet column is headed "Days". In the CSV the values have five decimals and the column is
+  headed "Days". The file name and the colors of the PDF cells do not change.
+
 ## [2.3.0] - 31 Oct 2026
 
 ### Upgrading
