@@ -69,7 +69,7 @@ jobs:
       # libraries, language packs, help) were most of the install and nothing here uses them.
       # libreoffice-java-common mirrors the image's package set.
       - run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libmagic1 libreoffice-writer libreoffice-java-common fonts-liberation fonts-noto-cjk poppler-utils
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           # Without this uv uses whatever Python the runner image ships. Keep it in step with
           # `requires-python` in backend/pyproject.toml and the FROM lines in docker/Dockerfile.
@@ -185,7 +185,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
-      - uses: astral-sh/setup-uv@v10.3.0
+      - uses: astral-sh/setup-uv@v10.3.3
         with:
           python-version: "3.14"
           enable-cache: true
