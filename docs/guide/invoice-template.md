@@ -126,9 +126,9 @@ Every placeholder a template can use. The examples are made-up values, only ther
 | `{{due_date}}` | The due date | text | 3 October 2026 |
 | `{{payment_terms}}` | The payment terms | text | NET 30 |
 | `{{payment_terms_code}}` | The payment terms as a code | text | net_30 |
-| `{{period_start}}` | Start of the billed period | text | 1 August 2026 |
-| `{{period_end}}` | End of the billed period | text | 31 August 2026 |
-| `{{period}}` | The billed period | text | 1-31 August 2026 |
+| `{{period_start}}` | Start of the billed period (empty when the invoice has none) | text | 1 August 2026 |
+| `{{period_end}}` | End of the billed period (empty when the invoice has none) | text | 31 August 2026 |
+| `{{period}}` | The billed period (empty when the invoice has none) | text | 1-31 August 2026 |
 | `{{status}}` | Draft or Issued | text | Issued |
 | `{{issued_at}}` | When the invoice was issued | text | 3 September 2026 14:05 |
 | `{{generated_at}}` | When this PDF was made | text | 3 September 2026 14:05 |

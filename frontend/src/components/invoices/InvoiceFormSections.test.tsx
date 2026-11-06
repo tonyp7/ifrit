@@ -28,6 +28,8 @@ import type {
   ContextCompany,
   ContextMilestone,
   InvoiceDetail,
+  InvoiceWarning,
+  OmittedServiceLine,
 } from "@/types/invoice";
 
 vi.mock("@/api/currencies", () => ({ listCurrencies: vi.fn(() => new Promise(() => {})) }));
@@ -374,6 +376,92 @@ describe("InvoiceWarnings", () => {
     expect(
       renderToStaticMarkup(<InvoiceWarnings minorUnit={2} omitted={[]} warnings={[]} />),
     ).toBe("");
+  });
+
+  describe("as the Information section of the form", () => {
+    const warnings: InvoiceWarning[] = [
+      { code: "payee_currency", service_lines: [], companies: [] },
+    ];
+    const idle: OmittedServiceLine[] = [
+      { service_line_id: "s", name: "Idle", uom: "hours", unit_price: "95" },
+    ];
+
+    it("leads with what Billed for will say, in the Information Banner's blue", () => {
+      const html = renderToStaticMarkup(
+        <InvoiceWarnings
+          title="Information"
+          billedFor="Custom Invoice Line"
+          minorUnit={2}
+          omitted={idle}
+          warnings={warnings}
+        />,
+      );
+      expect(html).toContain("Information</h3>");
+      expect(html).toContain(
+        "The invoice Billed For will be labelled as: Custom Invoice Line",
+      );
+      // The same classes the banner's blue variant carries, and an icon, not yellow.
+      const line = html.slice(0, html.indexOf("Custom Invoice Line"));
+      expect(line).toContain("bg-blue-50");
+      expect(line).toContain("lucide-info");
+      expect(line).not.toContain("bg-amber-50");
+    });
+
+    it("lists the Billed for line, then the left-out note, then the warnings", () => {
+      const html = renderToStaticMarkup(
+        <InvoiceWarnings
+          title="Information"
+          billedFor="1–30 Sep 2026"
+          minorUnit={2}
+          omitted={idle}
+          warnings={warnings}
+        />,
+      );
+      const billedFor = html.indexOf("will be labelled as");
+      const leftOut = html.indexOf("left out: Idle");
+      const warning = html.indexOf("Payee account currency");
+      expect(billedFor).toBeGreaterThan(-1);
+      expect(billedFor).toBeLessThan(leftOut);
+      expect(leftOut).toBeLessThan(warning);
+      // The warning keeps the yellow; the Billed for line is not one of the alerts.
+      expect(html.match(/bg-amber-50/g)).toHaveLength(1);
+    });
+
+    it("shows the Billed for line alone when there is nothing else to say", () => {
+      const html = renderToStaticMarkup(
+        <InvoiceWarnings
+          title="Information"
+          billedFor="Travel, Hotel"
+          minorUnit={2}
+          omitted={[]}
+          warnings={[]}
+        />,
+      );
+      expect(html).toContain("labelled as: Travel, Hotel");
+      expect(html).not.toContain("bg-amber-50");
+    });
+
+    it("keeps the Warnings heading and no Billed for line when none is given", () => {
+      const html = renderToStaticMarkup(
+        <InvoiceWarnings minorUnit={2} omitted={[]} warnings={warnings} />,
+      );
+      expect(html).toContain("Warnings</h3>");
+      expect(html).not.toContain("labelled as");
+    });
+
+    it("is absent with no label, no left-out note and no warning", () => {
+      expect(
+        renderToStaticMarkup(
+          <InvoiceWarnings
+            title="Information"
+            billedFor={null}
+            minorUnit={2}
+            omitted={[]}
+            warnings={[]}
+          />,
+        ),
+      ).toBe("");
+    });
   });
 });
 

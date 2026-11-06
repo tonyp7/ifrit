@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { appendGeneratedLines } from "@/components/invoices/invoiceForm";
+import {
+  appendGeneratedLines,
+  BLANK_INVOICE_FORM,
+  toInvoiceInput,
+} from "@/components/invoices/invoiceForm";
 import type { GeneratedLine } from "@/types/invoice";
 
 const existing = [
@@ -57,5 +61,27 @@ describe("appendGeneratedLines", () => {
     const result = appendGeneratedLines(existing, milestone, (line) => line.name ?? "");
     expect(result.at(-1)).toMatchObject({ description: "Downpayment", quantity: "1" });
     expect(result.slice(0, 2)).toEqual(existing);
+  });
+});
+
+describe("the invoice period", () => {
+  it("is empty on a new invoice", () => {
+    expect(BLANK_INVOICE_FORM.period_start).toBeNull();
+    expect(BLANK_INVOICE_FORM.period_end).toBeNull();
+  });
+
+  it("is sent as null for both dates when there is none", () => {
+    const body = toInvoiceInput(BLANK_INVOICE_FORM);
+    expect(body.period_start).toBeNull();
+    expect(body.period_end).toBeNull();
+  });
+
+  it("is sent as it is when there is one", () => {
+    const body = toInvoiceInput({
+      ...BLANK_INVOICE_FORM,
+      period_start: "2026-10-01",
+      period_end: "2026-10-31",
+    });
+    expect([body.period_start, body.period_end]).toEqual(["2026-10-01", "2026-10-31"]);
   });
 });

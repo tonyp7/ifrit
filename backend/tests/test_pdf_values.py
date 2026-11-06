@@ -351,7 +351,8 @@ def test_period_values() -> None:
     ).values
     assert values["period"] == "1-31 August 2026"
     assert values["period_start"] == "1 August 2026"
-    assert _data().values["period"] == ""
+    empty = _data().values
+    assert (empty["period"], empty["period_start"], empty["period_end"]) == ("", "", "")
 
 
 def test_line_rows_and_tax_labels() -> None:

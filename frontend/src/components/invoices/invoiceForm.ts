@@ -7,7 +7,6 @@ import {
   toInvoiceReferences,
   type InvoiceReferenceRow,
 } from "@/lib/invoiceReferences";
-import { PERIOD_PRESETS, type PeriodPreset } from "@/lib/invoicePeriods";
 import { milestoneDecimals, roundDecimal } from "@/lib/milestoneMath";
 import {
   BLANK_ADDRESS_FIELDS,
@@ -53,8 +52,8 @@ export interface InvoiceFormValues {
   project_id: string;
   bill_from: PartyFormValues;
   bill_to: PartyFormValues;
-  /** The preset the period was filled from; cleared once the range is edited by hand. */
-  period_preset: PeriodPreset | null;
+  /** The period the invoice is billed for. Empty until the user picks one or generates
+   * lines; the Generate panel keeps its own range, which is copied here on generating. */
   period_start: string | null;
   period_end: string | null;
   service_line_ids: string[];
@@ -78,7 +77,6 @@ export const BLANK_INVOICE_FORM: InvoiceFormValues = {
   project_id: "",
   bill_from: BLANK_PARTY,
   bill_to: BLANK_PARTY,
-  period_preset: null,
   period_start: null,
   period_end: null,
   service_line_ids: [],
@@ -143,7 +141,6 @@ export function invoiceSchema(t: Translate) {
       project_id: z.string().min(1, t("Choose a project")),
       bill_from: party,
       bill_to: party,
-      period_preset: z.enum(PERIOD_PRESETS as [PeriodPreset, ...PeriodPreset[]]).nullable(),
       period_start: z.string().nullable(),
       period_end: z.string().nullable(),
       service_line_ids: z.array(z.string()),
@@ -322,7 +319,6 @@ export function fromInvoiceDetail(detail: InvoiceDetail): InvoiceFormValues {
       address: addressToFields(detail.bill_from.address),
     },
     bill_to: { name: detail.bill_to.name, address: addressToFields(detail.bill_to.address) },
-    period_preset: null,
     period_start: detail.period_start,
     period_end: detail.period_end,
     service_line_ids: [],

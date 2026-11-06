@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { isValidPeriod, presetRange } from "@/lib/invoicePeriods";
+import {
+  billedForLabel,
+  formatPeriod,
+  generationPeriodFor,
+  isValidPeriod,
+  presetRange,
+} from "@/lib/invoicePeriods";
 import { toDayKey } from "@/lib/timesheetDates";
 
 // Wednesday 14 Oct 2026.
@@ -47,6 +53,67 @@ describe("isValidPeriod", () => {
     );
     expect(isValidPeriod({ start: new Date(2026, 8, 30), end: new Date(2026, 8, 1) })).toBe(
       false,
+    );
+  });
+});
+
+describe("generationPeriodFor", () => {
+  const today = new Date(2026, 9, 14);
+
+  it("opens on the Last month preset when the draft has no period", () => {
+    expect(generationPeriodFor({ start: null, end: null }, today)).toEqual({
+      preset: "last_month",
+      start: "2026-09-01",
+      end: "2026-09-30",
+    });
+  });
+
+  it("opens on the draft's own period, with no preset highlighted", () => {
+    expect(generationPeriodFor({ start: "2026-08-01", end: "2026-08-31" }, today)).toEqual({
+      preset: null,
+      start: "2026-08-01",
+      end: "2026-08-31",
+    });
+  });
+
+  it("ignores half a period", () => {
+    expect(generationPeriodFor({ start: "2026-08-01", end: null }, today).preset).toBe(
+      "last_month",
+    );
+  });
+});
+
+describe("billedForLabel", () => {
+  const none = { start: null, end: null };
+
+  it("is the period when the draft has one, whatever its lines say", () => {
+    expect(billedForLabel({ start: "2026-09-01", end: "2026-09-30" }, ["Custom line"])).toBe(
+      formatPeriod(new Date(2026, 8, 1), new Date(2026, 8, 30)),
+    );
+  });
+
+  it("is the line descriptions in order, joined, when there is no period", () => {
+    expect(billedForLabel(none, ["Downpayment", "End of SIT"])).toBe(
+      "Downpayment, End of SIT",
+    );
+  });
+
+  it("is the one line of an invoice built by hand", () => {
+    expect(billedForLabel(none, ["Custom Invoice Line"])).toBe("Custom Invoice Line");
+  });
+
+  it("skips blank descriptions and trims the others", () => {
+    expect(billedForLabel(none, ["  Travel ", "", "   ", "Hotel"])).toBe("Travel, Hotel");
+  });
+
+  it("is nothing with no period and no line, or only blank ones", () => {
+    expect(billedForLabel(none, [])).toBeNull();
+    expect(billedForLabel(none, ["", "  "])).toBeNull();
+  });
+
+  it("ignores half a period", () => {
+    expect(billedForLabel({ start: "2026-09-01", end: null }, ["Custom line"])).toBe(
+      "Custom line",
     );
   });
 });
