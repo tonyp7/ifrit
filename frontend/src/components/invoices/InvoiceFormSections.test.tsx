@@ -140,6 +140,19 @@ describe("PaymentTermsField", () => {
     expect(html).toContain(formatDueDate("2026-11-13"));
   });
 
+  it("estimates Net 45 as 45 days from today", () => {
+    const html = renderToStaticMarkup(
+      <PaymentTermsField
+        paymentTerms="net_45"
+        dueDate={null}
+        onChange={vi.fn()}
+        today={today}
+      />,
+    );
+    expect(html).toContain("Calculated when the invoice is issued. If issued today:");
+    expect(html).toContain(formatDueDate("2026-11-28"));
+  });
+
   it("labels a hand-picked date as fixed", () => {
     const html = renderToStaticMarkup(
       <PaymentTermsField

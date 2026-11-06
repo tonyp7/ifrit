@@ -100,6 +100,18 @@ async def test_issue_with_net_30(db_session) -> None:
     assert issued.document_name == "Invoice"
 
 
+async def test_issue_with_net_45(db_session) -> None:
+    user = await _user(db_session)
+    project = await make_project(db_session)
+    draft = await _draft(db_session, project, user.id, payment_terms="net_45")
+
+    issued = await _issue(db_session, draft, user.id)
+
+    assert issued.invoice_date == OCT_14
+    assert issued.due_date == date(2026, 11, 28)
+    assert issued.payment_terms == "net_45"
+
+
 async def test_numbers_follow_each_other(db_session) -> None:
     user = await _user(db_session)
     project = await make_project(db_session)

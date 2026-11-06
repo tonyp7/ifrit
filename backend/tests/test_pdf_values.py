@@ -455,3 +455,9 @@ def test_dates_do_not_depend_on_the_locale() -> None:
         == "30 December 2025 - 2 January 2026"
     )
     assert fmt.period_text(date(2026, 8, 7), date(2026, 8, 7)) == "7 August 2026"
+
+
+def test_net_45_prints_its_label_and_its_code() -> None:
+    data = _data(_invoice(payment_terms="net_45"))
+    assert data.values["payment_terms"] == "NET 45"
+    assert data.values["payment_terms_code"] == "net_45"

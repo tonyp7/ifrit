@@ -185,7 +185,7 @@ works out to ≈ 0.525 %. The total is 22,083.32.
 | Preset | Due date |
 |---|---|
 | Due on Receipt | The invoice date |
-| Net 7, 15, 30, 60 or 90 | The invoice date plus that many days |
+| Net 7, 15, 30, 45, 60 or 90 | The invoice date plus that many days |
 | End of Month | The last day of the invoice date's month |
 | End of Month + 15, 30, 60 or 90 | That last day plus that many days |
 

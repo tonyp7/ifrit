@@ -1,5 +1,5 @@
 import uuid
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
@@ -283,6 +283,54 @@ async def test_create_a_draft(client, db_session) -> None:
     assert Decimal(body["subtotal"]) == Decimal("950.00")
     assert body["payment_terms"] == "net_30"
     await _stored_totals_match(db_session, body["id"])
+
+
+async def test_a_draft_can_use_net_45(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+
+    body = await _create(client, project, payment_terms="net_45")
+
+    assert body["payment_terms"] == "net_45" and body["due_date"] is None
+    stored = (await client.get(f"{URL}/{body['id']}")).json()
+    assert stored["payment_terms"] == "net_45"
+
+
+async def test_net_45_together_with_a_due_date_is_422(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+
+    response = await client.post(
+        URL, json=_body(project, payment_terms="net_45", due_date="2026-12-01")
+    )
+
+    assert response.status_code == 422
+
+
+async def test_a_payment_terms_preset_that_does_not_exist_is_422(
+    client, db_session
+) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+
+    response = await client.post(URL, json=_body(project, payment_terms="net_46"))
+
+    assert response.status_code == 422
+
+
+async def test_issuing_a_net_45_draft_sets_the_due_date_45_days_out(
+    client, db_session
+) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    created = await _create(client, project, payment_terms="net_45", payee=PAYEE)
+
+    issued = (await _issue(client, created["id"])).json()
+
+    assert issued["payment_terms"] == "net_45"
+    assert date.fromisoformat(issued["due_date"]) == date.fromisoformat(
+        issued["invoice_date"]
+    ) + timedelta(days=45)
 
 
 @pytest.mark.parametrize(
@@ -956,6 +1004,19 @@ async def test_duplicate_an_issued_invoice_through_the_api(client, db_session) -
     assert copy["number"] is None and copy["invoice_date"] is None
     assert copy["payment_terms"] == "net_30" and copy["due_date"] is None
     assert copy["payee"]["account_identifier"] == "BE71096123456769"
+
+
+async def test_duplicating_a_net_45_invoice_keeps_the_preset_not_a_date(
+    client, db_session
+) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    created = await _create(client, project, payment_terms="net_45", payee=PAYEE)
+    await _issue(client, created["id"])
+
+    copy = (await client.post(f"{URL}/{created['id']}/duplicate")).json()
+
+    assert copy["payment_terms"] == "net_45" and copy["due_date"] is None
 
 
 # --- list search -----------------------------------------------------------------

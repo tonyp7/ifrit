@@ -143,7 +143,12 @@ def test_preset_and_fixed_date_are_exclusive() -> None:
 
 def test_unknown_preset_is_rejected() -> None:
     with pytest.raises(ValidationError):
-        InvoiceWrite.model_validate(_invoice(payment_terms="net_45"))
+        InvoiceWrite.model_validate(_invoice(payment_terms="net_46"))
+
+
+def test_net_45_is_an_accepted_preset() -> None:
+    body = InvoiceWrite.model_validate(_invoice(payment_terms="net_45"))
+    assert body.payment_terms == "net_45"
 
 
 def test_period_rules() -> None:

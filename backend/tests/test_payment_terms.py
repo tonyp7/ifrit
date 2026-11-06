@@ -12,6 +12,7 @@ TABLE: list[tuple[PaymentTerms, date]] = [
     ("net_7", date(2026, 10, 21)),
     ("net_15", date(2026, 10, 29)),
     ("net_30", date(2026, 11, 13)),
+    ("net_45", date(2026, 11, 28)),
     ("net_60", date(2026, 12, 13)),
     ("net_90", date(2027, 1, 12)),
     ("eom", date(2026, 10, 31)),
@@ -29,3 +30,7 @@ def test_presets_from_14_october_2026(preset: PaymentTerms, expected: date) -> N
 
 def test_end_of_month_in_a_leap_february() -> None:
     assert apply_payment_terms("eom", date(2028, 2, 3)) == date(2028, 2, 29)
+
+
+def test_net_45_across_a_month_and_a_year_end() -> None:
+    assert apply_payment_terms("net_45", date(2026, 12, 20)) == date(2027, 2, 3)
