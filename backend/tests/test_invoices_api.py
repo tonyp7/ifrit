@@ -681,6 +681,114 @@ async def test_a_fixed_price_draft_stores_no_period(client, db_session) -> None:
     assert tm["period_start"] == "2026-09-01"
 
 
+async def test_a_time_and_material_draft_may_have_no_period(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+
+    created = await _create(
+        client, project, period_start=None, period_end=None, payee=PAYEE
+    )
+    stored = (await client.get(f"{URL}/{created['id']}")).json()
+
+    assert (created["period_start"], created["period_end"]) == (None, None)
+    assert (stored["period_start"], stored["period_end"]) == (None, None)
+
+
+async def test_clearing_the_period_of_a_draft_saves_none(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    created = await _create(client, project)
+    assert created["period_start"] == "2026-09-01"
+
+    cleared = await client.patch(
+        f"{URL}/{created['id']}",
+        json=_body(project, period_start=None, period_end=None),
+    )
+
+    assert cleared.status_code == 200
+    assert (cleared.json()["period_start"], cleared.json()["period_end"]) == (
+        None,
+        None,
+    )
+    stored = (await client.get(f"{URL}/{created['id']}")).json()
+    assert (stored["period_start"], stored["period_end"]) == (None, None)
+
+
+async def test_a_draft_with_no_period_is_listed_by_its_lines(
+    client, db_session
+) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    manual = await _create(
+        client,
+        project,
+        period_start=None,
+        period_end=None,
+        lines=[
+            {
+                "description": "Custom Invoice Line",
+                "quantity": "1",
+                "uom": "ea",
+                "unit_price": "250",
+            }
+        ],
+    )
+
+    items = {i["id"]: i for i in (await client.get(URL)).json()["items"]}
+
+    assert items[manual["id"]]["period_start"] is None
+    assert items[manual["id"]]["period_end"] is None
+    # What Billed for shows when there is no period.
+    assert items[manual["id"]]["lines_summary"] == "Custom Invoice Line"
+
+
+async def test_a_draft_with_no_period_raises_no_unlocked_hours_warning(
+    client, db_session
+) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    line = await add_service_line(db_session, project, name="Has unlocked hours")
+    consultant = await make_consultant(db_session)
+    await log_hours(db_session, consultant, line, date(2026, 9, 2), 8)
+
+    without = await _create(
+        client, project, period_start=None, period_end=None, payee=PAYEE
+    )
+    with_period = await _create(client, project, payee=PAYEE)
+
+    assert "unlocked_hours" not in {w["code"] for w in without["warnings"]}
+    # The same hours still warn as soon as the invoice has a period covering them.
+    assert "unlocked_hours" in {w["code"] for w in with_period["warnings"]}
+
+
+async def test_a_draft_with_no_period_can_be_issued(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+    created = await _create(
+        client,
+        project,
+        period_start=None,
+        period_end=None,
+        payment_terms="net_30",
+        payee=PAYEE,
+    )
+
+    issued = await client.post(f"{URL}/{created['id']}/issue")
+
+    assert issued.status_code == 200
+    assert issued.json()["status"] == "issued"
+    assert issued.json()["period_start"] is None
+
+
+async def test_half_a_period_is_still_422(client, db_session) -> None:
+    await login(client, db_session)
+    project = await make_project(db_session)
+
+    response = await client.post(URL, json=_body(project, period_end=None))
+
+    assert response.status_code == 422
+
+
 # --- list ------------------------------------------------------------------------
 
 

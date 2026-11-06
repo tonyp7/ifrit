@@ -22,7 +22,7 @@ The list shows the invoices, newest first, 50 per page. Void invoices are hidden
 | Status | Draft, Issued or Void |
 | Project | The project the invoice is for |
 | Client | The Bill To name on the invoice |
-| Billed for | The period whose hours were billed, for example `1–30 Sep 2026`. A Fixed Price invoice has no period and lists its lines instead, usually the milestones billed, cut off when they do not fit |
+| Billed for | The invoice's period, for example `1–30 Sep 2026`. An invoice with no period, such as a Fixed Price invoice or one you built by hand, lists its lines instead (for a Fixed Price invoice usually the milestones billed), cut off when they do not fit |
 | Created | When the draft was created |
 | Total | In the invoice currency |
 | Issued | The invoice date; hover it for the exact time it was issued. Hidden until you show it |
@@ -70,14 +70,18 @@ Choose **+ New**. The form has five steps.
      afterwards does not change the invoice.
 5. **Line items.** Start with the **Generate line items** group. For a Fixed Price project, tick
    the milestones to bill (see below). Otherwise, tick the service lines to bill (all of them by
-   default) and choose the period: **This month**, **Last month** (the default), **This week**,
+   default) and choose the period to sum: **This month**, **Last month** (pre-selected, or the
+   draft's own period when it has one), **This week**,
    **Last week**, or any range in the calendar. Weeks run Monday to Sunday, like the timesheet.
    Then choose **Generate line items**, which builds the lines from the hours logged in the
-   period. The lines are added after any already on the draft, which are left as they are, so
-   generating the same selection twice adds it twice. Delete the lines you do not want.
+   period. That range becomes the invoice's period, the one **Billed for** shows in the list;
+   picking a range in this group changes nothing on the invoice until you generate, so an
+   invoice you build only from lines you type has no period. The lines are added after any
+   already on the draft, which are left as they are, so generating the same selection twice adds
+   it twice. Delete the lines you do not want.
    Below the group, edit the lines, add more, add taxes under the subtotal (see
-   [Taxes](#taxes)), and save with **Save draft**. The [warnings](#warnings) are listed in
-   yellow below the total.
+   [Taxes](#taxes)), and save with **Save draft**. Below the total, the **Information** section
+   says what **Billed for** will show and lists the [warnings](#information-and-warnings) in yellow.
 
 ### Previewing the PDF
 
@@ -194,12 +198,20 @@ date of a preset is an estimate: the form shows the date it would be if the invo
 today. A date picked in the calendar is a fixed date instead. An invoice has a preset or a fixed
 date, never both.
 
-## Warnings
+## Information and warnings
+
+Below the total, a draft shows an **Information** section. Its first item, on a blue background
+like the information banner, says how the invoice will appear in the **Billed for** column of the
+list: **The invoice Billed For will be labelled as:** its period when it has one (generating
+lines sets it), otherwise its lines, joined with commas, so an invoice made of one custom line is
+labelled with that line. It follows the lines as you edit them, and is not shown while there is
+nothing to say, for example on a Fixed Price draft before any milestone is generated. A note
+about lines left out of a generation comes next, and the warnings follow in yellow.
 
 Warnings never stop you from saving:
 
 - **Unlocked hours**: some days in the period still have hours a manager has not locked, so the
-  amounts could still change.
+  amounts could still change. An invoice with no period is not checked.
 - **Zero-quantity line**: a line has quantity 0.
 - **No payee account**: the invoice does not say which account to pay into.
 - **Payee account currency**: the payee account is not in the invoice currency.

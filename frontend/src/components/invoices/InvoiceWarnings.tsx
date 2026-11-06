@@ -1,6 +1,7 @@
 import { AlertTriangle, Info } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { InformationBanner } from "@/components/InformationBanner";
 import { useServiceLineLabel } from "@/hooks/useServiceLineLabel";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Separator } from "@/components/ui/separator";
@@ -11,6 +12,11 @@ interface InvoiceWarningsProps {
   /** Selected service lines that had no hours in the period, from the last generation. */
   omitted: OmittedServiceLine[];
   minorUnit: number | null;
+  /** The heading. The invoice form calls the section Information; the issue dialog keeps
+   * the default, as it lists warnings and nothing else. */
+  title?: string;
+  /** What "Billed for" will say, shown first as an information line. None, none shown. */
+  billedFor?: string | null;
 }
 
 // The shadcn Alert stays as the CLI writes it, so the yellow is passed in.
@@ -18,7 +24,13 @@ const WARNING_CLASSES =
   "border-amber-500/50 bg-amber-50 text-amber-900 dark:bg-amber-950/30 dark:text-amber-100";
 
 /** Warnings never block saving; each carries an icon and text, not colour alone. */
-export function InvoiceWarnings({ warnings, omitted, minorUnit }: InvoiceWarningsProps) {
+export function InvoiceWarnings({
+  warnings,
+  omitted,
+  minorUnit,
+  title,
+  billedFor = null,
+}: InvoiceWarningsProps) {
   const { t } = useTranslation(["invoices"]);
   const label = useServiceLineLabel(minorUnit);
 
@@ -57,13 +69,25 @@ export function InvoiceWarnings({ warnings, omitted, minorUnit }: InvoiceWarning
     }
   }
 
-  if (warnings.length === 0 && omitted.length === 0) return null;
+  if (warnings.length === 0 && omitted.length === 0 && !billedFor) return null;
 
   return (
     <section className="flex flex-col gap-4">
       <Separator />
-      <h3 className="text-sm font-semibold tracking-wide uppercase">{t("Warnings")}</h3>
+      <h3 className="text-sm font-semibold tracking-wide uppercase">
+        {title ?? t("Warnings")}
+      </h3>
       <div className="flex flex-col gap-2" aria-live="polite">
+        {billedFor && (
+          // The look of the Information Banner feature: information icon, blue.
+          <InformationBanner
+            icon="info"
+            color="blue"
+            message={t("The invoice Billed For will be labelled as: {{label}}", {
+              label: billedFor,
+            })}
+          />
+        )}
         {omitted.length > 0 && (
           <Alert>
             <Info className="h-4 w-4" aria-hidden="true" />

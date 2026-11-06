@@ -104,6 +104,8 @@
   "Reference": "Reference",
   "References": "References",
   "Warnings": "Warnings",
+  "Information": "Information",
+  "The invoice Billed For will be labelled as: {{label}}": "The invoice Billed For will be labelled as: {{label}}",
   "Remove reference": "Remove reference",
   "Reordering was cancelled. {{name}} was dropped.": "Reordering was cancelled. {{name}} was dropped.",
   "Save draft": "Save draft",

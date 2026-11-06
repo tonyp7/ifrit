@@ -46,7 +46,7 @@ import {
 import { PartyFields } from "@/components/invoices/PartyFields";
 import { PaymentSection } from "@/components/invoices/PaymentSection";
 import { MilestoneBillingPanel } from "@/components/invoices/MilestoneBillingPanel";
-import { TmBillingPanel } from "@/components/invoices/TmBillingPanel";
+import { TmBillingPanel, type Period } from "@/components/invoices/TmBillingPanel";
 import { useServiceLineLabel } from "@/hooks/useServiceLineLabel";
 import {
   AlertDialog,
@@ -71,7 +71,12 @@ import { Separator } from "@/components/ui/separator";
 import { Spinner } from "@/components/ui/spinner";
 import { partyFromCompany } from "@/lib/invoiceParties";
 import { payeeFormFromAccount, preselectPayee } from "@/lib/invoicePayee";
-import { formatPeriod, isValidPeriod, presetRange } from "@/lib/invoicePeriods";
+import {
+  billedForLabel,
+  formatPeriod,
+  generationPeriodFor,
+  isValidPeriod,
+} from "@/lib/invoicePeriods";
 import { prefillReferences } from "@/lib/invoiceReferences";
 import { subtotal } from "@/lib/invoiceMath";
 import { downloadBlob } from "@/lib/download";
@@ -79,7 +84,7 @@ import { canDownloadPdf, isPdfUnavailable } from "@/lib/invoicePdf";
 import { openPdfPreview, previewErrorMessage } from "@/lib/pdfPreview";
 import { computeTaxes } from "@/lib/invoiceTaxes";
 import { combineWarnings, formWarnings } from "@/lib/invoiceWarnings";
-import { parseDayKey, toDayKey } from "@/lib/timesheetDates";
+import { parseDayKey } from "@/lib/timesheetDates";
 import {
   type BillingContext,
   type GenerateInput,
@@ -92,15 +97,10 @@ import {
 } from "@/types/invoice";
 import { PROJECT_TYPE_LABELS } from "@/types/project";
 
-function newInvoiceValues(today: Date): InvoiceFormValues {
-  // Last month is the usual case: invoicing the month that just ended.
-  const range = presetRange("last_month", today);
-  return {
-    ...BLANK_INVOICE_FORM,
-    period_preset: "last_month",
-    period_start: toDayKey(range.start),
-    period_end: toDayKey(range.end),
-  };
+// A new invoice has no period: it is set by picking one or by generating lines, never by
+// default, so an invoice built by hand does not claim to bill for last month.
+function newInvoiceValues(): InvoiceFormValues {
+  return BLANK_INVOICE_FORM;
 }
 
 /** The fields a project fills in when it is chosen: parties, payee, references and the
@@ -115,6 +115,11 @@ function prefillFromProject(context: BillingContext): Partial<InvoiceFormValues>
     references: prefillReferences(context.references),
     service_line_ids: context.service_lines.map((line) => line.id),
     lines: [],
+    // A Fixed Price invoice bills milestones, not a stretch of time, and the server stores no
+    // period for it: drop one the form still holds from a Time & Material project.
+    ...(context.project_type === "fixed_price"
+      ? { period_start: null, period_end: null }
+      : {}),
   };
 }
 
@@ -135,11 +140,17 @@ export function InvoiceFormPage() {
   const location = useLocation();
   const { t } = useTranslation(["invoices", "common", "projects"]);
   const [today] = useState(() => new Date());
+  // The range the Generate group sums hours over. It is not the invoice's period: it opens on
+  // Last month (or on the draft's period), picking in it changes nothing on the invoice, and
+  // generating copies it into the Period field.
+  const [generatePeriod, setGeneratePeriod] = useState<Period>(() =>
+    generationPeriodFor({ start: null, end: null }, new Date()),
+  );
   const schema = useMemo(() => invoiceSchema(t), [t]);
 
   const form = useForm<InvoiceFormValues>({
     resolver: zodResolver(schema),
-    defaultValues: newInvoiceValues(today),
+    defaultValues: newInvoiceValues(),
   });
   const { control, handleSubmit, reset, setValue, getValues } = form;
 
@@ -180,7 +191,6 @@ export function InvoiceFormPage() {
   const taxes = useWatch({ control, name: "taxes" });
   const payee = useWatch({ control, name: "payee" });
   const serviceLineIds = useWatch({ control, name: "service_line_ids" });
-  const periodPreset = useWatch({ control, name: "period_preset" });
   const periodStart = useWatch({ control, name: "period_start" });
   const periodEnd = useWatch({ control, name: "period_end" });
   const paymentTerms = useWatch({ control, name: "payment_terms" });
@@ -208,6 +218,9 @@ export function InvoiceFormPage() {
           service_line_ids: projectContext?.service_lines.map((line) => line.id) ?? [],
         });
         setContext(projectContext);
+        setGeneratePeriod(
+          generationPeriodFor({ start: detail.period_start, end: detail.period_end }, today),
+        );
         setStatus(detail.status);
         setDetail(detail);
         setSavedProjectName(detail.project_name);
@@ -232,7 +245,7 @@ export function InvoiceFormPage() {
     return () => {
       cancelled = true;
     };
-  }, [invoiceId, reloadToken, reset, t]);
+  }, [invoiceId, reloadToken, reset, t, today]);
 
   // Issue on a new invoice saves it first, which moves to its own address; the
   // confirmation opens once there.
@@ -277,13 +290,13 @@ export function InvoiceFormPage() {
         project_id: values.project_id,
         milestone_ids: milestoneIds,
       };
-    } else if (!byMilestone && values.period_start && values.period_end) {
+    } else if (!byMilestone && generatePeriod.start && generatePeriod.end) {
       input = {
         kind: "time",
         project_id: values.project_id,
         service_line_ids: values.service_line_ids,
-        period_start: values.period_start,
-        period_end: values.period_end,
+        period_start: generatePeriod.start,
+        period_end: generatePeriod.end,
       };
     } else {
       return;
@@ -293,9 +306,14 @@ export function InvoiceFormPage() {
     try {
       const result = await generateLines(input);
       const period =
-        values.period_start && values.period_end
-          ? formatPeriod(parseDayKey(values.period_start), parseDayKey(values.period_end))
+        generatePeriod.start && generatePeriod.end
+          ? formatPeriod(parseDayKey(generatePeriod.start), parseDayKey(generatePeriod.end))
           : "";
+      // The invoice records what it was generated for, as the line descriptions already say.
+      if (!byMilestone) {
+        setValue("period_start", generatePeriod.start, { shouldDirty: true });
+        setValue("period_end", generatePeriod.end, { shouldDirty: true });
+      }
       setValue(
         "lines",
         appendGeneratedLines(getValues("lines"), result.lines, (line) =>
@@ -507,9 +525,12 @@ export function InvoiceFormPage() {
       : projects;
   const isFixedPrice = context?.project_type === "fixed_price";
   const periodValid =
-    !!periodStart &&
-    !!periodEnd &&
-    isValidPeriod({ start: parseDayKey(periodStart), end: parseDayKey(periodEnd) });
+    !!generatePeriod.start &&
+    !!generatePeriod.end &&
+    isValidPeriod({
+      start: parseDayKey(generatePeriod.start),
+      end: parseDayKey(generatePeriod.end),
+    });
   const canGenerate =
     !!context &&
     !readOnly &&
@@ -670,12 +691,8 @@ export function InvoiceFormPage() {
                     serviceLines={context.service_lines}
                     selected={serviceLineIds}
                     onSelectedChange={(ids) => setValue("service_line_ids", ids)}
-                    period={{ preset: periodPreset, start: periodStart, end: periodEnd }}
-                    onPeriodChange={(period) => {
-                      setValue("period_preset", period.preset);
-                      setValue("period_start", period.start, { shouldDirty: true });
-                      setValue("period_end", period.end, { shouldDirty: true });
-                    }}
+                    period={generatePeriod}
+                    onPeriodChange={setGeneratePeriod}
                     minorUnit={context.currency_minor_unit}
                     today={today}
                     disabled={readOnly}
@@ -710,6 +727,11 @@ export function InvoiceFormPage() {
             />
             {!readOnly && (
               <InvoiceWarnings
+                title={t("Information")}
+                billedFor={billedForLabel(
+                  { start: periodStart, end: periodEnd },
+                  lines.map((line) => line.description),
+                )}
                 warnings={warnings}
                 omitted={omitted}
                 minorUnit={context?.currency_minor_unit ?? null}

@@ -1,4 +1,10 @@
-import { addDays, startOfMonth, startOfWeekMonday } from "@/lib/timesheetDates";
+import {
+  addDays,
+  parseDayKey,
+  startOfMonth,
+  startOfWeekMonday,
+  toDayKey,
+} from "@/lib/timesheetDates";
 
 export type PeriodPreset = "this_month" | "last_month" | "this_week" | "last_week";
 
@@ -23,6 +29,20 @@ export const MAX_PERIOD_DAYS = 366;
 export interface DateRange {
   start: Date;
   end: Date;
+}
+
+/** What the Generate group's range opens on: the draft's own period when it has one (no
+ * preset is highlighted, since the range is not one), else the Last month preset, the usual
+ * case of invoicing the month that just ended. */
+export function generationPeriodFor(
+  invoicePeriod: { start: string | null; end: string | null },
+  today: Date,
+): { preset: PeriodPreset | null; start: string; end: string } {
+  if (invoicePeriod.start && invoicePeriod.end) {
+    return { preset: null, start: invoicePeriod.start, end: invoicePeriod.end };
+  }
+  const range = presetRange("last_month", today);
+  return { preset: "last_month", start: toDayKey(range.start), end: toDayKey(range.end) };
 }
 
 /** The days a preset covers on `today`. Weeks run Monday to Sunday, like the timesheet,
@@ -65,4 +85,20 @@ export function formatPeriod(start: Date, end: Date): string {
     month: "short",
     year: "numeric",
   }).formatRange(start, end);
+}
+
+/**
+ * What "Billed for" will say in the invoice list for a draft, so the form can tell before it is
+ * saved: its period when it has one, otherwise its line descriptions in order, joined with ", ",
+ * otherwise nothing. The same rule as the list's own (the period, else the lines).
+ */
+export function billedForLabel(
+  period: { start: string | null; end: string | null },
+  lineDescriptions: string[],
+): string | null {
+  if (period.start && period.end) {
+    return formatPeriod(parseDayKey(period.start), parseDayKey(period.end));
+  }
+  const lines = lineDescriptions.map((line) => line.trim()).filter((line) => line !== "");
+  return lines.length > 0 ? lines.join(", ") : null;
 }
