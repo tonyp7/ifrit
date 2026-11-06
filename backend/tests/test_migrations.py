@@ -282,7 +282,24 @@ def test_the_invoice_checks_match_the_models() -> None:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
 
-    assert module._INVOICE_CHECKS == _model_checks(Invoice)
+    # `0003` is released history, so it keeps the payment terms check it was written with;
+    # `0005` widened that one check, and now owns it.
+    path_0005 = (
+        BACKEND_DIR / "alembic" / "versions" / "0005_add_net_45_payment_terms.py"
+    )
+    spec_0005 = importlib.util.spec_from_file_location("migration_0005", path_0005)
+    assert spec_0005 is not None and spec_0005.loader is not None
+    module_0005 = importlib.util.module_from_spec(spec_0005)
+    spec_0005.loader.exec_module(module_0005)
+
+    model_invoice_checks = _model_checks(Invoice)
+    assert (
+        model_invoice_checks.pop("ck_invoices_payment_terms")
+        == module_0005._PAYMENT_TERMS_CHECK
+    )
+    migrated_invoice_checks = dict(module._INVOICE_CHECKS)
+    migrated_invoice_checks.pop("ck_invoices_payment_terms")
+    assert migrated_invoice_checks == model_invoice_checks
     assert module._LINE_CHECKS == _model_checks(InvoiceLine)
     assert module._REFERENCE_CHECKS == _model_checks(InvoiceReference)
     assert module._TAX_CHECKS == _model_checks(InvoiceTax)
@@ -539,3 +556,58 @@ def test_downgrading_restores_the_unique_identifier_index(scratch_database) -> N
     command.downgrade(scratch_database, "0003")
 
     assert "uq_payee_accounts_identifier" in _payee_account_indexes()
+
+
+# A draft that asks for one payment terms preset, on a project of its own.
+_DRAFT_WITH_TERMS = """
+    WITH c AS (
+        INSERT INTO companies (id, legal_name, country_of_registration, is_vendor)
+        VALUES (gen_random_uuid(), 'C', 'BE', true) RETURNING id
+    ), p AS (
+        INSERT INTO projects (id, name, vendor_company_id, client_company_id,
+            invoicing_currency, project_type, status)
+        SELECT gen_random_uuid(), 'P', c.id, c.id, 'EUR', 'time_and_material', 'active'
+        FROM c RETURNING id
+    )
+    INSERT INTO invoices (id, status, project_id, currency_code, bill_from_name,
+        bill_to_name, subtotal, total, payment_terms)
+    SELECT gen_random_uuid(), 'draft', p.id, 'EUR', 'F', 'T', 0, 0, '{terms}'
+    FROM p RETURNING id
+"""
+
+
+def _insert_draft_with(terms: str) -> list[asyncpg.Record]:
+    return asyncio.run(_fetch(_DRAFT_WITH_TERMS.format(terms=terms)))
+
+
+def test_an_invoice_may_use_net_45_after_the_upgrade(scratch_database) -> None:
+    command.upgrade(scratch_database, "head")
+
+    assert len(_insert_draft_with("net_45")) == 1
+    # Only that one preset was added: the check still rejects anything else.
+    with pytest.raises(asyncpg.CheckViolationError, match="ck_invoices_payment_terms"):
+        _insert_draft_with("net_46")
+
+
+def test_downgrading_is_refused_while_an_invoice_uses_net_45(scratch_database) -> None:
+    command.upgrade(scratch_database, "head")
+    _insert_draft_with("net_45")
+
+    with pytest.raises(RuntimeError, match="1 invoice.*Net 45"):
+        command.downgrade(scratch_database, "0004")
+
+    # Nothing was rewritten to another preset to make the older check fit.
+    kept = asyncio.run(_fetch("SELECT payment_terms FROM invoices"))
+    assert [row["payment_terms"] for row in kept] == ["net_45"]
+
+
+def test_downgrading_restores_the_older_payment_terms_check(scratch_database) -> None:
+    command.upgrade(scratch_database, "head")
+
+    command.downgrade(scratch_database, "0004")
+
+    assert len(_insert_draft_with("net_30")) == 1
+    with pytest.raises(asyncpg.CheckViolationError, match="ck_invoices_payment_terms"):
+        _insert_draft_with("net_45")
+    command.upgrade(scratch_database, "head")
+    assert len(_insert_draft_with("net_45")) == 1

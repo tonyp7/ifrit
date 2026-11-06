@@ -37,6 +37,7 @@ _PAYMENT_TERMS = {
     "net_7": "NET 7",
     "net_15": "NET 15",
     "net_30": "NET 30",
+    "net_45": "NET 45",
     "net_60": "NET 60",
     "net_90": "NET 90",
     "eom": "End of month",

@@ -14,6 +14,7 @@ export type PaymentTerms =
   | "net_7"
   | "net_15"
   | "net_30"
+  | "net_45"
   | "net_60"
   | "net_90"
   | "eom"
@@ -35,6 +36,7 @@ export const PAYMENT_TERMS_LABELS: Record<PaymentTerms, string> = {
   net_7: "Net 7",
   net_15: "Net 15",
   net_30: "Net 30",
+  net_45: "Net 45",
   net_60: "Net 60",
   net_90: "Net 90",
   eom: "End of Month",

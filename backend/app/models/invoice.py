@@ -37,6 +37,7 @@ PaymentTerms = Literal[
     "net_7",
     "net_15",
     "net_30",
+    "net_45",
     "net_60",
     "net_90",
     "eom",
