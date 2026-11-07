@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { MemoryRouter } from "react-router";
+import i18n from "i18next";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -207,5 +208,19 @@ describe("InvoicesTable", () => {
     expect(html.indexOf("Status")).toBeLessThan(columns);
     expect(html).not.toContain(">Issued<");
     expect(html).not.toContain(">Due<");
+  });
+
+  it("shows French headers, dates and amounts when the language is French, with no remount", async () => {
+    const english = render([issued], ALL_VISIBLE);
+    expect(english).toContain(">Created<");
+    expect(english).toContain("10/14/2026");
+    expect(english).toContain("19,037.50");
+
+    await i18n.changeLanguage("fr");
+    const french = render([issued], ALL_VISIBLE);
+    expect(french).toContain(">Créée le<");
+    expect(french).toContain("14/10/2026");
+    expect(french.replace(/[\u202f\u00a0]/g, " ")).toContain("19 037,50");
+    expect(french).not.toContain("10/14/2026");
   });
 });

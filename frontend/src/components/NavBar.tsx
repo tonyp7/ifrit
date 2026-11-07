@@ -25,6 +25,7 @@ import {
 import { canAccessNavItem, NAV_ITEMS } from "@/config/navigation";
 import { useAuth } from "@/hooks/useAuth";
 import { useTheme } from "@/hooks/useTheme";
+import { setLanguage, SUPPORTED_LANGUAGES } from "@/lib/language";
 import { cn } from "@/lib/utils";
 import type { ThemePreference } from "@/types/user";
 
@@ -41,7 +42,7 @@ export function NavBar() {
   // NAV_ITEMS' `label` is the English source string, used here as the translation
   // key: it's defined at module scope in config/navigation.ts, outside any
   // component, so it can't call useTranslation() itself.
-  const { t } = useTranslation(["common"]);
+  const { t, i18n } = useTranslation(["common"]);
 
   if (!user) return null;
   const currentUser = user;
@@ -111,10 +112,15 @@ export function NavBar() {
                       {t("Languages")}
                     </DropdownMenuSubTrigger>
                     <DropdownMenuSubContent>
-                      <DropdownMenuRadioGroup value="en">
-                        <DropdownMenuRadioItem value="en">
-                          {t("English")}
-                        </DropdownMenuRadioItem>
+                      <DropdownMenuRadioGroup
+                        value={i18n.resolvedLanguage}
+                        onValueChange={(code) => void setLanguage(code)}
+                      >
+                        {SUPPORTED_LANGUAGES.map((language) => (
+                          <DropdownMenuRadioItem key={language.code} value={language.code}>
+                            {language.nativeName}
+                          </DropdownMenuRadioItem>
+                        ))}
                       </DropdownMenuRadioGroup>
                     </DropdownMenuSubContent>
                   </DropdownMenuSub>

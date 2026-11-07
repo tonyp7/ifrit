@@ -71,6 +71,7 @@ import {
   type InvoiceListItem,
   type InvoiceStatus,
 } from "@/types/invoice";
+import { currentLocale } from "@/lib/language";
 
 const STATUS_BADGE_VARIANT: Record<InvoiceListItem["status"], BadgeProps["variant"]> = {
   draft: "secondary",
@@ -125,7 +126,9 @@ export function IssuedCell({ invoice }: { invoice: InvoiceListItem }) {
         <TooltipTrigger asChild>
           <span tabIndex={0}>{date}</span>
         </TooltipTrigger>
-        <TooltipContent>{new Date(invoice.issued_at).toLocaleString()}</TooltipContent>
+        <TooltipContent>
+          {new Date(invoice.issued_at).toLocaleString(currentLocale())}
+        </TooltipContent>
       </Tooltip>
     </TooltipProvider>
   );
@@ -227,7 +230,7 @@ export function InvoicesTableView({
       enableHiding: false,
       accessorKey: "created_at",
       header: ({ column }) => <DataTableColumnHeader column={column} title={t("Created")} />,
-      cell: ({ row }) => new Date(row.original.created_at).toLocaleDateString(),
+      cell: ({ row }) => new Date(row.original.created_at).toLocaleDateString(currentLocale()),
     },
     {
       id: "total",

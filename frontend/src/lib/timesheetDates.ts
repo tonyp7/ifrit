@@ -1,4 +1,5 @@
 import type { PeriodType } from "@/types/timesheet";
+import { currentLocale } from "@/lib/language";
 
 // Every function here works in the browser's local timezone (plain Date
 // getters/setters, never the UTC/ISO variants): "today," day boundaries, and which
@@ -86,22 +87,24 @@ export function getIsoWeekNumber(d: Date): number {
 }
 
 export function formatMonthLabel(d: Date): string {
-  return new Intl.DateTimeFormat(undefined, { month: "long", year: "numeric" }).format(d);
+  return new Intl.DateTimeFormat(currentLocale(), { month: "long", year: "numeric" }).format(
+    d,
+  );
 }
 
 export function formatWeekdayShort(d: Date): string {
-  return new Intl.DateTimeFormat(undefined, { weekday: "short" }).format(d).slice(0, 3);
+  return new Intl.DateTimeFormat(currentLocale(), { weekday: "short" }).format(d).slice(0, 3);
 }
 
 // Single-letter weekday (M, T, W, ...): desktop grid's Month view only (28-31
 // columns need the narrower label; Week view's 7 columns use formatWeekdayShort
 // above instead).
 export function formatWeekdayNarrow(d: Date): string {
-  return new Intl.DateTimeFormat(undefined, { weekday: "narrow" }).format(d);
+  return new Intl.DateTimeFormat(currentLocale(), { weekday: "narrow" }).format(d);
 }
 
 export function formatFullDate(d: Date): string {
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(currentLocale(), {
     weekday: "long",
     month: "long",
     day: "numeric",

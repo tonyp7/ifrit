@@ -1,4 +1,4 @@
-import { useTranslation } from "react-i18next";
+import { Trans, useTranslation } from "react-i18next";
 
 import { AddServiceLineSelect } from "@/components/timesheet/AddServiceLineSelect";
 import { LockServiceLineControl } from "@/components/timesheet/LockServiceLineControl";
@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { lockedCellClass, serviceLineBorderColor } from "@/lib/timesheetColors";
 import { formatFullDate, formatWeekdayShort, isToday, toDayKey } from "@/lib/timesheetDates";
-import { cellKey, formatHours } from "@/lib/timesheetHours";
+import { cellKey, formatHoursDisplay } from "@/lib/timesheetHours";
 import { shouldShowAddLineHint } from "@/lib/timesheetServiceLines";
 import type { EligibleServiceLine, EntryCell, ServiceLineRow } from "@/types/timesheet";
 
@@ -107,7 +107,9 @@ export function TimesheetMobileView({
                 )}
               </span>
               <span className="text-sm font-semibold">{day.getDate()}</span>
-              <span className="opacity-80">{formatHours(total) || "0"}h</span>
+              <span className="opacity-80">
+                {t("{{hours}}h", { hours: formatHoursDisplay(total) })}
+              </span>
             </button>
           );
         })}
@@ -117,7 +119,7 @@ export function TimesheetMobileView({
         <div className="flex items-baseline justify-between">
           <h2 className="text-base font-semibold">{formatFullDate(selectedDate)}</h2>
           <span className="text-sm font-medium">
-            {formatHours(dayTotal(selectedKey)) || "0"}h
+            {t("{{hours}}h", { hours: formatHoursDisplay(dayTotal(selectedKey)) })}
           </span>
         </div>
 
@@ -232,10 +234,24 @@ export function TimesheetMobileView({
       {showSummaryFooter && (
         <div className="bg-background/95 fixed inset-x-0 bottom-14 flex items-center justify-between border-t p-3 text-sm backdrop-blur">
           <span>
-            {t("Today")}: <strong>{formatHours(dayTotal(selectedKey)) || "0"}h</strong>
+            <Trans
+              t={t}
+              i18nKey="Today: <strong>{{hours}}</strong>"
+              values={{
+                hours: t("{{hours}}h", { hours: formatHoursDisplay(dayTotal(selectedKey)) }),
+              }}
+              components={{ strong: <strong /> }}
+            />
           </span>
           <span>
-            {t("Month to date")}: <strong>{formatHours(monthToDateTotal) || "0"}h</strong>
+            <Trans
+              t={t}
+              i18nKey="Month to date: <strong>{{hours}}</strong>"
+              values={{
+                hours: t("{{hours}}h", { hours: formatHoursDisplay(monthToDateTotal) }),
+              }}
+              components={{ strong: <strong /> }}
+            />
           </span>
         </div>
       )}

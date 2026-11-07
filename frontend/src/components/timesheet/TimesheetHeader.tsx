@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { formatMonthLabel, getIsoWeekNumber } from "@/lib/timesheetDates";
-import { formatHours } from "@/lib/timesheetHours";
+import { formatHoursDisplay } from "@/lib/timesheetHours";
 import type { PeriodType } from "@/types/timesheet";
 
 interface TimesheetHeaderProps {
@@ -64,7 +64,9 @@ export function TimesheetHeader({
       </div>
 
       <div className="text-sm font-semibold">
-        {t("Total")}: {formatHours(periodTotal) || "0"}h
+        {t("Total: {{hours}}", {
+          hours: t("{{hours}}h", { hours: formatHoursDisplay(periodTotal) }),
+        })}
       </div>
     </div>
   );

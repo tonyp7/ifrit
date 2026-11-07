@@ -1,9 +1,18 @@
 import * as React from "react";
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { DayButton, DayPicker, getDefaultClassNames } from "react-day-picker";
+import { enUS, fr } from "react-day-picker/locale";
+import { useTranslation } from "react-i18next";
 
+import { currentLocale } from "@/lib/language";
 import { cn } from "@/lib/utils";
 import { Button, buttonVariants } from "@/components/ui/button";
+
+// Local change to the generated primitive: DayPicker's own locales (shipped inside
+// react-day-picker, no date-fns import in app code) give the month and weekday names, the
+// accessible labels and the first day of the week in the app language. Add a language here
+// when one is added to the language list.
+const DAY_PICKER_LOCALES = { en: enUS, fr } as const;
 
 function Calendar({
   className,
@@ -13,15 +22,23 @@ function Calendar({
   buttonVariant = "ghost",
   formatters,
   components,
+  locale,
   ...props
 }: React.ComponentProps<typeof DayPicker> & {
   buttonVariant?: React.ComponentProps<typeof Button>["variant"];
 }) {
   const defaultClassNames = getDefaultClassNames();
+  // Subscribing re-renders the calendar when the language is switched while it is open.
+  const { i18n } = useTranslation();
+  const dayPickerLocale =
+    locale ??
+    DAY_PICKER_LOCALES[(i18n.resolvedLanguage ?? "en") as keyof typeof DAY_PICKER_LOCALES] ??
+    enUS;
 
   return (
     <DayPicker
       showOutsideDays={showOutsideDays}
+      locale={dayPickerLocale}
       className={cn(
         "bg-background group/calendar p-3 [--cell-size:2rem] [[data-slot=card-content]_&]:bg-transparent [[data-slot=popover-content]_&]:bg-transparent",
         String.raw`rtl:**:[.rdp-button\_next>svg]:rotate-180`,
@@ -30,7 +47,7 @@ function Calendar({
       )}
       captionLayout={captionLayout}
       formatters={{
-        formatMonthDropdown: (date) => date.toLocaleString("default", { month: "short" }),
+        formatMonthDropdown: (date) => date.toLocaleString(currentLocale(), { month: "short" }),
         ...formatters,
       }}
       classNames={{
