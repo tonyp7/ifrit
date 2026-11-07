@@ -25,6 +25,7 @@ import {
 import { Spinner } from "@/components/ui/spinner";
 import { formatFileSize } from "@/lib/format";
 import type { InvoiceTemplateInfo, TemplateFinding } from "@/types/invoiceTemplate";
+import { currentLocale } from "@/lib/language";
 
 // What the file chooser offers; the server checks the real content.
 const ACCEPTED_TYPES = ".odt,application/vnd.oasis.opendocument.text";
@@ -126,7 +127,7 @@ export function InvoiceTemplateCardView({
                     info.uploaded_at &&
                     ` · ${t("Uploaded by {{name}} on {{date}}", {
                       name: info.uploaded_by_name,
-                      date: new Intl.DateTimeFormat(undefined, {
+                      date: new Intl.DateTimeFormat(currentLocale(), {
                         dateStyle: "medium",
                         timeStyle: "short",
                       }).format(new Date(info.uploaded_at)),

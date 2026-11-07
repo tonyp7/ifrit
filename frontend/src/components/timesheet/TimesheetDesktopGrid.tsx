@@ -11,7 +11,7 @@ import {
   isWeekend,
   toDayKey,
 } from "@/lib/timesheetDates";
-import { cellKey, formatHours } from "@/lib/timesheetHours";
+import { cellKey, formatHoursDisplay } from "@/lib/timesheetHours";
 import { shouldShowAddLineHint } from "@/lib/timesheetServiceLines";
 import { cn } from "@/lib/utils";
 import type {
@@ -355,7 +355,11 @@ export function TimesheetDesktopGrid({
                     lastColWidth,
                   )}
                 >
-                  {formatHours(serviceLineTotal(line.user_id, line.service_line_id)) || "0"}h
+                  {t("{{hours}}h", {
+                    hours: formatHoursDisplay(
+                      serviceLineTotal(line.user_id, line.service_line_id),
+                    ),
+                  })}
                 </td>
               </tr>
             ))}
@@ -376,12 +380,12 @@ export function TimesheetDesktopGrid({
                       isWeekend(day) && "bg-muted/40",
                     )}
                   >
-                    {formatHours(dayTotal(dayKey)) || "0"}
+                    {formatHoursDisplay(dayTotal(dayKey))}
                   </td>
                 );
               })}
               <td className="bg-background border-l p-2 text-right font-semibold">
-                {formatHours(periodTotal) || "0"}h
+                {t("{{hours}}h", { hours: formatHoursDisplay(periodTotal) })}
               </td>
             </tr>
           </tfoot>

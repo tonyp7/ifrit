@@ -7,6 +7,7 @@ import {
 } from "@/lib/milestoneMath";
 import { parseDayKey, toDayKey } from "@/lib/timesheetDates";
 import type { BillingMilestone, ProjectType } from "@/types/project";
+import { currentLocale } from "@/lib/language";
 
 // The pure rules behind the billing milestones section, its dialog and the project form's
 // type picker, kept apart from the components so they can be tested without a browser.
@@ -130,7 +131,7 @@ export function dueDateFromSelection(selected: Date | undefined): string | null 
 
 /** A due date as the user reads it, in their language, with the year (e.g. "15 Jan 2027"). */
 export function formatDueDate(dayKey: string): string {
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(currentLocale(), {
     day: "numeric",
     month: "short",
     year: "numeric",

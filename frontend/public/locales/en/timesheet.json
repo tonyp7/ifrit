@@ -7,8 +7,6 @@
   "Add service line": "Add service line",
   "Remove service line": "Remove service line",
   "Hours": "Hours",
-  "Today": "Today",
-  "Month to date": "Month to date",
   "(unnamed service line)": "(unnamed service line)",
   "No service lines added yet. Use “Add service line” below to start logging time.": "No service lines added yet. Use “Add service line” below to start logging time.",
   "Failed to load service lines.": "Failed to load service lines.",
@@ -49,5 +47,9 @@
   "Export as CSV": "Export as CSV",
   "Export as…": "Export as…",
   "Days": "Days",
-  "Failed to export.": "Failed to export."
+  "Failed to export.": "Failed to export.",
+  "{{hours}}h": "{{hours}}h",
+  "Total: {{hours}}": "Total: {{hours}}",
+  "Today: <strong>{{hours}}</strong>": "Today: <strong>{{hours}}</strong>",
+  "Month to date: <strong>{{hours}}</strong>": "Month to date: <strong>{{hours}}</strong>"
 }

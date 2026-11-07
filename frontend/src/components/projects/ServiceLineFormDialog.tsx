@@ -37,12 +37,12 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { ConsultantName } from "@/components/projects/ConsultantName";
-import { formatMoney, formatQuantity, stripGrouping } from "@/lib/format";
+import { formatMoneyInput, formatQuantityInput, stripGrouping } from "@/lib/format";
 import { type ServiceLineConsultant, UOM_LABELS, type Uom } from "@/types/project";
 import type { User } from "@/types/user";
 
 const UOM_VALUES = Object.keys(UOM_LABELS) as [Uom, ...Uom[]];
-// Values may be pre-filled already comma-grouped (see formatQuantity/formatMoney):
+// Values may be pre-filled already comma-grouped (see formatQuantityInput/formatMoneyInput):
 // strip that before checking shape, same as on submit.
 const DECIMAL_PATTERN = /^\d+(\.\d+)?$/;
 // Matches CompaniesTable's search debounce: same rationale, applied here to the
@@ -135,10 +135,11 @@ export function ServiceLineFormDialog({
     if (!values) return {};
     return {
       ...values,
-      quantity: values.quantity !== undefined ? formatQuantity(values.quantity) : undefined,
+      quantity:
+        values.quantity !== undefined ? formatQuantityInput(values.quantity) : undefined,
       unit_price:
         values.unit_price !== undefined
-          ? formatMoney(values.unit_price, minorUnit)
+          ? formatMoneyInput(values.unit_price, minorUnit)
           : undefined,
     };
   }

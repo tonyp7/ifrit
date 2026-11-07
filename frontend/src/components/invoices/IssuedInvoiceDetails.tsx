@@ -12,6 +12,7 @@ import {
   type IssuePreview,
   type SnapshotIdentifier,
 } from "@/types/invoice";
+import { currentLocale } from "@/lib/language";
 
 // The parts of the invoice page that show what issuing set: the heading, the banner that
 // stops a draft from being issued, the void notice, and the frozen dates and identifiers.
@@ -81,7 +82,9 @@ export function VoidNotice({ detail }: { detail: InvoiceDetail }) {
       <AlertDescription>
         {t("Voided by {{name}} on {{date}}.", {
           name: detail.voided_by_name ?? t("a user who no longer exists"),
-          date: detail.voided_at ? new Date(detail.voided_at).toLocaleString() : "",
+          date: detail.voided_at
+            ? new Date(detail.voided_at).toLocaleString(currentLocale())
+            : "",
         })}
         {detail.void_reason && ` ${t("Reason: {{reason}}", { reason: detail.void_reason })}`}
       </AlertDescription>

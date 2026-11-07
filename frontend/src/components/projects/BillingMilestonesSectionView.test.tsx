@@ -59,13 +59,8 @@ describe("BillingMilestonesSectionView", () => {
     expect(html).toContain("30.00%");
     expect(html).toContain("40.00%");
     expect(html).toContain("21,600.00");
-    expect(html).toContain(
-      new Intl.DateTimeFormat(undefined, {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      }).format(new Date(2027, 0, 15)),
-    );
+    // The date follows the app language (English here), not the machine's regional settings.
+    expect(html).toContain("Jan 15, 2027");
   });
 
   it("totals the values and warns when they differ from the contract value", () => {

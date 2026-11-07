@@ -43,6 +43,7 @@ import { toSortParams } from "@/components/data-table/sorting";
 import { ApiError } from "@/api/client";
 import { deactivateProject, duplicateProject, listProjects } from "@/api/projects";
 import { PROJECT_TYPE_LABELS, STATUS_LABELS, type ProjectListItem } from "@/types/project";
+import { currentLocale } from "@/lib/language";
 
 const SEARCH_DEBOUNCE_MS = 300;
 
@@ -61,6 +62,140 @@ const HIDEABLE_COLUMN_LABELS: Record<string, string> = {
 /** The project's name, as the link that opens its form from anywhere on the row. */
 export function ProjectNameCell({ id, name }: { id: string; name: string }) {
   return <RowLink to={`/projects/${id}`}>{name}</RowLink>;
+}
+
+export interface ProjectsTableViewProps {
+  items: ProjectListItem[];
+  sorting: SortingState;
+  onSortingChange: OnChangeFn<SortingState>;
+  pageCount: number;
+  columnVisibility: ColumnVisibilityState;
+  onColumnVisibilityChange: OnChangeFn<ColumnVisibilityState>;
+  onOpen: (project: ProjectListItem) => void;
+  onDuplicate: (project: ProjectListItem) => void;
+  onDelete: (project: ProjectListItem) => void;
+}
+
+/** The table itself, with no data fetching or dialogs, so it can be rendered on its own. */
+export function ProjectsTableView({
+  items,
+  sorting,
+  onSortingChange,
+  pageCount,
+  columnVisibility,
+  onColumnVisibilityChange,
+  onOpen,
+  onDuplicate,
+  onDelete,
+}: ProjectsTableViewProps) {
+  const { t } = useTranslation(["projects", "common"]);
+
+  const columns: ColumnDef<typeof features, ProjectListItem>[] = [
+    {
+      accessorKey: "name",
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Name")} />,
+      enableHiding: false,
+      cell: ({ row }) => <ProjectNameCell id={row.original.id} name={row.original.name} />,
+    },
+    {
+      accessorKey: "status",
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Status")} />,
+      enableHiding: false,
+      cell: ({ row }) => (
+        <Badge variant={STATUS_BADGE_VARIANT[row.original.status]}>
+          {t(STATUS_LABELS[row.original.status])}
+        </Badge>
+      ),
+    },
+    {
+      accessorKey: "client_company_name",
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Client")} />,
+      enableHiding: false,
+      cell: ({ row }) => row.original.client_company_name ?? "—",
+    },
+    {
+      accessorKey: "vendor_company_name",
+      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Vendor")} />,
+      enableHiding: true,
+      cell: ({ row }) => row.original.vendor_company_name ?? "—",
+    },
+    {
+      accessorKey: "project_type",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t("Project Type")} />
+      ),
+      enableHiding: false,
+      cell: ({ row }) => t(PROJECT_TYPE_LABELS[row.original.project_type]),
+    },
+    {
+      accessorKey: "created_at",
+      header: ({ column }) => (
+        <DataTableColumnHeader column={column} title={t("Creation Date")} />
+      ),
+      enableHiding: false,
+      cell: ({ row }) => new Date(row.original.created_at).toLocaleDateString(currentLocale()),
+    },
+    {
+      id: "actions",
+      header: "",
+      enableHiding: false,
+      enableSorting: false,
+      cell: ({ row }) => (
+        <div className="relative z-10 flex justify-end">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
+                <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
+                <span className="sr-only">{t("Actions", { ns: "common" })}</span>
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onOpen(row.original)}>
+                {t("Edit", { ns: "common" })}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onDuplicate(row.original)}>
+                {t("Duplicate", { ns: "common" })}
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                className="text-destructive focus:text-destructive"
+                onClick={() => onDelete(row.original)}
+              >
+                {t("Delete", { ns: "common" })}
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      ),
+    },
+  ];
+
+  const table = useTable({
+    features,
+    data: items,
+    columns,
+    // No columnFilteringFeature registered: search is entirely custom (a debounced
+    // server-side query, not TanStack's own filter row-model), so there's no
+    // `manualFiltering` flag to set: that option only exists as part of
+    // columnFilteringFeature, which this app never uses.
+    manualPagination: true,
+    // `data` already arrives sorted from the server (see the fetch effect above):
+    // no sortedRowModel slot on `features`, it would only ever reorder this one
+    // page in memory.
+    manualSorting: true,
+    pageCount,
+    state: { columnVisibility, sorting },
+    onColumnVisibilityChange,
+    onSortingChange,
+  });
+
+  return (
+    <DataTable
+      table={table}
+      columnCount={columns.length}
+      emptyMessage={t("No projects found.")}
+    />
+  );
 }
 
 export function ProjectsTable() {
@@ -155,105 +290,6 @@ export function ProjectsTable() {
     }
   }
 
-  const columns: ColumnDef<typeof features, ProjectListItem>[] = [
-    {
-      accessorKey: "name",
-      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Name")} />,
-      enableHiding: false,
-      cell: ({ row }) => <ProjectNameCell id={row.original.id} name={row.original.name} />,
-    },
-    {
-      accessorKey: "status",
-      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Status")} />,
-      enableHiding: false,
-      cell: ({ row }) => (
-        <Badge variant={STATUS_BADGE_VARIANT[row.original.status]}>
-          {t(STATUS_LABELS[row.original.status])}
-        </Badge>
-      ),
-    },
-    {
-      accessorKey: "client_company_name",
-      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Client")} />,
-      enableHiding: false,
-      cell: ({ row }) => row.original.client_company_name ?? "—",
-    },
-    {
-      accessorKey: "vendor_company_name",
-      header: ({ column }) => <DataTableColumnHeader column={column} title={t("Vendor")} />,
-      enableHiding: true,
-      cell: ({ row }) => row.original.vendor_company_name ?? "—",
-    },
-    {
-      accessorKey: "project_type",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t("Project Type")} />
-      ),
-      enableHiding: false,
-      cell: ({ row }) => t(PROJECT_TYPE_LABELS[row.original.project_type]),
-    },
-    {
-      accessorKey: "created_at",
-      header: ({ column }) => (
-        <DataTableColumnHeader column={column} title={t("Creation Date")} />
-      ),
-      enableHiding: false,
-      cell: ({ row }) => new Date(row.original.created_at).toLocaleDateString(),
-    },
-    {
-      id: "actions",
-      header: "",
-      enableHiding: false,
-      enableSorting: false,
-      cell: ({ row }) => (
-        <div className="relative z-10 flex justify-end">
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                <MoreHorizontal className="h-4 w-4" aria-hidden="true" />
-                <span className="sr-only">{t("Actions", { ns: "common" })}</span>
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => navigate(`/projects/${row.original.id}`)}>
-                {t("Edit", { ns: "common" })}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => void handleDuplicate(row.original)}>
-                {t("Duplicate", { ns: "common" })}
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                className="text-destructive focus:text-destructive"
-                onClick={() => setDeleteTarget(row.original)}
-              >
-                {t("Delete", { ns: "common" })}
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      ),
-    },
-  ];
-
-  const table = useTable({
-    features,
-    data: items,
-    columns,
-    // No columnFilteringFeature registered: search is entirely custom (a debounced
-    // server-side query, not TanStack's own filter row-model), so there's no
-    // `manualFiltering` flag to set: that option only exists as part of
-    // columnFilteringFeature, which this app never uses.
-    manualPagination: true,
-    // `data` already arrives sorted from the server (see the fetch effect above):
-    // no sortedRowModel slot on `features`, it would only ever reorder this one
-    // page in memory.
-    manualSorting: true,
-    pageCount: Math.max(1, Math.ceil(total / pageSize)),
-    state: { columnVisibility, sorting },
-    onColumnVisibilityChange: setColumnVisibility,
-    onSortingChange: handleSortingChange,
-  });
-
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -278,19 +314,18 @@ export function ProjectsTable() {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              {table
-                .getAllColumns()
-                .filter((column) => column.getCanHide())
-                .map((column) => (
-                  <DropdownMenuCheckboxItem
-                    key={column.id}
-                    checked={column.getIsVisible()}
-                    onCheckedChange={(checked) => column.toggleVisibility(!!checked)}
-                    onSelect={(e) => e.preventDefault()}
-                  >
-                    {t(HIDEABLE_COLUMN_LABELS[column.id] ?? column.id)}
-                  </DropdownMenuCheckboxItem>
-                ))}
+              {Object.entries(HIDEABLE_COLUMN_LABELS).map(([id, label]) => (
+                <DropdownMenuCheckboxItem
+                  key={id}
+                  checked={columnVisibility[id] !== false}
+                  onCheckedChange={(checked) =>
+                    setColumnVisibility((current) => ({ ...current, [id]: !!checked }))
+                  }
+                  onSelect={(e) => e.preventDefault()}
+                >
+                  {t(label)}
+                </DropdownMenuCheckboxItem>
+              ))}
             </DropdownMenuContent>
           </DropdownMenu>
           <Button onClick={() => navigate("/projects/new")}>
@@ -302,10 +337,16 @@ export function ProjectsTable() {
 
       {error && <p className="text-destructive text-sm">{error}</p>}
 
-      <DataTable
-        table={table}
-        columnCount={columns.length}
-        emptyMessage={t("No projects found.")}
+      <ProjectsTableView
+        items={items}
+        sorting={sorting}
+        onSortingChange={handleSortingChange}
+        pageCount={Math.max(1, Math.ceil(total / pageSize))}
+        columnVisibility={columnVisibility}
+        onColumnVisibilityChange={setColumnVisibility}
+        onOpen={(project) => navigate(`/projects/${project.id}`)}
+        onDuplicate={(project) => void handleDuplicate(project)}
+        onDelete={setDeleteTarget}
       />
 
       <DataTablePagination

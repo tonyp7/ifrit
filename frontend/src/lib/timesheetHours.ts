@@ -1,3 +1,5 @@
+import { currentLocale } from "@/lib/language";
+
 // Widened to include the row's owner: My Timesheet holds exactly one owner's rows
 // per grid instance (so every call within it passes the same userId), but Reporting mixes many different consultants' rows
 // in a single flat grid, so the local `entries` map needs a composite key to
@@ -9,6 +11,17 @@ export function cellKey(userId: string, serviceLineId: string, dayKey: string): 
 // Renders a stored/edited hours value in its shortest form (e.g. "1.50" -> "1.5",
 // "2.00" -> "2"): used both for totals and for the value shown back in a cell after
 // a blur-save round-trip.
+// The shown form of a total: the same shortest form as `formatHours`, with the decimal mark of the
+// interface language ("7,5" in French). Only for text on screen; values that are edited or sent
+// keep `formatHours`, whose period the parsing code expects.
+export function formatHoursDisplay(value: number): string {
+  const text = formatHours(value);
+  if (text === "") return "0";
+  return new Intl.NumberFormat(currentLocale(), { maximumFractionDigits: 1 }).format(
+    Number(text),
+  );
+}
+
 export function formatHours(value: number): string {
   if (!Number.isFinite(value) || value === 0) return "";
   return value % 1 === 0 ? String(value) : value.toFixed(1);

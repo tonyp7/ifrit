@@ -5,6 +5,7 @@ import {
   startOfWeekMonday,
   toDayKey,
 } from "@/lib/timesheetDates";
+import { currentLocale } from "@/lib/language";
 
 export type PeriodPreset = "this_month" | "last_month" | "this_week" | "last_week";
 
@@ -80,7 +81,7 @@ export function isValidPeriod(range: DateRange): boolean {
 
 /** A period as people read it, e.g. "1–30 Sep 2026", in the user's language. */
 export function formatPeriod(start: Date, end: Date): string {
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(currentLocale(), {
     day: "numeric",
     month: "short",
     year: "numeric",

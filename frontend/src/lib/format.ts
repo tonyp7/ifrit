@@ -1,3 +1,5 @@
+import { currentLocale } from "@/lib/language";
+
 // Decimal amounts (quantity, unit_price, value, total_value) come from the API as
 // strings: the backend serializes Decimal fields as strings specifically to avoid
 // float precision loss over JSON. Display them human-readable via the two different
@@ -8,7 +10,7 @@
 export function formatQuantity(value: string): string {
   const num = Number(value);
   if (!Number.isFinite(num)) return value;
-  return new Intl.NumberFormat(undefined, { maximumFractionDigits: 5 }).format(num);
+  return new Intl.NumberFormat(currentLocale(), { maximumFractionDigits: 5 }).format(num);
 }
 
 /**
@@ -21,7 +23,29 @@ export function formatMoney(value: string, minorUnit: number | null | undefined)
   const num = Number(value);
   if (!Number.isFinite(num)) return value;
   const digits = minorUnit ?? 2;
-  return new Intl.NumberFormat(undefined, {
+  return new Intl.NumberFormat(currentLocale(), {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(num);
+}
+
+/**
+ * The English form of a quantity or amount, for pre-filling an editable field. Those fields are
+ * parsed back with `stripGrouping`, which expects a period for the decimal mark, so they must
+ * read the same in every interface language: a French `1 234,50` would not survive the round
+ * trip. Displayed values use `formatQuantity`/`formatMoney`, which follow the language.
+ */
+export function formatQuantityInput(value: string): string {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return value;
+  return new Intl.NumberFormat("en-US", { maximumFractionDigits: 5 }).format(num);
+}
+
+export function formatMoneyInput(value: string, minorUnit: number | null | undefined): string {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return value;
+  const digits = minorUnit ?? 2;
+  return new Intl.NumberFormat("en-US", {
     minimumFractionDigits: digits,
     maximumFractionDigits: digits,
   }).format(num);
@@ -47,7 +71,7 @@ export function formatFileSize(bytes: number): string {
     value /= 1000;
     unit += 1;
   }
-  const formatted = new Intl.NumberFormat(undefined, {
+  const formatted = new Intl.NumberFormat(currentLocale(), {
     maximumFractionDigits: unit === 0 ? 0 : 1,
   }).format(value);
   return `${formatted} ${units[unit]}`;
