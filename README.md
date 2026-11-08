@@ -23,6 +23,10 @@
   <a href="https://github.com/tonyp7/ifrit/issues">Report an issue</a>
 </p>
 
+<p align="center">
+  English · <a href="README.zh-CN.md">简体中文</a>
+</p>
+
 ---
 
 Ifrit is built for agencies, consultancies and any company where timesheets are at the core of the
@@ -46,6 +50,8 @@ exported as a report.
   made from a template you can edit.
 - **Roles.** Consultants, managers, billing and administrators each see only the screens they need.
 - **Light and dark themes**, following your system by default.
+- **Available in English, French and Simplified Chinese.** Ifrit starts in your browser's language,
+  and you can switch it from the profile menu.
 - **Self-hosted.** One container image plus PostgreSQL, started with Docker Compose. Database
   migrations run automatically when the container starts.
 

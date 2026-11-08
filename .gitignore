@@ -8,6 +8,7 @@
 !/frontend/
 !/.github/
 !/README.md
+!/README.zh-CN.md
 !/docker-compose.yml
 !/.env.example
 !/.dockerignore
