@@ -26,7 +26,7 @@ function placeholders(text: string): string[] {
 }
 
 /** The keys a language must have: each plain key once, each plural base once per plural
- * category the language uses (French has `many` besides `one` and `other`, English does not). */
+ * category the language uses (French has `many` besides `one` and `other`, Chinese only `other`). */
 function expectedKeys(english: Messages, language: string): string[] {
   const categories = new Intl.PluralRules(language).resolvedOptions().pluralCategories;
   const keys = new Set<string>();
@@ -42,8 +42,8 @@ const english = Object.keys(catalog.en);
 const others = Object.keys(catalog).filter((language) => language !== "en");
 
 describe("translation files", () => {
-  it("has a French folder", () => {
-    expect(others).toContain("fr");
+  it("has a folder for each language besides English", () => {
+    expect(others.sort()).toEqual(["fr", "zh-CN"]);
   });
 
   for (const language of others) {

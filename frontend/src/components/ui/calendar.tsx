@@ -1,7 +1,7 @@
 import * as React from "react";
 import { ChevronDownIcon, ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { DayButton, DayPicker, getDefaultClassNames } from "react-day-picker";
-import { enUS, fr } from "react-day-picker/locale";
+import { enUS, fr, zhCN } from "react-day-picker/locale";
 import { useTranslation } from "react-i18next";
 
 import { currentLocale } from "@/lib/language";
@@ -12,7 +12,7 @@ import { Button, buttonVariants } from "@/components/ui/button";
 // react-day-picker, no date-fns import in app code) give the month and weekday names, the
 // accessible labels and the first day of the week in the app language. Add a language here
 // when one is added to the language list.
-const DAY_PICKER_LOCALES = { en: enUS, fr } as const;
+const DAY_PICKER_LOCALES = { en: enUS, fr, "zh-CN": zhCN } as const;
 
 function Calendar({
   className,

@@ -80,6 +80,17 @@
   --font-sans: "Inter Variable", ui-sans-serif, system-ui, sans-serif;
 }
 
+/* Chinese text: Inter has no Han glyphs, so under a Chinese interface the stack gains Noto Sans SC
+   (self-hosted, and fetched in unicode-range slices only when a Han character is on screen).
+   Inter stays first so Latin letters and digits look the same as in every other language. The
+   override sets Tailwind's default font family, which is what the page's base styles read: the
+   `--font-sans` theme token above is inlined and never exists as a variable to redefine. */
+:root:lang(zh) {
+  --default-font-family:
+    "Inter Variable", "Noto Sans SC Variable", ui-sans-serif, system-ui, "PingFang SC",
+    "Microsoft YaHei", sans-serif;
+}
+
 /* A locked time-entry cell: a cool slate-blue fill with a faint diagonal hatch. Blue-grey is
    deliberately not red (a lock is an intended state, not an error) and not the plain grey the
    grid already uses for weekends and unassigned cells; the hatch is the usual read-only cue and

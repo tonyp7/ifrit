@@ -10,6 +10,7 @@ import {
   stripGrouping,
 } from "@/lib/format";
 import { formatPeriod } from "@/lib/invoicePeriods";
+import { currentLocale } from "@/lib/language";
 import { formatHours, formatHoursDisplay } from "@/lib/timesheetHours";
 import {
   formatFullDate,
@@ -82,6 +83,74 @@ describe("formatting follows the app language", () => {
     await inFrench(() => {
       expect(startOfWeekMonday(wednesday).getDay()).toBe(1);
       expect(getIsoWeekNumber(wednesday)).toBe(42);
+    });
+  });
+});
+
+describe("formatting in Simplified Chinese", () => {
+  afterEach(async () => {
+    await i18n.changeLanguage("en");
+  });
+
+  async function inChinese(check: () => void) {
+    await i18n.changeLanguage("zh-CN");
+    check();
+  }
+
+  it("formats amounts like English: a comma for thousands, a period for decimals", async () => {
+    await inChinese(() => {
+      expect(formatMoney("1234.5", 2)).toBe("1,234.50");
+      expect(formatMoney("1234", 0)).toBe("1,234");
+      expect(formatQuantity("1234.5")).toBe("1,234.5");
+    });
+  });
+
+  it("formats dates in year, month, day order and names months and weekdays in Chinese", async () => {
+    const monday = new Date(2026, 9, 12);
+    await inChinese(() => {
+      expect(formatDueDate("2027-01-15")).toBe("2027年1月15日");
+      expect(formatPeriod(new Date(2026, 8, 1), new Date(2026, 8, 30))).toBe(
+        "2026/9/1 – 2026/9/30",
+      );
+      expect(formatMonthLabel(monday)).toBe("2026年10月");
+      expect(formatWeekdayShort(monday)).toBe("周一");
+      expect(formatWeekdayNarrow(monday)).toBe("一");
+      expect(formatFullDate(monday)).toBe("10月12日星期一");
+      expect(new Date("2026-10-14T09:00:00Z").toLocaleDateString(currentLocale())).toBe(
+        "2026/10/14",
+      );
+    });
+  });
+
+  it("starts the week on Monday", async () => {
+    const wednesday = new Date(2026, 9, 14);
+    await inChinese(() => {
+      expect(startOfWeekMonday(wednesday).getDay()).toBe(1);
+      expect(getIsoWeekNumber(wednesday)).toBe(42);
+    });
+  });
+
+  it("shows hour totals with a period and keeps the edited form unchanged", async () => {
+    await inChinese(() => {
+      expect(formatHoursDisplay(7.5)).toBe("7.5");
+      expect(formatHoursDisplay(0)).toBe("0");
+      expect(formatHours(7.5)).toBe("7.5");
+      expect([formatMoneyInput("1234.5", 2), formatQuantityInput("1234.5")]).toEqual([
+        "1,234.50",
+        "1,234.5",
+      ]);
+    });
+  });
+
+  it("sorts country names in pinyin order", async () => {
+    await inChinese(() => {
+      const names = ["新加坡", "美国", "中国", "阿根廷"];
+      expect(names.sort(new Intl.Collator(currentLocale()).compare)).toEqual([
+        "阿根廷",
+        "美国",
+        "新加坡",
+        "中国",
+      ]);
     });
   });
 });

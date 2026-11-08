@@ -31,4 +31,11 @@ describe("TimesheetHeader total", () => {
     expect(html).toContain("Total : 7,5 h");
     expect(html).toContain("Semaine 42");
   });
+
+  it("reads '合计：7.5小时' in Chinese, with a full-width colon and no space", async () => {
+    await i18n.changeLanguage("zh-CN");
+    const html = render(7.5);
+    expect(html).toContain("合计：7.5小时");
+    expect(html).toContain("第 42 周");
+  });
 });

@@ -18,13 +18,21 @@ import invoicesFr from "../../public/locales/fr/invoices.json";
 import projectsFr from "../../public/locales/fr/projects.json";
 import timesheetFr from "../../public/locales/fr/timesheet.json";
 import userFr from "../../public/locales/fr/user.json";
+import authZh from "../../public/locales/zh-CN/auth.json";
+import commonZh from "../../public/locales/zh-CN/common.json";
+import companyZh from "../../public/locales/zh-CN/company.json";
+import configurationZh from "../../public/locales/zh-CN/configuration.json";
+import invoicesZh from "../../public/locales/zh-CN/invoices.json";
+import projectsZh from "../../public/locales/zh-CN/projects.json";
+import timesheetZh from "../../public/locales/zh-CN/timesheet.json";
+import userZh from "../../public/locales/zh-CN/user.json";
 
 // Global i18next instance for tests that render components calling useTranslation() with no
 // I18nextProvider around them; without it react-i18next warns on every such test and quietly
 // returns the key. It is loaded with the same English JSON the app ships, so a key used by a
 // component but absent from the files fails the test that rendered it. Tests that build their
 // own instance and wrap their markup in I18nextProvider are unaffected: the provider wins.
-// French is loaded too, so a test that switches the language renders real French text.
+// French and Chinese are loaded too, so a test that switches the language renders real text.
 //
 // Deliberately not "@/i18n": that module registers the HTTP backend, which would try to fetch
 // /locales/... during a test run.
@@ -43,6 +51,16 @@ void i18n.use(initReactI18next).init({
       projects: projectsFr,
       timesheet: timesheetFr,
       user: userFr,
+    },
+    "zh-CN": {
+      auth: authZh,
+      common: commonZh,
+      company: companyZh,
+      configuration: configurationZh,
+      invoices: invoicesZh,
+      projects: projectsZh,
+      timesheet: timesheetZh,
+      user: userZh,
     },
   },
   defaultNS: "common",
