@@ -223,4 +223,15 @@ describe("InvoicesTable", () => {
     expect(french.replace(/[\u202f\u00a0]/g, " ")).toContain("19 037,50");
     expect(french).not.toContain("10/14/2026");
   });
+
+  it("shows Chinese headers, dates and amounts when the language is Simplified Chinese", async () => {
+    await i18n.changeLanguage("zh-CN");
+    const html = render([issued], ALL_VISIBLE);
+    for (const text of [">创建日期<", ">状态<", ">项目<", ">计费内容<", ">合计<"]) {
+      expect(html).toContain(text);
+    }
+    expect(html).toContain("2026/10/14");
+    expect(html).toContain("19,037.50");
+    expect(html).toContain(">已开具<");
+  });
 });

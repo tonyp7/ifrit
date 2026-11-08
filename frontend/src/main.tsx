@@ -8,6 +8,7 @@ import { AuthProvider } from "@/providers/AuthProvider";
 import { ThemeProvider } from "@/providers/ThemeProvider";
 
 import "@fontsource-variable/inter";
+import "@fontsource-variable/noto-sans-sc";
 import "@/i18n";
 import "@/index.css";
 

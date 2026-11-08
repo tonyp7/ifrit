@@ -1,8 +1,10 @@
-import i18n from "i18next";
+import i18n, { createInstance } from "i18next";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
+  applyDocumentLanguage,
   currentLocale,
+  I18N_LANGUAGE_OPTIONS,
   LANGUAGE_STORAGE_KEY,
   readStoredLanguage,
   resolveLanguage,
@@ -38,11 +40,67 @@ describe("resolveLanguage", () => {
   });
 });
 
+describe("Chinese", () => {
+  it("starts in Simplified Chinese for every Simplified tag", () => {
+    for (const tag of ["zh", "zh-CN", "zh-SG", "zh-Hans", "zh-Hans-SG", "ZH-cn", "zh_CN"]) {
+      expect(resolveLanguage(null, [tag]), tag).toBe("zh-CN");
+    }
+  });
+
+  it("does not match Traditional Chinese or another Chinese language", () => {
+    for (const tag of ["zh-TW", "zh-HK", "zh-MO", "zh-Hant", "zh-Hant-TW", "yue-HK"]) {
+      expect(resolveLanguage(null, [tag]), tag).toBe("en");
+    }
+  });
+
+  it("moves on down the browser's list past Traditional Chinese", () => {
+    expect(resolveLanguage(null, ["zh-TW", "fr-FR"])).toBe("fr");
+    expect(resolveLanguage(null, ["zh-TW", "zh-CN"])).toBe("zh-CN");
+    expect(resolveLanguage(null, ["zh-HK", "en-US", "zh-CN"])).toBe("en");
+  });
+
+  it("skips a tag that is not valid", () => {
+    expect(resolveLanguage(null, ["not a tag!", "zh-CN"])).toBe("zh-CN");
+    expect(resolveLanguage(null, ["", "_"])).toBe("en");
+  });
+
+  it("takes a stored choice only when it is exactly an offered code", () => {
+    expect(resolveLanguage("zh-CN", ["fr"])).toBe("zh-CN");
+    expect(resolveLanguage("ZH-cn", ["fr"])).toBe("zh-CN");
+    expect(resolveLanguage("zh-TW", ["fr"])).toBe("fr");
+    expect(resolveLanguage("zh", [])).toBe("en");
+  });
+
+  it("lets i18next load only offered languages, so no `zh` folder is requested", () => {
+    const instance = createInstance();
+    void instance.init({
+      lng: "zh-CN",
+      fallbackLng: "en",
+      ...I18N_LANGUAGE_OPTIONS,
+      initAsync: false,
+      resources: {},
+    });
+    expect(instance.services.languageUtils.toResolveHierarchy("zh-CN")).toEqual([
+      "zh-CN",
+      "en",
+    ]);
+  });
+
+  it("sets the page's lang attribute to the language in use", () => {
+    const element = { lang: "en" };
+    vi.stubGlobal("document", { documentElement: element });
+    applyDocumentLanguage("zh-CN");
+    expect(element.lang).toBe("zh-CN");
+    vi.unstubAllGlobals();
+  });
+});
+
 describe("offered languages", () => {
   it("names each language in itself", () => {
     expect(SUPPORTED_LANGUAGES.map((l) => [l.code, l.nativeName])).toEqual([
       ["en", "English"],
       ["fr", "Français"],
+      ["zh-CN", "简体中文"],
     ]);
   });
 });

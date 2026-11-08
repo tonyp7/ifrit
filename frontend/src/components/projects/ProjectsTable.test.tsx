@@ -95,4 +95,21 @@ describe("ProjectsTableView", () => {
     expect(html).not.toContain("10/14/2026");
     expect(render([])).toContain("Aucun projet trouvé.");
   });
+
+  it("shows Chinese headers, status, type and date when the language is Simplified Chinese", async () => {
+    await i18n.changeLanguage("zh-CN");
+    const html = render([project]);
+    for (const text of [
+      ">名称<",
+      ">状态<",
+      ">项目类型<",
+      ">创建日期<",
+      ">进行中<",
+      "固定价格",
+    ]) {
+      expect(html).toContain(text);
+    }
+    expect(html).toContain("2026/10/14");
+    expect(render([])).toContain("未找到项目。");
+  });
 });

@@ -24,4 +24,13 @@ describe("Calendar", () => {
     // The first column header is Monday, not Sunday.
     expect(html.indexOf("lundi")).toBeLessThan(html.indexOf("dimanche"));
   });
+
+  it("names the month and weekdays in Chinese, starting the week on Monday", async () => {
+    await i18n.changeLanguage("zh-CN");
+    const html = render();
+    expect(html).toContain("2026年10月");
+    expect(html).toContain("星期一");
+    expect(html).not.toContain("October");
+    expect(html.indexOf("星期一")).toBeLessThan(html.indexOf("星期日"));
+  });
 });

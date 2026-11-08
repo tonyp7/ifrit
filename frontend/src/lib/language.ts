@@ -10,9 +10,19 @@ export interface SupportedLanguage {
 export const SUPPORTED_LANGUAGES: readonly SupportedLanguage[] = [
   { code: "en", nativeName: "English" },
   { code: "fr", nativeName: "Français" },
+  { code: "zh-CN", nativeName: "简体中文" },
 ];
 
 export const FALLBACK_LANGUAGE = "en";
+
+/**
+ * The languages i18next may load, so a regional code such as `zh-CN` is never also looked up as
+ * its base `zh`. That folder does not exist, and the web server answers any unknown path with the
+ * app's `index.html`, which would arrive as a successful response holding HTML, not JSON.
+ */
+export const I18N_LANGUAGE_OPTIONS = {
+  supportedLngs: SUPPORTED_LANGUAGES.map((language) => language.code),
+};
 
 /** Where an explicit choice is kept. Browser-only on purpose: the sign-in screen has to be in
  * the right language before anyone is authenticated, and nothing about it follows a user to
@@ -23,10 +33,31 @@ function isSupported(code: string): boolean {
   return SUPPORTED_LANGUAGES.some((language) => language.code === code);
 }
 
-/** `fr-CA` and `fr_CA` give `fr`; anything that is not a supported base language gives null. */
+/** The language and script a tag stands for once its omitted parts are filled in, so `zh`,
+ * `zh-CN` and `zh-Hans-SG` all read `zh-Hans`, while `zh-TW` and `zh-Hant` read `zh-Hant`, and
+ * `fr-CA` reads `fr-Latn`. Null for a tag that is not valid. */
+function languageAndScript(tag: string): string | null {
+  try {
+    const { language, script } = new Intl.Locale(tag.trim().replace(/_/g, "-")).maximize();
+    return `${language}-${script}`;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The offered language a browser tag stands for, or null. It is the same language and the same
+ * script, not just the same base language: Traditional Chinese (`zh-TW`) must not select an
+ * offered Simplified Chinese, whose readers it does not serve, so it matches nothing and the
+ * search goes on down the browser's list.
+ */
 function toSupported(tag: string): string | null {
-  const base = tag.trim().toLowerCase().split(/[-_]/)[0];
-  return isSupported(base) ? base : null;
+  const wanted = languageAndScript(tag);
+  if (!wanted) return null;
+  const match = SUPPORTED_LANGUAGES.find(
+    (language) => languageAndScript(language.code) === wanted,
+  );
+  return match ? match.code : null;
 }
 
 /**
@@ -38,8 +69,10 @@ export function resolveLanguage(
   stored: string | null | undefined,
   browserLanguages: readonly string[],
 ): string {
-  const storedCode = stored?.trim().toLowerCase();
-  if (storedCode && isSupported(storedCode)) return storedCode;
+  const storedCode = SUPPORTED_LANGUAGES.find(
+    (language) => language.code.toLowerCase() === stored?.trim().toLowerCase(),
+  )?.code;
+  if (storedCode) return storedCode;
   for (const tag of browserLanguages) {
     const match = toSupported(tag);
     if (match) return match;

@@ -27,11 +27,13 @@ roles give you, each as an icon with a tooltip:
 Typing the address of a screen you do not have takes you back to your own timesheet.
 
 The **profile** icon opens a menu where you choose the appearance (light, dark or follow the
-system), choose the language (English or French) and sign out. Your theme choice is stored with
-your account, so it follows you between devices. The language is remembered by the browser you
-chose it in, so it does not follow you to another browser or device. A browser that prefers French
-starts in French. Dates and numbers follow the language you chose. Messages written by the server,
-exported reports and invoice PDFs stay in English.
+system), choose the language (English, French or Simplified Chinese) and sign out. Your theme choice
+is stored with your account, so it follows you between devices. The language is remembered by the
+browser you chose it in, so it does not follow you to another browser or device. A browser that
+prefers French or Simplified Chinese starts in that language. Browsers that prefer Traditional
+Chinese start in English, and you can choose Simplified Chinese from the menu. Dates and numbers
+follow the language you chose. Messages written by the server, exported reports and invoice PDFs
+stay in English.
 
 ## Things that apply to everyone
 
