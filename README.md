@@ -91,8 +91,8 @@ Ifrit follows [semantic versioning](https://semver.org). Each release is a `vX.Y
 publishes a container image to the GitHub Container Registry:
 
 ```text
-ghcr.io/tonyp7/ifrit:2.4.0     an exact release (recommended for production)
-ghcr.io/tonyp7/ifrit:2.4       the latest patch of 2.4
+ghcr.io/tonyp7/ifrit:2.5.0     an exact release (recommended for production)
+ghcr.io/tonyp7/ifrit:2.5       the latest patch of 2.5
 ghcr.io/tonyp7/ifrit:latest    the current state of main (not for production)
 ```
 

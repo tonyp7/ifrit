@@ -4,6 +4,55 @@ All notable changes to Ifrit Timesheet Tracker are documented here. The format f
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org).
 
+## [2.5.0] - 8 Nov 2026
+
+### Upgrading
+
+Back up the database and the storage volume first, as with any upgrade. This release has **one
+database migration, `0005`, and no new setting**. The migration only adds **Net 45** to the list of
+payment terms an invoice may use and changes no data, so it is safe to apply on any installation. If
+you need to go back to 2.4.0 after issuing an invoice with Net 45, the downgrade of `0005` refuses to
+run while an invoice uses it; change that invoice's payment terms first, or restore the backup you
+took before upgrading. Things you may notice:
+
+- **Ifrit now speaks English, French and Simplified Chinese.** The first time someone opens it, it
+  starts in the language their browser prefers, or in English when the browser prefers neither
+  French nor Simplified Chinese (a browser set to Traditional Chinese starts in English). Anyone can
+  change it from the **Languages** submenu of the profile menu. The choice is kept in that browser
+  only, not on the user, so it is not shared with another browser or device.
+- **The image is about 5 MB larger**, because it now carries the font used for Chinese text. A
+  browser downloads that font only when Ifrit is shown in Chinese.
+- **A new invoice draft has no period until lines are generated.** A draft used to be given last
+  month as its period whether or not you generated lines. Existing drafts keep the period they have.
+- **In Supporting Documents, clicking a file's row downloads it**, not only its name.
+
+### Added
+- **Net 45** is a new payment term on invoices, between Net 30 and Net 60. Like the other Net terms
+  it is worked out when the invoice is issued, as the invoice date plus 45 days, and the invoice PDF
+  shows `NET 45`.
+- **French and Simplified Chinese interfaces.** Every screen, menu, button and message of the
+  application can be shown in French or in Simplified Chinese, with dates, month and weekday names,
+  numbers and amounts written the way that language writes them. The **Languages** submenu of the
+  profile menu lists English, Français and 简体中文, each in its own language. The week still starts
+  on Monday, and a value you type into a field, such as a unit price, is always written with a period
+  as the decimal mark. Messages sent back by the server, the invoice PDF, the **Reporting** exports
+  and the documentation website stay in English.
+
+### Changed
+- **An invoice's period is set when you generate lines.** Choosing a range in **Generate line items**
+  changes nothing on the invoice until you press **Generate line items**, which then records that
+  range as the invoice's period. An invoice made only of lines you typed has no period: its **Billed
+  for** shows its lines instead, and it no longer raises a warning about unlocked hours it has
+  nothing to do with.
+- **The Warnings section of an invoice draft is now Information.** Its first line, in blue, says what
+  **Billed for** will read: the period when there is one, otherwise the descriptions of the lines,
+  and it follows the lines as you edit them. The warnings follow, in yellow as before.
+- **In Supporting Documents, a click anywhere on a file's row downloads it**, with a pointer cursor
+  and the same highlight as a row of the service lines. The trash button and the tag buttons keep
+  their own action and do not download. On a closed project, where those buttons are disabled,
+  clicking them downloads the file too.
+- Dependency updates, including GitHub Actions and the frontend and backend libraries.
+
 ## [2.4.0] - 1 Nov 2026
 
 ### Upgrading
