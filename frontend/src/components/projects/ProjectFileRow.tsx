@@ -1,6 +1,7 @@
 import { Trash2, X } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import { RowButton } from "@/components/data-table/RowControl";
 import { FileTagPicker } from "@/components/projects/FileTagPicker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,7 +14,11 @@ import type { FileTag, ProjectFile } from "@/types/file";
 export interface ProjectFileRowProps {
   file: ProjectFile;
   vocabulary: FileTag[];
-  /** Closed project: every control is shown disabled, the download stays live. */
+  /**
+   * Closed project: the delete and tag controls are shown disabled, the download stays live.
+   * A disabled button ignores clicks, so a click on one falls through to the row and downloads
+   * the file: nothing else can happen on a closed project, and that is the one thing it allows.
+   */
   readOnly: boolean;
   onDownload: (file: ProjectFile) => void;
   onDelete: (file: ProjectFile) => void;
@@ -37,14 +42,18 @@ export function ProjectFileRow({
   });
 
   return (
-    <li className="flex flex-wrap items-center gap-x-3 gap-y-2 py-2">
+    // The name's button stretches over the whole row (see RowControl), so a click anywhere on it
+    // downloads the file. The delete and tag controls sit above it with `relative z-10` and keep
+    // their own clicks. The padding is on the row, not the list, so the hover tint and the click
+    // area reach the border.
+    <li className="hover:bg-secondary/50 relative flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2 transition-colors">
       {/* On a phone the name group takes the whole line, which pushes the tags below it. */}
       <div className="flex w-full min-w-0 items-center gap-2 sm:w-auto sm:flex-1">
         <Button
           type="button"
           variant="ghost"
           size="icon"
-          className="h-8 w-8 shrink-0"
+          className="relative z-10 h-8 w-8 shrink-0"
           disabled={readOnly}
           aria-label={t("Delete file {{name}}", { name: file.original_filename })}
           onClick={() => onDelete(file)}
@@ -52,14 +61,12 @@ export function ProjectFileRow({
           <Trash2 className="h-4 w-4" aria-hidden="true" />
         </Button>
         <Icon className={cn("h-5 w-5 shrink-0", iconColor)} aria-hidden="true" />
-        <Button
-          type="button"
-          variant="link"
-          className="text-foreground h-auto min-w-0 justify-start p-0"
+        <RowButton
+          className="min-w-0 truncate text-sm font-medium"
           onClick={() => onDownload(file)}
         >
-          <span className="truncate">{file.original_filename}</span>
-        </Button>
+          {file.original_filename}
+        </RowButton>
         <span className="text-muted-foreground shrink-0 text-xs">
           {formatFileSize(file.size_bytes)}
         </span>
@@ -67,7 +74,7 @@ export function ProjectFileRow({
 
       <div className="flex w-full flex-wrap items-center gap-1.5 sm:w-auto">
         {file.tags.map((tag) => (
-          <Badge key={tag.id} variant="secondary" className="gap-1 pr-1">
+          <Badge key={tag.id} variant="secondary" className="relative z-10 gap-1 pr-1">
             {tag.name}
             {/* A real button, always visible, so keyboard and touch users reach it too. */}
             <Button
@@ -83,11 +90,13 @@ export function ProjectFileRow({
             </Button>
           </Badge>
         ))}
-        <FileTagPicker
-          available={availableTags(vocabulary, file.tags)}
-          disabled={readOnly}
-          onSelect={(tag) => onAddTag(file, tag)}
-        />
+        <span className="relative z-10">
+          <FileTagPicker
+            available={availableTags(vocabulary, file.tags)}
+            disabled={readOnly}
+            onSelect={(tag) => onAddTag(file, tag)}
+          />
+        </span>
       </div>
     </li>
   );

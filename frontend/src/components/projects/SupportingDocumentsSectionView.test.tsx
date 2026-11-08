@@ -74,6 +74,15 @@ function buttonNamed(html: string, label: string): string {
   return match[0];
 }
 
+/** The opening tag of the button holding this file name: the one that downloads it. */
+function downloadButton(html: string, name: string): string {
+  const match = html.match(
+    new RegExp(`<button[^>]*>(?=${name.replace(".", "\\.")}</button>)`),
+  );
+  if (!match) throw new Error(`No download button for ${name}`);
+  return match[0];
+}
+
 describe("SupportingDocumentsSectionView", () => {
   it("shows the title and the upload button directly, with no rows, for a project without files", () => {
     const html = render();
@@ -148,8 +157,46 @@ describe("SupportingDocumentsSectionView", () => {
       /<button[^>]*disabled=""[^>]*><svg[^>]*lucide-upload[\s\S]*?Upload File\.\.\./,
     );
     // The name button is the download: it stays enabled.
-    const download = html.match(/<button[^>]*>(?=<span class="truncate">contract\.pdf)/);
-    expect(download?.[0]).not.toContain(`disabled=""`);
+    expect(downloadButton(html, "contract.pdf")).not.toContain(`disabled=""`);
+  });
+
+  it("makes the whole row the download: a stretched, pointer-cursor name button on a hover-tinted row", () => {
+    const html = render({ files: [file("a", "contract.pdf", [contract])] });
+    const button = downloadButton(html, "contract.pdf");
+    // The button's ::after covers the row, so a click anywhere on the row lands on it.
+    expect(button).toContain("after:absolute");
+    expect(button).toContain("after:inset-0");
+    expect(button).toContain("cursor-pointer");
+    // Same hover tint as a Service Lines row, and the row is what the overlay is sized to.
+    const row = html.match(/<li [^>]*>/)?.[0] ?? "";
+    expect(row).toContain("hover:bg-secondary/50");
+    expect(row).toMatch(/class="[^"]*\brelative\b/);
+    // Plain text, not the underlined link style.
+    expect(button).not.toContain("underline");
+    // The name stays the one keyboard stop for the download.
+    expect(html.match(/<button[^>]*>(?=contract\.pdf<)/g)).toHaveLength(1);
+  });
+
+  it("keeps the trash, tag remove and + Tag buttons above the row's download", () => {
+    const html = render({ files: [file("a", "contract.pdf", [contract])] });
+    for (const label of ["Delete file contract.pdf"]) {
+      expect(buttonNamed(html, label)).toMatch(/class="[^"]*\brelative z-10\b/);
+    }
+    // The badge holding the remove button, and the span around + Tag.
+    expect(html).toMatch(
+      /<div[^>]*relative z-10[^>]*>contract<button[^>]*aria-label="Remove tag contract"/,
+    );
+    expect(html).toMatch(/<span class="relative z-10"><button[^>]*aria-label="Add tag"/);
+    // The download button itself is not raised, or its overlay would sit above the rest.
+    expect(downloadButton(html, "contract.pdf")).not.toContain("z-10");
+  });
+
+  it("puts the padding on each row so the tint and click area reach the border", () => {
+    const html = render({ files: [file("a", "contract.pdf")] });
+    const list = html.match(/<ul [^>]*>/)?.[0] ?? "";
+    expect(list).not.toMatch(/\bpx-/);
+    expect(list).toContain("overflow-hidden");
+    expect(html.match(/<li [^>]*>/)?.[0]).toMatch(/\bpx-3\b/);
   });
 
   it("is not read-only for an open project", () => {

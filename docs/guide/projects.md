@@ -126,7 +126,10 @@ Only users with the manager role can list, upload, tag, download and delete them
   installation (10 MiB by default) and of an accepted type; other files are rejected.
 - **Tag** a document from the fixed list: contract, purchase order, statement of work, proposal,
   master service agreement, non-disclosure agreement, invoice, addendum.
-- A closed project's documents stay downloadable but cannot be changed.
+- **Download** a document by clicking its row. The trash and tag buttons do their own thing and do
+  not download.
+- A closed project's documents stay downloadable but cannot be changed: its trash and tag buttons
+  are disabled, and clicking anywhere on the row, including them, downloads the file.
 
 ## Billing milestones
 
