@@ -72,7 +72,7 @@ export function SupportingDocumentsSectionView({
       )}
 
       {files.length > 0 && (
-        <ul className="divide-y rounded-md border px-3">
+        <ul className="divide-y overflow-hidden rounded-md border">
           {files.map((file) => (
             <ProjectFileRow
               key={file.file_id}
