@@ -70,6 +70,9 @@ server {
 !!! note
     Before the certificates are issued, the files `fullchain.pem` and `privkey.pem` would not exist and the configuration would fail. On a first launch, the TLS certificates should be self-signed, and immediately swapped out for the proper certs once obtained.
 
+!!! warning
+    The nginx in front of Ifrit is the one that speaks HTTP/2 to your visitors, because of the `http2 on;` line above. The Ifrit container itself only listens on plain HTTP. Keep that nginx's package up to date with your operating system's security updates, and remove `http2 on;` until you have applied an update that fixes a reported HTTP/2 flaw.
+
 
 ## Traefik
 

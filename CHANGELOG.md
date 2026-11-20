@@ -4,6 +4,41 @@ All notable changes to Ifrit Timesheet Tracker are documented here. The format f
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project follows
 [semantic versioning](https://semver.org).
 
+## [2.5.1] - 20 Nov 2026
+
+### Upgrading
+
+Back up the database and the storage volume first, as with any upgrade. This release has **no
+database migration and no new setting**: pull the new image and recreate the container. Things you
+may notice:
+
+- **The image now ships Debian's patched nginx**, which fixes two HTTP/2 flaws disclosed on 18 Nov
+  2026 (see Security below). Pinning `:2.5.0` keeps the older package, so move to `:2.5.1` or
+  `:2.5`.
+- **Check the nginx in front of Ifrit.** The nginx inside the Ifrit image listens on plain HTTP and
+  does not serve HTTP/2, so it is not where the flaws can be reached. If you run your own nginx or
+  another reverse proxy in front of Ifrit with `http2` enabled, as the examples and the
+  documentation do, update that server's nginx package, or remove `http2` from its `listen` lines
+  until you can. Rebuilding the Ifrit image does not change that server.
+
+### Security
+
+- **nginx update.** The image installs nginx from Debian's package, and this release includes the
+  build (`1.26.3-3+deb13u11`) that fixes the two NGINX2Shell HTTP/2 flaws, one of which can lead to
+  remote code execution. The package suffix is what identifies the fixed build, because Debian keeps
+  the upstream version number `1.26.3`. Check it with
+  `docker run --rm --entrypoint dpkg ghcr.io/tonyp7/ifrit:2.5.1 -s nginx`.
+
+### Added
+
+- **A Simplified Chinese README**, `README.zh-CN.md`, linked from the top of the English one, along
+  with a line in the feature list about the three languages Ifrit now speaks.
+
+### Changed
+
+- Dependency updates, including pypdf 7 and i18next 27, plus new patch and minor releases of the
+  libraries behind the backend, the frontend and the build tools.
+
 ## [2.5.0] - 8 Nov 2026
 
 ### Upgrading
