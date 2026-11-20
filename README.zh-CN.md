@@ -81,7 +81,7 @@ docker compose exec app python -m scripts.seed_admin
 Ifrit 遵循[语义化版本](https://semver.org)。每个版本对应一个 `vX.Y.Z` 标签，并向 GitHub Container Registry 发布一个容器镜像：
 
 ```text
-ghcr.io/tonyp7/ifrit:2.5.0     an exact release (recommended for production)
+ghcr.io/tonyp7/ifrit:2.5.1     an exact release (recommended for production)
 ghcr.io/tonyp7/ifrit:2.5       the latest patch of 2.5
 ghcr.io/tonyp7/ifrit:latest    the current state of main (not for production)
 ```
