@@ -13,7 +13,7 @@
 | app/api/users.py                            |       66 |        5 |        6 |        0 |     93% |80, 101, 126-128 |
 | app/auth/dependencies.py                    |       28 |        2 |        6 |        0 |     94% |     26-27 |
 | app/auth/security.py                        |       36 |        0 |        4 |        1 |     98% |   46-\>48 |
-| app/core/body\_limit.py                     |       33 |        4 |       12 |        2 |     87% |31-32, 40-41, 54-\>65 |
+| app/core/body\_limit.py                     |       33 |        4 |       12 |        1 |     89% |31-32, 40-41 |
 | app/core/db.py                              |       11 |        2 |        0 |        0 |     82% |     17-18 |
 | app/pdf/odt.py                              |      212 |       16 |       88 |        9 |     90% |60-\>58, 64-65, 139, 161-162, 173-175, 211, 214, 256-\>exit, 274-277, 288, 314 |
 | app/pdf/runner.py                           |      114 |       15 |       16 |        2 |     87% |76-\>78, 85-87, 159-161, 197-207, 209-210 |
@@ -28,10 +28,10 @@
 | app/services/invoice\_numbering\_service.py |       84 |        0 |       22 |        1 |     99% | 59-\>exit |
 | app/services/invoice\_service.py            |      469 |       13 |      144 |       15 |     95% |317, 452, 616, 730, 759, 786, 853, 919-\>927, 922, 1130, 1286, 1320-\>1322, 1336, 1353-1354, 1381-\>1383 |
 | app/services/project\_service.py            |      290 |        5 |       76 |        5 |     97% |279, 329, 359, 408, 433 |
-| app/services/report\_export\_service.py     |      388 |        4 |       98 |        7 |     98% |84-\>87, 102-\>100, 104, 126-\>123, 128, 862, 876 |
+| app/services/report\_export\_service.py     |      388 |        4 |       98 |        7 |     98% |84-\>87, 102-\>100, 104, 126-\>123, 128, 854, 868 |
 | app/services/time\_entry\_service.py        |      179 |        4 |       60 |        6 |     96% |240-\>243, 469, 508-\>521, 583, 624, 681 |
 | app/services/user\_service.py               |      104 |        1 |       20 |        1 |     98% |       107 |
-| **TOTAL**                                   | **5141** |  **149** | **1050** |   **85** | **96%** |           |
+| **TOTAL**                                   | **5142** |  **149** | **1050** |   **84** | **96%** |           |
 
 53 files skipped due to complete coverage.
 
