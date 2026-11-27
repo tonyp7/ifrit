@@ -367,8 +367,6 @@ def _fit_font_size(
     """The largest size up to `size_pt` at which `text` fits a cell `width_mm` wide, never below
     the legible minimum. A cell keeps `c_margin` free at each side, which is what text may not
     use; a value wider than that wraps onto a second line."""
-    # fpdf2 annotates the size as `int`, but it takes any number of points.
-    # pyrefly: ignore [bad-argument-type]
     pdf.set_font("LiberationSans", style="B" if bold else "", size=size_pt)
     text_width = pdf.get_string_width(text)
     available = width_mm - 2 * pdf.c_margin - _FIT_MARGIN_MM
@@ -469,8 +467,6 @@ def _build_pdf(
     ) -> FontFace:
         return FontFace(
             family="LiberationSans",
-            # fpdf2 annotates the size as `int`, but it takes any number of points.
-            # pyrefly: ignore [bad-argument-type]
             size_pt=size_pt,
             emphasis="B" if bold else "",
             color=color,
@@ -497,15 +493,11 @@ def _build_pdf(
     entries_by_row = _entries_by_row(rows)
 
     with pdf.table(
-        # fpdf2 annotates the widths as `int`, but they are millimetres and may be fractional.
-        # pyrefly: ignore [bad-argument-type]
         col_widths=col_widths,
         borders_layout=_TimesheetBordersLayout(),
         first_row_as_headings=True,
         text_align="CENTER",
         markdown=True,
-        # Likewise a fractional millimetre height, annotated as `int`.
-        # pyrefly: ignore [bad-argument-type]
         line_height=line_height,
         padding=cell_padding,
     ) as table:

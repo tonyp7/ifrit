@@ -169,8 +169,6 @@ def test_a_fitted_value_never_wraps_onto_a_second_line(monkeypatch):
 
     for text in ["0.125", "0.625", "107.5", "12.375", "1234.5"]:
         size = svc._fit_font_size(pdf, text, bold=True, size_pt=7, width_mm=day_w)
-        # fpdf2 annotates the size as `int`, but it takes any number of points.
-        # pyrefly: ignore [bad-argument-type]
         pdf.set_font("LiberationSans", style="B", size=size)
         assert pdf.get_string_width(text) + 2 * pdf.c_margin <= day_w or (
             size == svc._MIN_FIT_FONT_PT
