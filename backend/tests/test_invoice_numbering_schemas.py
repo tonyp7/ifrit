@@ -123,6 +123,11 @@ def test_next_number_bounds() -> None:
     NextNumberWrite(next_value=0)
     NextNumberWrite(next_value=9_999_999_999)
     with pytest.raises(ValidationError):
+        # Deliberately out of range: this is the validation error under test, so the type
+        # checker's own bounds check on the literal is expected.
+        # pyrefly: ignore [bad-argument-type]
         NextNumberWrite.model_validate({"next_value": -1})
     with pytest.raises(ValidationError):
+        # Deliberately above the maximum, for the same reason as the lower bound above.
+        # pyrefly: ignore [bad-argument-type]
         NextNumberWrite.model_validate({"next_value": 10_000_000_000})

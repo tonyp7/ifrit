@@ -1,5 +1,6 @@
 import uuid
-from datetime import UTC, date, datetime, timedelta
+from datetime import UTC, datetime, timedelta
+from datetime import date as date_type
 
 from sqlalchemy import (
     CheckConstraint,
@@ -34,7 +35,9 @@ class TimeEntry(Base):
         ForeignKey("service_lines.id", ondelete="CASCADE"),
         nullable=False,
     )
-    date: Mapped[date] = mapped_column(Date, nullable=False)
+    # `date_type` because this column is itself named `date`: inside the class body the bare name
+    # would refer to the column, not to the type.
+    date: Mapped[date_type] = mapped_column(Date, nullable=False)
     # Deliberately INTERVAL, not TIME: TIME's natural 24:00:00 ceiling looked like it
     # enforced the domain constraint for free, but asyncpg binds/decodes TIME exclusively
     # via datetime.time (hour capped at 23) and can neither write nor read back 24:00:00:
